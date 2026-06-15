@@ -1,7 +1,7 @@
 #!/usr/bin/env swift
 // eval-extraction.swift
 //
-// Runs the Qwen3-VL wine extraction prompt against every image in resources/
+// Runs the Qwen3-VL wine extraction prompt against every image in resources/images/
 // and reports per-photo and aggregate results.
 //
 // Usage:
@@ -220,12 +220,12 @@ do {
         .map(\.path)
         .sorted()
 } catch {
-    print("ERROR: could not read resources/ directory: \(error)")
+    print("ERROR: could not read resources/images/ directory: \(error)")
     exit(1)
 }
 
 guard !photoPaths.isEmpty else {
-    print("ERROR: no image files found in resources/")
+    print("ERROR: no image files found in resources/images/")
     exit(1)
 }
 
