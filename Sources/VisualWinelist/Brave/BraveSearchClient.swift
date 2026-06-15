@@ -2,15 +2,17 @@ import Foundation
 
 struct BraveSearchClient: Sendable {
     private let apiKey: String
+    private let rateLimiter: RateLimiter
     private static let searchURL = URL(string: "https://api.search.brave.com/res/v1/images/search")!
-    private static let maxConcurrent = 5
 
     init(apiKey: String) {
         self.apiKey = apiKey
+        self.rateLimiter = RateLimiter(requestsPerSecond: 1)
     }
 
     // Returns image data for the wine, or nil if no portrait bottle image is found.
     func fetchBottleImage(for wine: WineObject) async -> Data? {
+        await rateLimiter.wait()
         let query = "\(wine.name) \(wine.vintage ?? "") wine bottle"
 
         var components = URLComponents(url: Self.searchURL, resolvingAgainstBaseURL: false)!
@@ -42,14 +44,11 @@ struct BraveSearchClient: Sendable {
         return nil
     }
 
-    // Fetch images for multiple wines with a sliding window of 5 concurrent requests.
+    // Fetch images for multiple wines. Rate-limited to 1 req/sec by the shared RateLimiter.
     func fetchImages(for wines: [WineObject]) async -> [(WineObject, Data?)] {
-        let semaphore = AsyncSemaphore(value: Self.maxConcurrent)
         return await withTaskGroup(of: (WineObject, Data?).self) { group in
             for wine in wines {
                 group.addTask {
-                    await semaphore.wait()
-                    defer { Task { await semaphore.signal() } }
                     let data = await self.fetchBottleImage(for: wine)
                     return (wine, data)
                 }
@@ -77,28 +76,21 @@ struct BraveSearchClient: Sendable {
     }
 }
 
-// Actor-based semaphore for capping concurrent URLSession tasks.
-actor AsyncSemaphore {
-    private var count: Int
-    private var waiters: [CheckedContinuation<Void, Never>] = []
+// Enforces a minimum interval between Brave API calls (Free plan: 1 req/sec).
+actor RateLimiter {
+    private let minimumInterval: TimeInterval
+    private var lastFireDate: Date = .distantPast
 
-    init(value: Int) { self.count = value }
-
-    func wait() async {
-        if count > 0 {
-            count -= 1
-        } else {
-            await withCheckedContinuation { continuation in
-                waiters.append(continuation)
-            }
-        }
+    init(requestsPerSecond: Double) {
+        self.minimumInterval = 1.0 / requestsPerSecond
     }
 
-    func signal() {
-        if waiters.isEmpty {
-            count += 1
-        } else {
-            waiters.removeFirst().resume()
+    func wait() async {
+        let elapsed = Date().timeIntervalSince(lastFireDate)
+        if elapsed < minimumInterval {
+            let delay = UInt64((minimumInterval - elapsed) * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: delay)
         }
+        lastFireDate = Date()
     }
 }

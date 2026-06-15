@@ -73,15 +73,27 @@ struct OllamaClient: Sendable {
     // MARK: - Private
 
     private func startStream(imageData: Data) async throws -> AsyncThrowingStream<String, Error> {
+        // Uses /api/chat with an assistant pre-fill of "{" to bypass Qwen3-VL's thinking mode.
+        // Without the pre-fill, the model exhausts its generation budget reasoning internally
+        // and produces zero response tokens.
         let body: [String: Any] = [
             "model": model,
-            "prompt": WineExtractionPrompt.text,
-            "images": [imageData.base64EncodedString()],
+            "messages": [
+                [
+                    "role": "user",
+                    "content": WineExtractionPrompt.text,
+                    "images": [imageData.base64EncodedString()]
+                ],
+                [
+                    "role": "assistant",
+                    "content": "{"
+                ]
+            ],
             "stream": true,
             "options": ["temperature": 0.1]
         ]
 
-        var request = URLRequest(url: baseURL.appending(path: "/api/generate"))
+        var request = URLRequest(url: baseURL.appending(path: "/api/chat"))
         request.httpMethod = "POST"
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -94,13 +106,16 @@ struct OllamaClient: Sendable {
 
         return AsyncThrowingStream { inner in
             Task {
+                // First token is the continuation of the pre-filled "{" — prepend it.
+                var firstToken = true
                 var lineBuffer = ""
                 do {
                     for try await byte in bytes {
                         guard let char = String(bytes: [byte], encoding: .utf8) else { continue }
                         lineBuffer += char
                         if char == "\n" {
-                            if let token = parseChunkToken(lineBuffer) {
+                            if var token = parseChunkToken(lineBuffer) {
+                                if firstToken { token = "{" + token; firstToken = false }
                                 inner.yield(token)
                             }
                             lineBuffer = ""
@@ -115,7 +130,8 @@ struct OllamaClient: Sendable {
     }
 
     private struct OllamaChunk: Decodable {
-        let response: String?
+        struct Message: Decodable { let content: String? }
+        let message: Message?
         let done: Bool?
     }
 
@@ -123,7 +139,7 @@ struct OllamaClient: Sendable {
         guard let data = line.data(using: .utf8),
               let chunk = try? JSONDecoder().decode(OllamaChunk.self, from: data),
               chunk.done != true else { return nil }
-        return chunk.response
+        return chunk.message?.content
     }
 
     private func tryParse(_ json: String) -> WineObject? {

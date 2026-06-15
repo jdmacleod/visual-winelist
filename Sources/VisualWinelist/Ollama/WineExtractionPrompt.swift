@@ -9,7 +9,7 @@ enum WineExtractionPrompt {
     Output exactly one JSON object per line (JSONL format). No surrounding array. No markdown. No explanation.
 
     Each line must be valid JSON with this exact schema:
-    {"name":"...","producer":"...","vintage":"...","variety":"...","appellation":"...","price":"...","description":"...","listSection":"...","rawText":"...","confidence":0.0}
+    {"name":"...","producer":"...","vintage":"...","variety":"...","appellation":"...","price":"...","description":"...","listSection":"...","rawText":"...","confidence":0.95}
 
     Field rules:
     - name: wine name as printed on the list (required)
