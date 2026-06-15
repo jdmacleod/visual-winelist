@@ -207,7 +207,7 @@ func extractWines(from imagePath: String) -> PhotoResult {
 // MARK: - Discover photos
 
 let resourcesDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-    .appendingPathComponent("resources")
+    .appendingPathComponent("resources/images")
 
 let extensions = Set(["jpg", "jpeg", "png", "webp"])
 let photoPaths: [String]
