@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Camera access for scanning wine lists -->
+    <key>com.apple.security.device.camera</key>
+    <true/>
+    <!-- Network access for Brave Search API and Ollama localhost -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    <!-- Write image cache to ~/.visual-winelist/ -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+    <key>com.apple.security.temporary-exception.files.home-relative-path.read-write</key>
+    <array>
+        <string>/.visual-winelist/</string>
+    </array>
+</dict>
+</plist>
