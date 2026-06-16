@@ -1,5 +1,11 @@
 # Visual Winelist
 
+[![CI](https://github.com/jdmacleod/visual-winelist/actions/workflows/ci.yml/badge.svg)](https://github.com/jdmacleod/visual-winelist/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/jdmacleod/visual-winelist)](https://github.com/jdmacleod/visual-winelist/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Platform: macOS 14+](https://img.shields.io/badge/platform-macOS%2014%2B-lightgrey.svg)](https://github.com/jdmacleod/visual-winelist)
+[![Swift 5.9+](https://img.shields.io/badge/swift-5.9%2B-orange.svg)](https://swift.org)
+
 A macOS app that turns a photo of a restaurant wine list into a visual grid of tappable bottle images.
 
 Point your Mac's camera at a printed or handwritten wine list, tap to capture, and Visual Winelist extracts every wine it can read — name, vintage, grape, region, price — then looks up a bottle photo for each one. Tap any bottle to see full details.
