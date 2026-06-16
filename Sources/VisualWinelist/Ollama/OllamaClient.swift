@@ -41,6 +41,7 @@ struct OllamaClient: Sendable {
 
                             if line.hasPrefix("{"), let wine = tryParse(line) {
                                 wineCount += 1
+                                print("[Ollama] \(wine.name) \(wine.vintage ?? "NV") conf=\(String(format: "%.2f", wine.confidence)) raw='\(wine.rawText.map { String($0.prefix(100)) } ?? "(none)")'")
                                 continuation.yield(wine)
                             }
                         }
@@ -49,6 +50,7 @@ struct OllamaClient: Sendable {
                         if trimmed.hasPrefix("{") && trimmed.hasSuffix("}") {
                             if let wine = tryParse(trimmed) {
                                 wineCount += 1
+                                print("[Ollama] \(wine.name) \(wine.vintage ?? "NV") conf=\(String(format: "%.2f", wine.confidence)) raw='\(wine.rawText.map { String($0.prefix(100)) } ?? "(none)")'")
                                 continuation.yield(wine)
                                 tokenBuffer = ""
                             }
