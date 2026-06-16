@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test-lint:
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift test
+
+      - name: Lint (swift-format)
+        run: swift format lint -r --configuration .swift-format Sources Tests Scripts

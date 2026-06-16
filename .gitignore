@@ -1,3 +1,13 @@
 .build/
 .swiftpm/
 resources/images/
+
+# macOS
+.DS_Store
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+*.dSYM
+*.dSYM.zip
