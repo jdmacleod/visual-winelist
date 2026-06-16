@@ -32,10 +32,12 @@ struct WineGridView: View {
             Divider()
             toolbar
         }
-        .sheet(item: Binding(
-            get: { viewModel.selectedWine.flatMap { w in viewModel.wines.first(where: { $0.wine == w }) } },
-            set: { _ in viewModel.selectedWine = nil }
-        )) { state in
+        .sheet(
+            item: Binding(
+                get: { viewModel.selectedWine.flatMap { w in viewModel.wines.first(where: { $0.wine == w }) } },
+                set: { _ in viewModel.selectedWine = nil }
+            )
+        ) { state in
             WineDetailView(state: state)
         }
     }

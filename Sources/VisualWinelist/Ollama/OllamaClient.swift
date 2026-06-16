@@ -41,7 +41,9 @@ struct OllamaClient: Sendable {
 
                             if line.hasPrefix("{"), let wine = tryParse(line) {
                                 wineCount += 1
-                                print("[Ollama] \(wine.name) \(wine.vintage ?? "NV") conf=\(String(format: "%.2f", wine.confidence)) raw='\(wine.rawText.map { String($0.prefix(100)) } ?? "(none)")'")
+                                print(
+                                    "[Ollama] \(wine.name) \(wine.vintage ?? "NV") conf=\(String(format: "%.2f", wine.confidence)) raw='\(wine.rawText.map { String($0.prefix(100)) } ?? "(none)")'"
+                                )
                                 continuation.yield(wine)
                             }
                         }
@@ -50,7 +52,9 @@ struct OllamaClient: Sendable {
                         if trimmed.hasPrefix("{") && trimmed.hasSuffix("}") {
                             if let wine = tryParse(trimmed) {
                                 wineCount += 1
-                                print("[Ollama] \(wine.name) \(wine.vintage ?? "NV") conf=\(String(format: "%.2f", wine.confidence)) raw='\(wine.rawText.map { String($0.prefix(100)) } ?? "(none)")'")
+                                print(
+                                    "[Ollama] \(wine.name) \(wine.vintage ?? "NV") conf=\(String(format: "%.2f", wine.confidence)) raw='\(wine.rawText.map { String($0.prefix(100)) } ?? "(none)")'"
+                                )
                                 continuation.yield(wine)
                                 tokenBuffer = ""
                             }
@@ -62,8 +66,10 @@ struct OllamaClient: Sendable {
                     } else {
                         continuation.finish()
                     }
-                } catch let urlError as URLError where urlError.code == .cannotConnectToHost
-                                                       || urlError.code == .networkConnectionLost {
+                } catch let urlError as URLError
+                    where urlError.code == .cannotConnectToHost
+                    || urlError.code == .networkConnectionLost
+                {
                     continuation.finish(throwing: OllamaError.connectionRefused)
                 } catch {
                     continuation.finish(throwing: error)
@@ -84,15 +90,15 @@ struct OllamaClient: Sendable {
                 [
                     "role": "user",
                     "content": WineExtractionPrompt.text,
-                    "images": [imageData.base64EncodedString()]
+                    "images": [imageData.base64EncodedString()],
                 ],
                 [
                     "role": "assistant",
-                    "content": "{"
-                ]
+                    "content": "{",
+                ],
             ],
             "stream": true,
-            "options": ["temperature": 0.1]
+            "options": ["temperature": 0.1],
         ]
 
         var request = URLRequest(url: baseURL.appending(path: "/api/chat"))
@@ -139,8 +145,9 @@ struct OllamaClient: Sendable {
 
     private func parseChunkToken(_ line: String) -> String? {
         guard let data = line.data(using: .utf8),
-              let chunk = try? JSONDecoder().decode(OllamaChunk.self, from: data),
-              chunk.done != true else { return nil }
+            let chunk = try? JSONDecoder().decode(OllamaChunk.self, from: data),
+            chunk.done != true
+        else { return nil }
         return chunk.message?.content
     }
 

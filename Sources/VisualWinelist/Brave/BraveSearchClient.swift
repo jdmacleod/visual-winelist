@@ -27,7 +27,7 @@ struct BraveSearchClient: Sendable {
             // filter can easily zero out every candidate even though Brave's own UI
             // (which surfaces dozens of results) clearly has usable bottle photos.
             URLQueryItem(name: "count", value: "20"),
-            URLQueryItem(name: "search_lang", value: "en")
+            URLQueryItem(name: "search_lang", value: "en"),
         ]
         guard let url = components.url else {
             print("[Brave] could not build request URL for '\(query)'")
@@ -73,7 +73,9 @@ struct BraveSearchClient: Sendable {
         for (idx, result) in allResults.enumerated() {
             let w = result.properties?.width
             let h = result.properties?.height
-            let ratio: Double? = (w.flatMap { ww in h.map { hh in (ww, hh) } }).map { ww, hh in ww > 0 ? Double(hh) / Double(ww) : 0 }
+            let ratio: Double? = (w.flatMap { ww in h.map { hh in (ww, hh) } }).map { ww, hh in
+                ww > 0 ? Double(hh) / Double(ww) : 0
+            }
             let dims = "\(w.map(String.init) ?? "?")x\(h.map(String.init) ?? "?")"
             let ratioStr = ratio.map { String(format: "%.2f", $0) } ?? "n/a"
             let thumb = result.thumbnail?.src ?? "(no thumbnail)"
@@ -98,7 +100,9 @@ struct BraveSearchClient: Sendable {
                 print("[Brave]   candidate \(idx) download failed (\(reason)): \(src)")
             }
         }
-        print("[Brave] no usable image for '\(query)' — \(allResults.count) results, \(portraitCount) portrait, all \(min(ranked.count, 8)) attempted downloads failed")
+        print(
+            "[Brave] no usable image for '\(query)' — \(allResults.count) results, \(portraitCount) portrait, all \(min(ranked.count, 8)) attempted downloads failed"
+        )
         return nil
     }
 

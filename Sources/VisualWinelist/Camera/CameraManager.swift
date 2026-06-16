@@ -89,7 +89,7 @@ class CameraManager: NSObject, ObservableObject {
             session.sessionPreset = .photo
 
             guard let device = AVCaptureDevice.default(for: .video),
-                  let input = try? AVCaptureDeviceInput(device: device)
+                let input = try? AVCaptureDeviceInput(device: device)
             else {
                 session.commitConfiguration()
                 return false
@@ -120,7 +120,9 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
         // Extract data here (nonisolated) before crossing to MainActor — Data is Sendable.
         let capturedData: Data? = error == nil ? photo.fileDataRepresentation() : nil
         let capturedError = error
-        print("[Camera] didFinishProcessingPhoto: error=\(capturedError?.localizedDescription ?? "nil") dataBytes=\(capturedData?.count ?? -1)")
+        print(
+            "[Camera] didFinishProcessingPhoto: error=\(capturedError?.localizedDescription ?? "nil") dataBytes=\(capturedData?.count ?? -1)"
+        )
 
         Task { @MainActor in
             if let capturedError {

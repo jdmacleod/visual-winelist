@@ -6,7 +6,8 @@ actor ImageCache {
 
     init() {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        cacheDirectory = home
+        cacheDirectory =
+            home
             .appendingPathComponent(".visual-winelist")
             .appendingPathComponent("image-cache")
         try? FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)

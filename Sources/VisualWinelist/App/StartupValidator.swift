@@ -7,16 +7,16 @@ enum StartupError: Error, LocalizedError {
         switch self {
         case .missingBraveAPIKey:
             return """
-            BRAVE_API_KEY is not set.
+                BRAVE_API_KEY is not set.
 
-            visual-winelist uses the Brave Search API for bottle images.
-            Get a free API key at https://brave.com/search/api/ then set it:
+                visual-winelist uses the Brave Search API for bottle images.
+                Get a free API key at https://brave.com/search/api/ then set it:
 
-                export BRAVE_API_KEY=your_key_here
+                    export BRAVE_API_KEY=your_key_here
 
-            Add that line to your shell profile (~/.zshrc or ~/.bash_profile) \
-            and relaunch the app.
-            """
+                Add that line to your shell profile (~/.zshrc or ~/.bash_profile) \
+                and relaunch the app.
+                """
         }
     }
 }

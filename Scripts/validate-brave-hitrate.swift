@@ -70,11 +70,11 @@ enum FailureReason: CustomStringConvertible {
 
     var description: String {
         switch self {
-        case .networkError(let msg):         return "network error: \(msg)"
+        case .networkError(let msg): return "network error: \(msg)"
         case .httpError(let code, let body): return "HTTP \(code): \(body.prefix(120))"
-        case .decodeError(let msg):          return "JSON decode failed: \(msg)"
-        case .noResults:                     return "Brave returned 0 results"
-        case .noDimensionData(let n):        return "\(n) result(s) returned, but none have h/w dimension data"
+        case .decodeError(let msg): return "JSON decode failed: \(msg)"
+        case .noResults: return "Brave returned 0 results"
+        case .noDimensionData(let n): return "\(n) result(s) returned, but none have h/w dimension data"
         case .portraitFilterFailed(let rs):
             let formatted = rs.map { String(format: "%.2f", $0) }.joined(separator: ", ")
             return "portrait filter failed — ratios: [\(formatted)] (need h/w > 1.2)"
@@ -88,10 +88,10 @@ struct QueryResult {
     let query: String
     let httpStatus: Int?
     // Breakdown of what Brave actually returned
-    let rawResultCount: Int         // total results in response
-    let withDimensionsCount: Int    // results that have h/w data
-    let allRatios: [Double]         // h/w for every result that has dimensions
-    let portraitURL: String?        // first URL passing the portrait filter
+    let rawResultCount: Int  // total results in response
+    let withDimensionsCount: Int  // results that have h/w data
+    let allRatios: [Double]  // h/w for every result that has dimensions
+    let portraitURL: String?  // first URL passing the portrait filter
     let failureReason: FailureReason?
 
     var isPortrait: Bool { portraitURL != nil }
@@ -136,12 +136,13 @@ for (idx, wine) in testWines.enumerated() {
         URLQueryItem(name: "search_lang", value: "en"),
     ]
     guard let url = components.url else {
-        results.append(QueryResult(
-            wine: wine.name, tier: wine.tier, query: query,
-            httpStatus: nil, rawResultCount: 0, withDimensionsCount: 0,
-            allRatios: [], portraitURL: nil,
-            failureReason: .networkError("could not build URL")
-        ))
+        results.append(
+            QueryResult(
+                wine: wine.name, tier: wine.tier, query: query,
+                httpStatus: nil, rawResultCount: 0, withDimensionsCount: 0,
+                allRatios: [], portraitURL: nil,
+                failureReason: .networkError("could not build URL")
+            ))
         continue
     }
 
@@ -257,7 +258,9 @@ for (idx, wine) in testWines.enumerated() {
             )
             results.append(result)
             let ratioStr = allRatios.map { String(format: "%.2f", $0) }.joined(separator: ", ")
-            log("[\(n)/\(testWines.count)] ~ \(wine.name) — \(rawCount) results, ratios: [\(ratioStr)] — portrait filter rejected all")
+            log(
+                "[\(n)/\(testWines.count)] ~ \(wine.name) — \(rawCount) results, ratios: [\(ratioStr)] — portrait filter rejected all"
+            )
             return
         }
 
@@ -270,7 +273,9 @@ for (idx, wine) in testWines.enumerated() {
         )
         results.append(result)
         let ratioStr = allRatios.map { String(format: "%.2f", $0) }.joined(separator: ", ")
-        log("[\(n)/\(testWines.count)] ✓ \(wine.name) — \(rawCount) results, ratios: [\(ratioStr)], portrait h/w=\(String(format: "%.2f", portraitRatio))")
+        log(
+            "[\(n)/\(testWines.count)] ✓ \(wine.name) — \(rawCount) results, ratios: [\(ratioStr)], portrait h/w=\(String(format: "%.2f", portraitRatio))"
+        )
         if verbose, let thumbURL = portraitResult.thumbnail?.src {
             log("    url: \(thumbURL)")
         }
@@ -290,7 +295,9 @@ for tier in ["flagship", "regional", "obscure"] {
     let portrait = group.filter { $0.isPortrait }.count
     let anyResult = group.filter { $0.hasAnyResult }.count
     let hasDims = group.filter { $0.hasDimensionData }.count
-    print("\n[\(tier.uppercased())] \(portrait)/\(group.count) portrait | \(hasDims)/\(group.count) have dimensions | \(anyResult)/\(group.count) any result")
+    print(
+        "\n[\(tier.uppercased())] \(portrait)/\(group.count) portrait | \(hasDims)/\(group.count) have dimensions | \(anyResult)/\(group.count) any result"
+    )
 
     for r in group {
         let marker = r.isPortrait ? "✓" : r.failureReason == nil ? "?" : "✗"
@@ -306,12 +313,42 @@ for tier in ["flagship", "regional", "obscure"] {
 
 // Failure breakdown by category
 let categories: [(String, (QueryResult) -> Bool)] = [
-    ("network error",        { if case .networkError = $0.failureReason { return true }; return false }),
-    ("HTTP error",           { if case .httpError = $0.failureReason { return true }; return false }),
-    ("JSON decode error",    { if case .decodeError = $0.failureReason { return true }; return false }),
-    ("0 results from Brave", { if case .noResults = $0.failureReason { return true }; return false }),
-    ("no dimension data",    { if case .noDimensionData = $0.failureReason { return true }; return false }),
-    ("portrait filter fail", { if case .portraitFilterFailed = $0.failureReason { return true }; return false }),
+    (
+        "network error",
+        {
+            if case .networkError = $0.failureReason { return true }; return false
+        }
+    ),
+    (
+        "HTTP error",
+        {
+            if case .httpError = $0.failureReason { return true }; return false
+        }
+    ),
+    (
+        "JSON decode error",
+        {
+            if case .decodeError = $0.failureReason { return true }; return false
+        }
+    ),
+    (
+        "0 results from Brave",
+        {
+            if case .noResults = $0.failureReason { return true }; return false
+        }
+    ),
+    (
+        "no dimension data",
+        {
+            if case .noDimensionData = $0.failureReason { return true }; return false
+        }
+    ),
+    (
+        "portrait filter fail",
+        {
+            if case .portraitFilterFailed = $0.failureReason { return true }; return false
+        }
+    ),
 ]
 
 let failures = results.filter { $0.failureReason != nil }
@@ -327,13 +364,15 @@ if !failures.isEmpty {
 let allRatiosFlat = results.flatMap { $0.allRatios }
 if !allRatiosFlat.isEmpty {
     let passing = allRatiosFlat.filter { $0 > 1.2 }.count
-    let total_r = allRatiosFlat.count
-    let avg = allRatiosFlat.reduce(0, +) / Double(total_r)
-    let max_r = allRatiosFlat.max()!
-    let min_r = allRatiosFlat.min()!
-    print("\n─ Ratio distribution across \(total_r) images with dimension data ─")
-    print("  passing portrait filter (>1.2): \(passing)/\(total_r) (\(Int(Double(passing)/Double(total_r)*100))%)")
-    print("  avg h/w: \(String(format: "%.2f", avg))  min: \(String(format: "%.2f", min_r))  max: \(String(format: "%.2f", max_r))")
+    let totalR = allRatiosFlat.count
+    let avg = allRatiosFlat.reduce(0, +) / Double(totalR)
+    let maxR = allRatiosFlat.max()!
+    let minR = allRatiosFlat.min()!
+    print("\n─ Ratio distribution across \(totalR) images with dimension data ─")
+    print("  passing portrait filter (>1.2): \(passing)/\(totalR) (\(Int(Double(passing)/Double(totalR)*100))%)")
+    print(
+        "  avg h/w: \(String(format: "%.2f", avg))  min: \(String(format: "%.2f", minR))  max: \(String(format: "%.2f", maxR))"
+    )
 }
 
 // Totals
@@ -344,7 +383,9 @@ let total = results.count
 
 print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 print("TOTALS (\(total) queries)")
-print("  \(totalPortrait)/\(total) (\(Int(Double(totalPortrait)/Double(total)*100))%) — portrait bottle image found ← primary metric")
+print(
+    "  \(totalPortrait)/\(total) (\(Int(Double(totalPortrait)/Double(total)*100))%) — portrait bottle image found ← primary metric"
+)
 print("  \(totalDims)/\(total) (\(Int(Double(totalDims)/Double(total)*100))%) — results with dimension data")
 print("  \(totalAny)/\(total) (\(Int(Double(totalAny)/Double(total)*100))%) — any result returned by Brave")
 print("TARGET: ≥70% portrait for v1 viability")

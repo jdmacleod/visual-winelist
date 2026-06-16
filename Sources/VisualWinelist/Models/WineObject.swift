@@ -15,7 +15,6 @@ struct WineObject: Codable, Identifiable, Equatable, Sendable {
     var id: String { "\(name.lowercased())-\(vintage ?? "nv")" }
 
     static func == (lhs: WineObject, rhs: WineObject) -> Bool {
-        lhs.name.lowercased() == rhs.name.lowercased() &&
-        lhs.vintage?.lowercased() == rhs.vintage?.lowercased()
+        lhs.name.lowercased() == rhs.name.lowercased() && lhs.vintage?.lowercased() == rhs.vintage?.lowercased()
     }
 }

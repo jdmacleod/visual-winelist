@@ -16,7 +16,7 @@ struct WineBottleCard: View {
             }
         }
         .buttonStyle(.plain)
-        .aspectRatio(3/4, contentMode: .fit)
+        .aspectRatio(3 / 4, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
     }
@@ -113,15 +113,21 @@ struct PlaceholderBottle: View {
 
     private func regionFlag(for appellation: String) -> String {
         let lower = appellation.lowercased()
-        if lower.contains("bordeaux") || lower.contains("burgundy") ||
-           lower.contains("champagne") || lower.contains("france") { return "🇫🇷" }
-        if lower.contains("napa") || lower.contains("sonoma") ||
-           lower.contains("california") || lower.contains("oregon") ||
-           lower.contains("washington") { return "🇺🇸" }
-        if lower.contains("tuscany") || lower.contains("barolo") ||
-           lower.contains("italy") || lower.contains("sicily") { return "🇮🇹" }
-        if lower.contains("rioja") || lower.contains("spain") ||
-           lower.contains("priorat") { return "🇪🇸" }
+        if lower.contains("bordeaux") || lower.contains("burgundy") || lower.contains("champagne")
+            || lower.contains("france")
+        {
+            return "🇫🇷"
+        }
+        if lower.contains("napa") || lower.contains("sonoma") || lower.contains("california")
+            || lower.contains("oregon") || lower.contains("washington")
+        {
+            return "🇺🇸"
+        }
+        if lower.contains("tuscany") || lower.contains("barolo") || lower.contains("italy") || lower.contains("sicily")
+        {
+            return "🇮🇹"
+        }
+        if lower.contains("rioja") || lower.contains("spain") || lower.contains("priorat") { return "🇪🇸" }
         if lower.contains("argentina") || lower.contains("mendoza") { return "🇦🇷" }
         if lower.contains("chile") { return "🇨🇱" }
         if lower.contains("australia") || lower.contains("barossa") { return "🇦🇺" }

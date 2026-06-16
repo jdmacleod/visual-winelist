@@ -19,27 +19,27 @@ let model = "qwen3-vl:8b"
 // MARK: - Prompt (mirror of WineExtractionPrompt.swift)
 
 let extractionPrompt = """
-You are analyzing a photo of a restaurant wine list. Extract every wine you can identify.
+    You are analyzing a photo of a restaurant wine list. Extract every wine you can identify.
 
-Output exactly one JSON object per line (JSONL format). No surrounding array. No markdown. No explanation.
+    Output exactly one JSON object per line (JSONL format). No surrounding array. No markdown. No explanation.
 
-Each line must be valid JSON with this exact schema:
-{"name":"...","producer":"...","vintage":"...","variety":"...","appellation":"...","price":"...","description":"...","listSection":"...","rawText":"...","confidence":0.95}
+    Each line must be valid JSON with this exact schema:
+    {"name":"...","producer":"...","vintage":"...","variety":"...","appellation":"...","price":"...","description":"...","listSection":"...","rawText":"...","confidence":0.95}
 
-Field rules:
-- name: wine name as printed on the list (required)
-- producer: winery or producer name; often the same as name (null if unclear)
-- vintage: 4-digit year as a string, e.g. "2019" (null if not shown)
-- variety: grape variety or blend, e.g. "Cabernet Sauvignon" (null if not shown)
-- appellation: region or appellation, e.g. "Napa Valley, California" (null if not shown)
-- price: price as printed including currency symbol, e.g. "$48" or "48" (null if not shown)
-- description: any tasting notes or description from the list (null if none)
-- listSection: the section header under which this wine appears, e.g. "Red Wines" or "By the Glass" (null if no section header)
-- rawText: the complete original text for this wine entry as it appears on the list
-- confidence: float from 0.0 to 1.0 — your certainty that name and vintage are correctly extracted. Use 0.9+ for clear text, 0.6-0.8 for partially legible text, below 0.6 for guesses.
+    Field rules:
+    - name: wine name as printed on the list (required)
+    - producer: winery or producer name; often the same as name (null if unclear)
+    - vintage: 4-digit year as a string, e.g. "2019" (null if not shown)
+    - variety: grape variety or blend, e.g. "Cabernet Sauvignon" (null if not shown)
+    - appellation: region or appellation, e.g. "Napa Valley, California" (null if not shown)
+    - price: price as printed including currency symbol, e.g. "$48" or "48" (null if not shown)
+    - description: any tasting notes or description from the list (null if none)
+    - listSection: the section header under which this wine appears, e.g. "Red Wines" or "By the Glass" (null if no section header)
+    - rawText: the complete original text for this wine entry as it appears on the list
+    - confidence: float from 0.0 to 1.0 — your certainty that name and vintage are correctly extracted. Use 0.9+ for clear text, 0.6-0.8 for partially legible text, below 0.6 for guesses.
 
-Output ONLY JSON lines. One wine per line. No other text.
-"""
+    Output ONLY JSON lines. One wine per line. No other text.
+    """
 
 // MARK: - Types
 
@@ -76,9 +76,9 @@ func imageData(for path: String) -> Data? {
 func mimeType(for path: String) -> String {
     switch (path as NSString).pathExtension.lowercased() {
     case "jpg", "jpeg": return "image/jpeg"
-    case "png":         return "image/png"
-    case "webp":        return "image/webp"
-    default:            return "image/jpeg"
+    case "png": return "image/png"
+    case "webp": return "image/webp"
+    default: return "image/jpeg"
     }
 }
 
@@ -108,9 +108,10 @@ func extractWines(from imagePath: String) -> PhotoResult {
     let start = Date()
 
     guard let imgData = toJpegData(path: imagePath) else {
-        return PhotoResult(filename: filename, wines: [], parseErrors: [],
-                          httpStatus: nil, networkError: "could not read/convert file",
-                          rawLineCount: 0, durationSeconds: 0)
+        return PhotoResult(
+            filename: filename, wines: [], parseErrors: [],
+            httpStatus: nil, networkError: "could not read/convert file",
+            rawLineCount: 0, durationSeconds: 0)
     }
 
     let b64 = imgData.base64EncodedString()
@@ -119,17 +120,19 @@ func extractWines(from imagePath: String) -> PhotoResult {
         "model": model,
         "messages": [
             ["role": "user", "content": extractionPrompt, "images": [b64]],
-            ["role": "assistant", "content": "{"]
+            ["role": "assistant", "content": "{"],
         ],
         "stream": false,
-        "options": ["temperature": 0.1]
+        "options": ["temperature": 0.1],
     ]
 
     guard let url = URL(string: "\(ollamaBase)/api/chat"),
-          let bodyData = try? JSONSerialization.data(withJSONObject: body) else {
-        return PhotoResult(filename: filename, wines: [], parseErrors: [],
-                          httpStatus: nil, networkError: "could not build request",
-                          rawLineCount: 0, durationSeconds: 0)
+        let bodyData = try? JSONSerialization.data(withJSONObject: body)
+    else {
+        return PhotoResult(
+            filename: filename, wines: [], parseErrors: [],
+            httpStatus: nil, networkError: "could not build request",
+            rawLineCount: 0, durationSeconds: 0)
     }
 
     var request = URLRequest(url: url)
@@ -154,31 +157,36 @@ func extractWines(from imagePath: String) -> PhotoResult {
     let duration = Date().timeIntervalSince(start)
 
     if let err = networkErrorMsg {
-        return PhotoResult(filename: filename, wines: [], parseErrors: [],
-                          httpStatus: httpStatus, networkError: err,
-                          rawLineCount: 0, durationSeconds: duration)
+        return PhotoResult(
+            filename: filename, wines: [], parseErrors: [],
+            httpStatus: httpStatus, networkError: err,
+            rawLineCount: 0, durationSeconds: duration)
     }
 
     guard httpStatus == 200, let responseData else {
-        return PhotoResult(filename: filename, wines: [], parseErrors: [],
-                          httpStatus: httpStatus, networkError: "HTTP \(httpStatus ?? -1)",
-                          rawLineCount: 0, durationSeconds: duration)
+        return PhotoResult(
+            filename: filename, wines: [], parseErrors: [],
+            httpStatus: httpStatus, networkError: "HTTP \(httpStatus ?? -1)",
+            rawLineCount: 0, durationSeconds: duration)
     }
 
     // /api/chat non-stream: message.content holds the response text.
     // Prepend "{" to restore the pre-filled opening brace.
     guard let envelope = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-          let message = envelope["message"] as? [String: Any],
-          let content = message["content"] as? String else {
+        let message = envelope["message"] as? [String: Any],
+        let content = message["content"] as? String
+    else {
         let preview = String(data: responseData, encoding: .utf8).map { String($0.prefix(200)) } ?? "(binary)"
-        return PhotoResult(filename: filename, wines: [], parseErrors: [("(envelope)", preview)],
-                          httpStatus: 200, networkError: nil,
-                          rawLineCount: 0, durationSeconds: duration)
+        return PhotoResult(
+            filename: filename, wines: [], parseErrors: [("(envelope)", preview)],
+            httpStatus: 200, networkError: nil,
+            rawLineCount: 0, durationSeconds: duration)
     }
     let rawText = "{" + content
 
     // Parse JSONL — one wine per line
-    let lines = rawText
+    let lines =
+        rawText
         .components(separatedBy: .newlines)
         .map { $0.trimmingCharacters(in: .whitespaces) }
         .filter { !$0.isEmpty }
@@ -199,9 +207,10 @@ func extractWines(from imagePath: String) -> PhotoResult {
         }
     }
 
-    return PhotoResult(filename: filename, wines: wines, parseErrors: parseErrors,
-                      httpStatus: 200, networkError: nil,
-                      rawLineCount: lines.count, durationSeconds: duration)
+    return PhotoResult(
+        filename: filename, wines: wines, parseErrors: parseErrors,
+        httpStatus: 200, networkError: nil,
+        rawLineCount: lines.count, durationSeconds: duration)
 }
 
 // MARK: - Discover photos
@@ -213,9 +222,11 @@ let extensions = Set(["jpg", "jpeg", "png", "webp"])
 let photoPaths: [String]
 
 do {
-    let items = try FileManager.default.contentsOfDirectory(at: resourcesDir,
+    let items = try FileManager.default.contentsOfDirectory(
+        at: resourcesDir,
         includingPropertiesForKeys: nil)
-    photoPaths = items
+    photoPaths =
+        items
         .filter { extensions.contains($0.pathExtension.lowercased()) }
         .map(\.path)
         .sorted()
@@ -296,7 +307,8 @@ let totalParseErrors = successful.flatMap { $0.parseErrors }.count
 let allConfidences = successful.flatMap { $0.wines }.compactMap { $0.confidence }
 let avgConf = allConfidences.isEmpty ? 0.0 : allConfidences.reduce(0, +) / Double(allConfidences.count)
 let lowConfCount = allConfidences.filter { $0 < 0.7 }.count
-let avgDuration = successful.isEmpty ? 0.0 : successful.map { $0.durationSeconds }.reduce(0, +) / Double(successful.count)
+let avgDuration =
+    successful.isEmpty ? 0.0 : successful.map { $0.durationSeconds }.reduce(0, +) / Double(successful.count)
 
 print("Per-photo breakdown:")
 print(String(repeating: "─", count: 76))
@@ -322,20 +334,28 @@ print("Total wines extracted:   \(totalWines) across \(successful.count)/\(allRe
 print("Avg wines per photo:     \(successful.isEmpty ? 0 : totalWines / successful.count)")
 print("Parse errors:            \(totalParseErrors)")
 print("Avg confidence:          \(String(format: "%.2f", avgConf))")
-print("Low-confidence (<0.7):   \(lowConfCount)/\(allConfidences.count) (\(allConfidences.isEmpty ? 0 : Int(Double(lowConfCount)/Double(allConfidences.count)*100))%)")
+print(
+    "Low-confidence (<0.7):   \(lowConfCount)/\(allConfidences.count) (\(allConfidences.isEmpty ? 0 : Int(Double(lowConfCount)/Double(allConfidences.count)*100))%)"
+)
 print("Avg inference time:      \(String(format: "%.1f", avgDuration))s per photo")
 
 // Section header coverage
 let winesWithSection = successful.flatMap { $0.wines }.filter { $0.listSection != nil }.count
-print("Section header captured: \(winesWithSection)/\(totalWines) wines (\(totalWines == 0 ? 0 : Int(Double(winesWithSection)/Double(totalWines)*100))%)")
+print(
+    "Section header captured: \(winesWithSection)/\(totalWines) wines (\(totalWines == 0 ? 0 : Int(Double(winesWithSection)/Double(totalWines)*100))%)"
+)
 
 // Vintage coverage
 let winesWithVintage = successful.flatMap { $0.wines }.filter { $0.vintage != nil }.count
-print("Vintage captured:        \(winesWithVintage)/\(totalWines) wines (\(totalWines == 0 ? 0 : Int(Double(winesWithVintage)/Double(totalWines)*100))%)")
+print(
+    "Vintage captured:        \(winesWithVintage)/\(totalWines) wines (\(totalWines == 0 ? 0 : Int(Double(winesWithVintage)/Double(totalWines)*100))%)"
+)
 
 // Price coverage
 let winesWithPrice = successful.flatMap { $0.wines }.filter { $0.price != nil }.count
-print("Price captured:          \(winesWithPrice)/\(totalWines) wines (\(totalWines == 0 ? 0 : Int(Double(winesWithPrice)/Double(totalWines)*100))%)")
+print(
+    "Price captured:          \(winesWithPrice)/\(totalWines) wines (\(totalWines == 0 ? 0 : Int(Double(winesWithPrice)/Double(totalWines)*100))%)"
+)
 
 print()
 if totalParseErrors == 0 && avgConf >= 0.8 && lowConfCount == 0 {
