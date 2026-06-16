@@ -61,12 +61,21 @@ struct ContentView: View {
 
             VStack {
                 Spacer()
-                Text("Point at wine list, then tap to scan")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.8))
-                    .padding(8)
-                    .background(.black.opacity(0.4), in: Capsule())
-                    .padding(.bottom, 20)
+                Group {
+                    if camera.isSessionRunning {
+                        Text("Point at wine list, then tap to scan")
+                    } else {
+                        HStack(spacing: 6) {
+                            ProgressView().scaleEffect(0.7).tint(.white)
+                            Text("Starting camera…")
+                        }
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.8))
+                .padding(8)
+                .background(.black.opacity(0.4), in: Capsule())
+                .padding(.bottom, 20)
             }
         }
         .contentShape(Rectangle())
