@@ -8,28 +8,34 @@ struct WineDetailView: View {
     private var wine: WineObject { state.wine }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                bottleImage
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 340)
-                    .clipped()
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    bottleImage
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 300)
+                        .clipped()
 
-                VStack(alignment: .leading, spacing: 20) {
-                    header
-                    if let description = wine.description { notes(description) }
-                    metadata
-                    if wine.confidence < 0.7 { confidenceWarning }
+                    VStack(alignment: .leading, spacing: 20) {
+                        header
+                        if let description = wine.description { notes(description) }
+                        metadata
+                        if wine.confidence < 0.7 { confidenceWarning }
+                        Divider()
+                        extractionDebug
+                    }
+                    .padding(24)
                 }
-                .padding(24)
+            }
+            .navigationTitle(wine.name)
+            .navigationSubtitle(wine.vintage ?? "")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
             }
         }
-        .frame(width: 420)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Done") { dismiss() }
-            }
-        }
+        .frame(width: 420, height: 620)
     }
 
     @ViewBuilder
@@ -41,10 +47,10 @@ struct WineDetailView: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                PlaceholderBottle(wine: wine).frame(height: 340)
+                PlaceholderBottle(wine: wine).frame(height: 300)
             }
         default:
-            PlaceholderBottle(wine: wine).frame(height: 340)
+            PlaceholderBottle(wine: wine).frame(height: 300)
         }
     }
 
@@ -102,6 +108,43 @@ struct WineDetailView: View {
                 .frame(width: 80, alignment: .leading)
             Text(value)
                 .font(.subheadline)
+            Spacer()
+        }
+    }
+
+    private var extractionDebug: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("EXTRACTION DEBUG")
+                .font(.caption.bold())
+                .foregroundStyle(.tertiary)
+            VStack(alignment: .leading, spacing: 6) {
+                debugRow("Brave query", braveQuery)
+                debugRow("Raw text", wine.rawText ?? "(none)")
+                debugRow("Confidence", String(format: "%.2f", wine.confidence))
+                debugRow("Producer", wine.producer ?? "(null)")
+                debugRow("Variety", wine.variety ?? "(null)")
+                debugRow("Appellation", wine.appellation ?? "(null)")
+                debugRow("Section", wine.listSection ?? "(null)")
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+
+    private var braveQuery: String {
+        let producer = wine.producer ?? wine.name
+        let variety = wine.variety.map { " \($0)" } ?? ""
+        let vintage = wine.vintage.map { " \($0)" } ?? ""
+        return "\(producer)\(variety)\(vintage) wine bottle"
+    }
+
+    private func debugRow(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(label + ":")
+                .fontWeight(.medium)
+                .frame(width: 90, alignment: .leading)
+            Text(value)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer()
         }
     }
