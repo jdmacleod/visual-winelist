@@ -46,6 +46,15 @@ struct WineGridView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
+            Button(role: .destructive) {
+                viewModel.clear()
+                onScanMore()
+            } label: {
+                Label("Clear", systemImage: "trash")
+                    .font(.caption.bold())
+            }
+            .buttonStyle(.bordered)
+            .disabled(viewModel.isScanning || viewModel.wines.isEmpty)
             Button {
                 onScanMore()
             } label: {

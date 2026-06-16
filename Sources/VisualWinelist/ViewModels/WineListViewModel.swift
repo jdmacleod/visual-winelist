@@ -28,6 +28,12 @@ class WineListViewModel: ObservableObject {
         await performScan(photoData: photoData, appending: true)
     }
 
+    func clear() {
+        wines = []
+        selectedWine = nil
+        errorMessage = nil
+    }
+
     // MARK: - Private
 
     private func performScan(photoData: Data, appending: Bool) async {
