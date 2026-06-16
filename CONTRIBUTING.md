@@ -27,6 +27,10 @@ CI (`.github/workflows/ci.yml`) runs all three on every push and PR to `main`.
 - If you change ranking/filtering logic in `Sources/VisualWinelist/Brave/BraveSearchClient.swift`, run `Scripts/validate-brave-hitrate.swift` and note the hit-rate change.
 - See [docs/explanation/](docs/explanation/) for the architecture and the reasoning behind existing design decisions before changing core flows (camera retry, Ollama streaming, Brave ranking).
 
+## Cutting a release
+
+Bump `VERSION` and `CHANGELOG.md`, and update the static "Latest release" badge in `README.md` to match (it's a static badge, not a live shields.io GitHub-API lookup, since that endpoint is prone to rate-limit/token-pool outages on shields.io's side).
+
 ## Reporting issues
 
 Use the bug report or feature request issue templates. For extraction/image-quality bugs, include the wine list photo if possible — it's the fastest way to reproduce and diagnose.

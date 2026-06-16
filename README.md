@@ -1,7 +1,7 @@
 # Visual Winelist
 
 [![CI](https://github.com/jdmacleod/visual-winelist/actions/workflows/ci.yml/badge.svg)](https://github.com/jdmacleod/visual-winelist/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/jdmacleod/visual-winelist)](https://github.com/jdmacleod/visual-winelist/releases)
+[![Latest release](https://img.shields.io/badge/release-v0.1.0-blue.svg)](https://github.com/jdmacleod/visual-winelist/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform: macOS 14+](https://img.shields.io/badge/platform-macOS%2014%2B-lightgrey.svg)](https://github.com/jdmacleod/visual-winelist)
 [![Swift 5.9+](https://img.shields.io/badge/swift-5.9%2B-orange.svg)](https://swift.org)
