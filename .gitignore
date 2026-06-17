@@ -14,3 +14,10 @@ DerivedData/
 
 # pre-commit
 .pre-commit-cache/
+
+# Docker runtime data (mounted volumes)
+image-cache/
+data/
+
+# Local environment variables
+.env

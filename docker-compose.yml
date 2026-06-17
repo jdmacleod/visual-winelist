@@ -1,0 +1,30 @@
+# Ollama runs natively on the host — Docker Desktop on macOS cannot pass through
+# the Metal GPU, so containerised Ollama runs 10-30x slower. See:
+# docs/explanation/technical-notes.md
+#
+# Prerequisites:
+#   1. ollama serve          (run on host, leave running)
+#   2. cp .env.example .env  (add BRAVE_API_KEY)
+#   3. docker compose up
+
+services:
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - BRAVE_API_KEY=${BRAVE_API_KEY}
+      # Reaches Ollama running natively on the host (macOS/Windows Docker Desktop magic)
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - IMAGE_CACHE_DIR=/cache
+      - DATABASE_URL=sqlite+aiosqlite:////data/cache.db
+    volumes:
+      - ./image-cache:/cache
+      - ./data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
