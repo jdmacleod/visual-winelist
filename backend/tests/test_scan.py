@@ -55,6 +55,40 @@ async def test_scan_non_jpeg(client):
     assert r.json()["detail"]["code"] == "INVALID_CONTENT_TYPE"
 
 
+async def test_scan_gif_rejected(client):
+    r = await client.post(
+        "/scan",
+        files={"image": ("list.gif", b"GIF89a", "image/gif")},
+    )
+    assert r.status_code == 400
+    assert r.json()["detail"]["code"] == "INVALID_CONTENT_TYPE"
+
+
+async def test_scan_octet_stream_rejected(client):
+    r = await client.post(
+        "/scan",
+        files={"image": ("list.jpg", b"binary", "application/octet-stream")},
+    )
+    assert r.status_code == 400
+    assert r.json()["detail"]["code"] == "INVALID_CONTENT_TYPE"
+
+
+async def test_scan_image_jpg_alias_accepted(client):
+    """image/jpg is a valid alias for image/jpeg and must not be rejected."""
+    with (
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        r = await client.post(
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpg")},
+        )
+    assert r.status_code == 200
+
+
 async def test_scan_oversized(client):
     big = make_jpeg(26 * 1024 * 1024)
     r = await client.post(
@@ -63,6 +97,17 @@ async def test_scan_oversized(client):
     )
     assert r.status_code == 413
     assert r.json()["detail"]["code"] == "UPLOAD_TOO_LARGE"
+
+
+async def test_scan_upload_error_includes_max_size(client):
+    """The 413 detail message mentions the size limit."""
+    big = make_jpeg(26 * 1024 * 1024)
+    r = await client.post(
+        "/scan",
+        files={"image": ("list.jpg", big, "image/jpeg")},
+    )
+    assert r.status_code == 413
+    assert "Max" in r.json()["detail"]["message"]
 
 
 async def test_scan_scanner_busy(client):
