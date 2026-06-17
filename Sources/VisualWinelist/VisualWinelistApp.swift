@@ -16,8 +16,8 @@ struct VisualWinelistApp: App {
     @ViewBuilder
     private var appContent: some View {
         switch Result(catching: { try StartupValidator.validate() }) {
-        case .success(let apiKey):
-            ContentView(braveAPIKey: apiKey)
+        case .success(let backendURL):
+            ContentView(backendURL: backendURL)
         case .failure(let error):
             StartupErrorView(message: error.localizedDescription)
         }
@@ -29,7 +29,7 @@ struct StartupErrorView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            Image(systemName: "key.slash")
+            Image(systemName: "server.rack")
                 .font(.system(size: 48))
                 .foregroundStyle(.orange)
             Text("Setup Required")

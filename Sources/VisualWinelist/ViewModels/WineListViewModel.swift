@@ -1,5 +1,4 @@
 import Foundation
-import Combine
 
 @MainActor
 class WineListViewModel: ObservableObject {
@@ -8,24 +7,45 @@ class WineListViewModel: ObservableObject {
     @Published var scanMessage = ""
     @Published var errorMessage: String?
     @Published var selectedWine: WineObject?
+    @Published var backendStatus: BackendStatus = .unknown
 
-    private let ollamaClient = OllamaClient()
-    private let braveClient: BraveSearchClient
-    private let imageCache = ImageCache()
-
-    init(braveAPIKey: String) {
-        self.braveClient = BraveSearchClient(apiKey: braveAPIKey)
+    enum BackendStatus {
+        case unknown, ok, degraded(String), unreachable
     }
 
-    // First scan: clears the grid and populates from scratch.
+    private let backend: BackendClient
+
+    init(backendURL: URL) {
+        self.backend = BackendClient(baseURL: backendURL)
+    }
+
+    // MARK: - Health
+
+    func checkHealth() async {
+        do {
+            let health = try await backend.checkHealth()
+            if health.isOK {
+                backendStatus = .ok
+            } else {
+                var issues: [String] = []
+                if !health.ollama { issues.append("Ollama not running (start with: ollama serve)") }
+                if !health.brave_key { issues.append("BRAVE_API_KEY not set on server") }
+                backendStatus = .degraded(issues.joined(separator: "\n"))
+            }
+        } catch {
+            backendStatus = .unreachable
+        }
+    }
+
+    // MARK: - Scan
+
     func scan(photoData: Data) async {
         wines = []
-        await performScan(photoData: photoData, appending: false)
+        await performScan(photoData: photoData)
     }
 
-    // Multi-page scan: appends new wines (deduplicates by name+vintage).
     func appendScan(photoData: Data) async {
-        await performScan(photoData: photoData, appending: true)
+        await performScan(photoData: photoData)
     }
 
     func clear() {
@@ -36,54 +56,89 @@ class WineListViewModel: ObservableObject {
 
     // MARK: - Private
 
-    private func performScan(photoData: Data, appending: Bool) async {
+    private func performScan(photoData: Data) async {
         isScanning = true
-        scanMessage = "Reading wine list…"
+        scanMessage = "Sending photo to backend…"
         errorMessage = nil
+
+        defer {
+            isScanning = false
+            scanMessage = ""
+        }
 
         do {
             var extractedCount = 0
-            for try await wine in ollamaClient.extractWines(from: photoData) {
-                // Deduplication: skip wines already in the grid
-                guard !wines.contains(where: { $0.wine == wine }) else { continue }
 
-                extractedCount += 1
-                wines.append(.extracting(wine))
-                scanMessage = "\(wines.count) wine\(wines.count == 1 ? "" : "s") found…"
+            for try await event in backend.scan(photoData: photoData) {
+                switch event {
+                case .wine(let wine):
+                    guard !wines.contains(where: { $0.wine == wine }) else { continue }
+                    extractedCount += 1
+                    wines.append(.extracting(wine))
+                    scanMessage = "\(wines.count) wine\(wines.count == 1 ? "" : "s") found…"
 
-                // Kick off image fetch without blocking the extraction stream
-                Task { await fetchImage(for: wine) }
+                case .image(let payload):
+                    // Fire-and-forget: don't block the SSE loop while fetching image bytes.
+                    Task { await self.handleImageEvent(payload) }
+
+                case .notes(let payload):
+                    handleNotesEvent(payload)
+
+                case .error(let payload):
+                    if payload.code == "OLLAMA_DOWN" {
+                        errorMessage = "Backend Ollama is not running.\n\nRun: ollama serve"
+                    }
+
+                case .complete(let payload):
+                    let hit = payload.cache_hits
+                    scanMessage = "\(payload.wine_count) wine\(payload.wine_count == 1 ? "" : "s")"
+                        + (hit > 0 ? " · \(hit) from cache" : "")
+
+                case .ping:
+                    break
+                }
             }
-            if extractedCount == 0 && !appending {
+
+            if extractedCount == 0 {
                 errorMessage = "No wines found — try a flatter angle or better lighting"
             }
-        } catch OllamaError.connectionRefused {
-            errorMessage = "Ollama is not running. Start it with:\n  ollama serve"
-        } catch OllamaError.noWinesFound {
-            errorMessage = "No wines found — try a flatter angle or better lighting"
-        } catch {
-            errorMessage = "Couldn't read this list — \(error.localizedDescription)"
-        }
 
-        isScanning = false
-        scanMessage = ""
+        } catch BackendError.scannerBusy {
+            errorMessage = "Scanner is busy — another scan is in progress"
+        } catch BackendError.unreachable(let url) {
+            errorMessage = "Backend not reachable at \(url)\n\nIs the server running? Try: docker compose up"
+        } catch {
+            errorMessage = "Scan failed — \(error.localizedDescription)"
+        }
     }
 
-    private func fetchImage(for wine: WineObject) async {
-        guard let idx = wines.firstIndex(where: { $0.wine == wine }) else { return }
+    private func handleImageEvent(_ payload: ImageSSEPayload) async {
+        guard let idx = wines.firstIndex(where: { $0.wine.wineId == payload.wine_id }) else { return }
 
-        wines[idx] = .fetchingImage(wine)
-
-        if let cached = await imageCache.fetch(for: wine) {
-            wines[idx] = .ready(wine, cached)
+        if payload.placeholder {
+            wines[idx] = .placeholder(wines[idx].wine)
             return
         }
 
-        if let data = await braveClient.fetchBottleImage(for: wine) {
-            await imageCache.store(data, for: wine)
-            wines[idx] = .ready(wine, data)
-        } else {
-            wines[idx] = .placeholder(wine)
+        wines[idx] = .fetchingImage(wines[idx].wine)
+        do {
+            let imageData = try await backend.fetchImage(wineId: payload.wine_id)
+            // Re-find index since array may have shifted during the await
+            if let currentIdx = wines.firstIndex(where: { $0.wine.wineId == payload.wine_id }) {
+                wines[currentIdx] = .ready(wines[currentIdx].wine, imageData)
+            }
+        } catch {
+            if let currentIdx = wines.firstIndex(where: { $0.wine.wineId == payload.wine_id }) {
+                wines[currentIdx] = .placeholder(wines[currentIdx].wine)
+            }
         }
+    }
+
+    private func handleNotesEvent(_ payload: NotesSSEPayload) {
+        guard let idx = wines.firstIndex(where: { $0.wine.wineId == payload.wine_id }) else { return }
+        var wine = wines[idx].wine
+        wine.tastingNote = payload.tasting_note
+        wine.pairings = payload.pairings
+        wines[idx] = wines[idx].withUpdatedWine(wine)
     }
 }

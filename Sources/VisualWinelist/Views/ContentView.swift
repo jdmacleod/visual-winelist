@@ -12,8 +12,8 @@ struct ContentView: View {
     @StateObject private var viewModel: WineListViewModel
     @State private var phase: AppPhase = .camera
 
-    init(braveAPIKey: String) {
-        _viewModel = StateObject(wrappedValue: WineListViewModel(braveAPIKey: braveAPIKey))
+    init(backendURL: URL) {
+        _viewModel = StateObject(wrappedValue: WineListViewModel(backendURL: backendURL))
     }
 
     var body: some View {
@@ -32,6 +32,7 @@ struct ContentView: View {
         }
         .frame(width: 580, height: 520)
         .task { await camera.startSession() }
+        .task { await viewModel.checkHealth() }
         .onChange(of: camera.error) { _, err in
             if let err { phase = .error(err.localizedDescription) }
         }
@@ -60,6 +61,15 @@ struct ContentView: View {
                 .padding(32)
 
             VStack {
+                // Degraded backend warning banner
+                if case .degraded(let reason) = viewModel.backendStatus {
+                    Text("⚠ Backend degraded: \(reason)")
+                        .font(.caption)
+                        .foregroundStyle(.white)
+                        .padding(8)
+                        .background(.orange.opacity(0.85), in: RoundedRectangle(cornerRadius: 6))
+                        .padding(.top, 12)
+                }
                 Spacer()
                 Group {
                     if camera.isSessionRunning {
@@ -98,7 +108,7 @@ struct ContentView: View {
                 ProgressView()
                     .scaleEffect(1.5)
                     .tint(.white)
-                Text(viewModel.scanMessage.isEmpty ? "Reading wine list…" : viewModel.scanMessage)
+                Text(viewModel.scanMessage.isEmpty ? "Scanning wine list…" : viewModel.scanMessage)
                     .font(.headline)
                     .foregroundStyle(.white)
                     .animation(.default, value: viewModel.scanMessage)

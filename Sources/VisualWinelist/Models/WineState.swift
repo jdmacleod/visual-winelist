@@ -28,4 +28,13 @@ enum WineState: Identifiable, Sendable {
     }
 
     var isLowConfidence: Bool { wine.confidence < 0.7 }
+
+    func withUpdatedWine(_ wine: WineObject) -> WineState {
+        switch self {
+        case .extracting: return .extracting(wine)
+        case .fetchingImage: return .fetchingImage(wine)
+        case .ready(_, let data): return .ready(wine, data)
+        case .placeholder: return .placeholder(wine)
+        }
+    }
 }

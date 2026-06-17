@@ -1,31 +1,30 @@
 import Foundation
 
 enum StartupError: Error, LocalizedError {
-    case missingBraveAPIKey
+    case invalidBackendURL(String)
 
     var errorDescription: String? {
         switch self {
-        case .missingBraveAPIKey:
+        case .invalidBackendURL(let raw):
             return """
-                BRAVE_API_KEY is not set.
+                BACKEND_URL is not a valid URL: "\(raw)"
 
-                visual-winelist uses the Brave Search API for bottle images.
-                Get a free API key at https://brave.com/search/api/ then set it:
+                Set the backend URL in your environment:
 
-                    export BRAVE_API_KEY=your_key_here
+                    export BACKEND_URL=http://192.168.1.100:8000
 
-                Add that line to your shell profile (~/.zshrc or ~/.bash_profile) \
-                and relaunch the app.
+                The default (http://localhost:8000) is used when BACKEND_URL is not set.
                 """
         }
     }
 }
 
 struct StartupValidator {
-    static func validate() throws -> String {
-        guard let key = ProcessInfo.processInfo.environment["BRAVE_API_KEY"], !key.isEmpty else {
-            throw StartupError.missingBraveAPIKey
+    static func validate() throws -> URL {
+        let raw = ProcessInfo.processInfo.environment["BACKEND_URL"] ?? "http://localhost:8000"
+        guard let url = URL(string: raw), url.scheme != nil else {
+            throw StartupError.invalidBackendURL(raw)
         }
-        return key
+        return url
     }
 }

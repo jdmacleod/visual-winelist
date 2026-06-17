@@ -18,7 +18,9 @@ struct WineDetailView: View {
 
                     VStack(alignment: .leading, spacing: 20) {
                         header
-                        if let description = wine.description { notes(description) }
+                        if let note = wine.tastingNote { tastingNoteSection(note) }
+                        if !wine.pairings.isEmpty { pairingsSection(wine.pairings) }
+                        if let description = wine.description { descriptionSection(description) }
                         metadata
                         if wine.confidence < 0.7 { confidenceWarning }
                         Divider()
@@ -80,9 +82,36 @@ struct WineDetailView: View {
         }
     }
 
-    private func notes(_ text: String) -> some View {
+    private func tastingNoteSection(_ text: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("NOTES")
+            Text("TASTING NOTE")
+                .font(.caption.bold())
+                .foregroundStyle(.tertiary)
+            Text(text)
+                .font(.body)
+        }
+    }
+
+    private func pairingsSection(_ pairings: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("FOOD PAIRINGS")
+                .font(.caption.bold())
+                .foregroundStyle(.tertiary)
+            HStack(spacing: 8) {
+                ForEach(pairings, id: \.self) { pairing in
+                    Text(pairing)
+                        .font(.caption)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(.secondary.opacity(0.15), in: Capsule())
+                }
+            }
+        }
+    }
+
+    private func descriptionSection(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("FROM THE LIST")
                 .font(.caption.bold())
                 .foregroundStyle(.tertiary)
             Text(text)
@@ -118,7 +147,7 @@ struct WineDetailView: View {
                 .font(.caption.bold())
                 .foregroundStyle(.tertiary)
             VStack(alignment: .leading, spacing: 6) {
-                debugRow("Brave query", braveQuery)
+                debugRow("Wine ID", wine.wineId ?? "(none)")
                 debugRow("Raw text", wine.rawText ?? "(none)")
                 debugRow("Confidence", String(format: "%.2f", wine.confidence))
                 debugRow("Producer", wine.producer ?? "(null)")
@@ -129,13 +158,6 @@ struct WineDetailView: View {
         }
         .font(.caption)
         .foregroundStyle(.secondary)
-    }
-
-    private var braveQuery: String {
-        let producer = wine.producer ?? wine.name
-        let variety = wine.variety.map { " \($0)" } ?? ""
-        let vintage = wine.vintage.map { " \($0)" } ?? ""
-        return "\(producer)\(variety)\(vintage) wine bottle"
     }
 
     private func debugRow(_ label: String, _ value: String) -> some View {
