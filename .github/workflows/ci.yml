@@ -61,31 +61,44 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # TypeScript — lint (prettier + ESLint)
-  # Only runs when web/ exists (i.e. after T11 React curator is built).
+  # Skips gracefully when web/ doesn't exist yet (before T11 React curator).
   # ---------------------------------------------------------------------------
   web-lint:
     name: TypeScript lint
     runs-on: ubuntu-latest
-    if: hashFiles('web/package.json') != ''
 
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check for web project
+        id: web
+        run: |
+          if [ -f web/package.json ]; then
+            echo "present=true" >> $GITHUB_OUTPUT
+          else
+            echo "present=false" >> $GITHUB_OUTPUT
+            echo "No web/package.json — skipping TypeScript lint (T11 not yet built)"
+          fi
+
       - uses: actions/setup-node@v4
+        if: steps.web.outputs.present == 'true'
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: web/package-lock.json
 
       - name: Install dependencies
+        if: steps.web.outputs.present == 'true'
         run: npm ci
         working-directory: web
 
       - name: prettier
+        if: steps.web.outputs.present == 'true'
         run: npx prettier --check "src/**/*.{ts,tsx,css,json}"
         working-directory: web
 
       - name: ESLint
+        if: steps.web.outputs.present == 'true'
         run: npx eslint --max-warnings 0 src
         working-directory: web
 
