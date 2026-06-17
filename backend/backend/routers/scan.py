@@ -1,5 +1,7 @@
 import asyncio
 import json
+import logging
+import os
 import uuid
 from collections.abc import AsyncIterator
 from typing import Any
@@ -8,8 +10,10 @@ from fastapi import APIRouter, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from backend import config
-from backend.models.wine import CompleteEvent, ErrorEvent, ImageEvent, WineObject
+from backend.models.wine import CompleteEvent, ErrorEvent, ImageEvent, NotesEvent, WineObject
 from backend.services import brave_client, cache, ollama_client, sommelier
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -29,9 +33,14 @@ async def _fetch_image_to_queue(
     try:
         result = await brave_client.fetch_image(wine)
         if result is not None:
+            # Persist to cache so future scans skip Brave for this wine.
+            image_path = os.path.join(config.IMAGE_CACHE_DIR, f"{wine.wine_id}.jpg")
+            try:
+                await cache.write(wine, image_path, None, [])
+            except Exception:
+                log.warning("cache.write failed for %s", wine.wine_id, exc_info=True)
             await queue.put(("image", result))
         else:
-            # Placeholder when no image found
             placeholder = ImageEvent(
                 wine_id=wine.wine_id,
                 url=f"/wines/{wine.wine_id}/image",
@@ -152,9 +161,12 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
         try:
             notes = await sommelier.get_notes(wine)
             yield _sse("notes", notes.model_dump())
+            # Update cache record with notes; image_path already set by Phase 1.
+            try:
+                await cache.write(wine, None, notes.tasting_note, notes.pairings)
+            except Exception:
+                log.warning("cache.write (notes) failed for %s", wine.wine_id, exc_info=True)
         except Exception:
-            from backend.models.wine import NotesEvent
-
             yield _sse(
                 "notes",
                 NotesEvent(wine_id=wine.wine_id).model_dump(),
