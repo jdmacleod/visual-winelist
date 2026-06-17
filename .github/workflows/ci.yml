@@ -7,11 +7,97 @@ on:
     branches: [main]
 
 jobs:
-  build-test-lint:
+  # ---------------------------------------------------------------------------
+  # Python — lint (ruff format + ruff check + mypy)
+  # ---------------------------------------------------------------------------
+  python-lint:
+    name: Python lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: ruff format
+        run: uv run ruff format --check backend/ tests/
+
+      - name: ruff check
+        run: uv run ruff check backend/ tests/
+
+      - name: mypy
+        run: uv run mypy backend/
+
+  # ---------------------------------------------------------------------------
+  # Python — tests (pytest)
+  # ---------------------------------------------------------------------------
+  python-test:
+    name: Python tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: pytest
+        run: uv run pytest -m "not integration"
+
+  # ---------------------------------------------------------------------------
+  # TypeScript — lint (prettier + ESLint)
+  # Only runs when web/ exists (i.e. after T11 React curator is built).
+  # ---------------------------------------------------------------------------
+  web-lint:
+    name: TypeScript lint
+    runs-on: ubuntu-latest
+    if: hashFiles('web/package.json') != ''
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: web
+
+      - name: prettier
+        run: npx prettier --check "src/**/*.{ts,tsx,css,json}"
+        working-directory: web
+
+      - name: ESLint
+        run: npx eslint --max-warnings 0 src
+        working-directory: web
+
+  # ---------------------------------------------------------------------------
+  # Swift — build, test, swift-format lint
+  # ---------------------------------------------------------------------------
+  swift-ci:
+    name: Swift CI
     runs-on: macos-15
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Swift version
         run: swift --version

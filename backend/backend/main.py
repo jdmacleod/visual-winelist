@@ -1,3 +1,6 @@
+import os
+import warnings
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -8,15 +11,12 @@ from backend.routers import curate, health, scan, wines
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Create DB tables and image cache dir on startup
-    import os
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     os.makedirs(config.IMAGE_CACHE_DIR, exist_ok=True)
     await init_db()
 
     if not config.BRAVE_API_KEY:
-        import warnings
-        warnings.warn("BRAVE_API_KEY not set — image search will be skipped")
+        warnings.warn("BRAVE_API_KEY not set — image search will be skipped", stacklevel=2)
 
     yield
 

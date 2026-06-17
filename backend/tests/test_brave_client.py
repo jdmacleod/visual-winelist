@@ -6,7 +6,7 @@ All tests mock at the httpx transport layer — no Brave API key required.
 import asyncio
 import json
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import httpx
 import pytest
@@ -14,10 +14,10 @@ import pytest
 from backend.models.wine import WineObject
 from backend.services import brave_client
 
-
 # ---------------------------------------------------------------------------
 # Fixtures and helpers
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def reset_rate_limiter():
@@ -85,9 +85,7 @@ class _MockSearchTransport(httpx.AsyncBaseTransport):
             headers = {}
             if self.image_content_length is not None:
                 headers["content-length"] = self.image_content_length
-            return httpx.Response(
-                self.image_status, content=self.image_body, headers=headers
-            )
+            return httpx.Response(self.image_status, content=self.image_body, headers=headers)
 
 
 def _with_transport(transport: _MockSearchTransport):
@@ -100,6 +98,7 @@ def _with_transport(transport: _MockSearchTransport):
 # ---------------------------------------------------------------------------
 # Portrait ranking
 # ---------------------------------------------------------------------------
+
 
 def test_portrait_score_tall_image():
     result = _make_result("http://example.com/tall.jpg", width=400, height=600)
@@ -123,10 +122,13 @@ def test_portrait_score_zero_width():
 
 def test_portrait_ranking_order():
     results = [
-        _make_result("http://example.com/a.jpg", width=400, height=300),   # score 0.75 (landscape)
-        _make_result("http://example.com/b.jpg", width=400, height=800),   # score 2.0  (portrait)
-        _make_result("http://example.com/c.jpg", width=400, height=600),   # score 1.5  (portrait)
-        {"thumbnail": {"src": "http://example.com/d.jpg"}, "properties": {}},  # score -1.0
+        _make_result("http://example.com/a.jpg", width=400, height=300),  # score 0.75 (landscape)
+        _make_result("http://example.com/b.jpg", width=400, height=800),  # score 2.0  (portrait)
+        _make_result("http://example.com/c.jpg", width=400, height=600),  # score 1.5  (portrait)
+        {
+            "thumbnail": {"src": "http://example.com/d.jpg"},
+            "properties": {},
+        },  # score -1.0
     ]
     ranked = sorted(results, key=brave_client._portrait_score, reverse=True)
     urls = [(r.get("thumbnail") or {}).get("src") for r in ranked]
@@ -141,6 +143,7 @@ def test_portrait_ranking_order():
 # ---------------------------------------------------------------------------
 # Query building
 # ---------------------------------------------------------------------------
+
 
 def test_build_query_with_all_fields():
     wine = _make_wine(producer="Opus One", variety="Cabernet Blend", vintage="2019")
@@ -161,6 +164,7 @@ def test_build_query_no_optional_fields():
 # D3: Content-Length pre-check
 # ---------------------------------------------------------------------------
 
+
 async def test_content_length_too_large_skipped(tmp_path):
     big_size = str(3 * 1024 * 1024)  # 3MB > 2MB limit
     search_body = _brave_response([_make_result("http://cdn.example.com/big.jpg")])
@@ -169,9 +173,11 @@ async def test_content_length_too_large_skipped(tmp_path):
         image_body=b"x" * 1000,
         image_content_length=big_size,
     )
-    with patch("backend.config.BRAVE_API_KEY", "test-key"), \
-         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)), \
-         _with_transport(transport):
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        _with_transport(transport),
+    ):
         result = await brave_client.fetch_image(_make_wine())
 
     # Candidate skipped due to Content-Length — no image found
@@ -186,9 +192,11 @@ async def test_content_length_within_limit_succeeds(tmp_path):
         image_body=b"fake-jpeg",
         image_content_length=small_size,
     )
-    with patch("backend.config.BRAVE_API_KEY", "test-key"), \
-         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)), \
-         _with_transport(transport):
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        _with_transport(transport),
+    ):
         result = await brave_client.fetch_image(_make_wine())
 
     assert result is not None
@@ -207,9 +215,11 @@ async def test_stream_abort_no_content_length(tmp_path):
         image_body=big_body,
         image_content_length=None,
     )
-    with patch("backend.config.BRAVE_API_KEY", "test-key"), \
-         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)), \
-         _with_transport(transport):
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        _with_transport(transport),
+    ):
         result = await brave_client.fetch_image(_make_wine())
 
     assert result is None
@@ -218,6 +228,7 @@ async def test_stream_abort_no_content_length(tmp_path):
 # ---------------------------------------------------------------------------
 # Rate limiter
 # ---------------------------------------------------------------------------
+
 
 async def test_rate_limiter_waits_when_called_immediately():
     """If called again within 1 second, asyncio.sleep is invoked with ~1s delay."""
@@ -258,15 +269,20 @@ async def test_rate_limiter_no_wait_when_enough_time_elapsed():
 # fetch_image happy path
 # ---------------------------------------------------------------------------
 
+
 async def test_fetch_image_success_returns_image_event(tmp_path):
-    search_body = _brave_response([
-        _make_result("http://cdn.example.com/bottle.jpg", width=300, height=700),
-    ])
+    search_body = _brave_response(
+        [
+            _make_result("http://cdn.example.com/bottle.jpg", width=300, height=700),
+        ]
+    )
     transport = _MockSearchTransport(search_body=search_body, image_body=b"fake-jpeg")
 
-    with patch("backend.config.BRAVE_API_KEY", "test-key"), \
-         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)), \
-         _with_transport(transport):
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        _with_transport(transport),
+    ):
         result = await brave_client.fetch_image(_make_wine())
 
     assert result is not None
@@ -277,15 +293,19 @@ async def test_fetch_image_success_returns_image_event(tmp_path):
 
 async def test_fetch_image_saves_to_disk(tmp_path):
     image_bytes = b"fake-jpeg-content"
-    search_body = _brave_response([
-        _make_result("http://cdn.example.com/bottle.jpg"),
-    ])
+    search_body = _brave_response(
+        [
+            _make_result("http://cdn.example.com/bottle.jpg"),
+        ]
+    )
     transport = _MockSearchTransport(search_body=search_body, image_body=image_bytes)
 
     wine = _make_wine()
-    with patch("backend.config.BRAVE_API_KEY", "test-key"), \
-         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)), \
-         _with_transport(transport):
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        _with_transport(transport),
+    ):
         await brave_client.fetch_image(wine)
 
     cached_path = tmp_path / f"{wine.wine_id}.jpg"
@@ -297,9 +317,11 @@ async def test_fetch_image_sends_api_key(tmp_path):
     search_body = _brave_response([_make_result("http://cdn.example.com/bottle.jpg")])
     transport = _MockSearchTransport(search_body=search_body, image_body=b"fake-jpeg")
 
-    with patch("backend.config.BRAVE_API_KEY", "my-secret-key"), \
-         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)), \
-         _with_transport(transport):
+    with (
+        patch("backend.config.BRAVE_API_KEY", "my-secret-key"),
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        _with_transport(transport),
+    ):
         await brave_client.fetch_image(_make_wine())
 
     assert transport.search_requests
@@ -311,6 +333,7 @@ async def test_fetch_image_sends_api_key(tmp_path):
 # fetch_image failure paths
 # ---------------------------------------------------------------------------
 
+
 async def test_fetch_image_no_api_key():
     with patch("backend.config.BRAVE_API_KEY", ""):
         result = await brave_client.fetch_image(_make_wine())
@@ -319,18 +342,22 @@ async def test_fetch_image_no_api_key():
 
 async def test_fetch_image_brave_returns_empty_results(tmp_path):
     transport = _MockSearchTransport(search_body=b'{"results":[]}')
-    with patch("backend.config.BRAVE_API_KEY", "test-key"), \
-         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)), \
-         _with_transport(transport):
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        _with_transport(transport),
+    ):
         result = await brave_client.fetch_image(_make_wine())
     assert result is None
 
 
 async def test_fetch_image_brave_non_200(tmp_path):
     transport = _MockSearchTransport(search_status=429, search_body=b"rate limited")
-    with patch("backend.config.BRAVE_API_KEY", "test-key"), \
-         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)), \
-         _with_transport(transport):
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        _with_transport(transport),
+    ):
         result = await brave_client.fetch_image(_make_wine())
     assert result is None
 
@@ -338,8 +365,7 @@ async def test_fetch_image_brave_non_200(tmp_path):
 async def test_fetch_image_all_candidates_fail_returns_none(tmp_path):
     """All 8 image downloads return 404 → fetch_image returns None."""
     results = [
-        _make_result(f"http://cdn.example.com/{i}.jpg", width=300, height=600)
-        for i in range(8)
+        _make_result(f"http://cdn.example.com/{i}.jpg", width=300, height=600) for i in range(8)
     ]
     search_body = _brave_response(results)
     transport = _MockSearchTransport(
@@ -347,9 +373,11 @@ async def test_fetch_image_all_candidates_fail_returns_none(tmp_path):
         image_status=404,
         image_body=b"not found",
     )
-    with patch("backend.config.BRAVE_API_KEY", "test-key"), \
-         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)), \
-         _with_transport(transport):
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        _with_transport(transport),
+    ):
         result = await brave_client.fetch_image(_make_wine())
 
     assert result is None
@@ -361,7 +389,7 @@ async def test_fetch_image_picks_portrait_over_landscape(tmp_path):
     """Portrait candidates (h/w > 1.2) are ranked above landscape ones."""
     results = [
         _make_result("http://cdn.example.com/landscape.jpg", width=800, height=400),  # score 0.5
-        _make_result("http://cdn.example.com/portrait.jpg", width=300, height=700),   # score 2.33
+        _make_result("http://cdn.example.com/portrait.jpg", width=300, height=700),  # score 2.33
     ]
     search_body = _brave_response(results)
 
@@ -377,12 +405,14 @@ async def test_fetch_image_picks_portrait_over_landscape(tmp_path):
             else:
                 return httpx.Response(200, content=landscape_bytes)
 
-    with patch("backend.config.BRAVE_API_KEY", "test-key"), \
-         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)), \
-         patch(
-             "backend.services.brave_client._make_http_client",
-             side_effect=lambda timeout: httpx.AsyncClient(transport=_OrderedTransport()),
-         ):
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        patch(
+            "backend.services.brave_client._make_http_client",
+            side_effect=lambda timeout: httpx.AsyncClient(transport=_OrderedTransport()),
+        ),
+    ):
         result = await brave_client.fetch_image(_make_wine())
 
     wine = _make_wine()

@@ -3,8 +3,7 @@ import os
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
-from backend import config
-from backend.models.wine import SearchResponse, WineRecord
+from backend.models.wine import SearchResponse
 from backend.services import cache
 
 router = APIRouter()

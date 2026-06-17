@@ -4,7 +4,6 @@ All tests mock at the httpx transport layer — no Ollama installation required.
 """
 
 import json
-from contextlib import asynccontextmanager
 from unittest.mock import patch
 
 import httpx
@@ -12,10 +11,10 @@ import pytest
 
 from backend.services import ollama_client
 
-
 # ---------------------------------------------------------------------------
 # Transport helpers
 # ---------------------------------------------------------------------------
+
 
 class _MockTransport(httpx.AsyncBaseTransport):
     """Captures outbound requests and returns a canned JSONL response."""
@@ -64,12 +63,8 @@ def _jsonl_response(*wine_dicts: dict) -> bytes:
         # Subsequent wines: include the full JSON (model emits "{" itself)
         content = wine_json[1:] if i == 0 else wine_json
         half = len(content) // 2
-        lines.append(
-            json.dumps({"message": {"content": content[:half]}, "done": False})
-        )
-        lines.append(
-            json.dumps({"message": {"content": content[half:] + "\n"}, "done": False})
-        )
+        lines.append(json.dumps({"message": {"content": content[:half]}, "done": False}))
+        lines.append(json.dumps({"message": {"content": content[half:] + "\n"}, "done": False}))
     lines.append(json.dumps({"done": True}))
     return "\n".join(lines).encode()
 
@@ -77,6 +72,7 @@ def _jsonl_response(*wine_dicts: dict) -> bytes:
 # ---------------------------------------------------------------------------
 # D4 — CRITICAL: pre-fill trick must be present in every /api/chat request
 # ---------------------------------------------------------------------------
+
 
 async def test_ollama_prefill_in_request():
     """
@@ -143,9 +139,12 @@ async def test_extract_wines_single_no_trailing_newline():
     """Wine JSON without a trailing \\n is parsed via the flush path."""
     content = json.dumps(_MARGAUX)[1:]  # strip "{" — pre-fill provides it
     body = (
-        json.dumps({"message": {"content": content[:10]}, "done": False}) + "\n"
-        + json.dumps({"message": {"content": content[10:]}, "done": False}) + "\n"
-        + json.dumps({"done": True}) + "\n"
+        json.dumps({"message": {"content": content[:10]}, "done": False})
+        + "\n"
+        + json.dumps({"message": {"content": content[10:]}, "done": False})
+        + "\n"
+        + json.dumps({"done": True})
+        + "\n"
     ).encode()
     transport = _MockTransport(body=body)
     with _with_transport(transport):
@@ -167,6 +166,7 @@ async def test_extract_wines_zero_wines():
 # ---------------------------------------------------------------------------
 # Error paths
 # ---------------------------------------------------------------------------
+
 
 async def test_extract_wines_non_200():
     transport = _MockTransport(status=500, body=b"internal error")
@@ -202,10 +202,13 @@ async def test_extract_wines_malformed_json_skipped():
     """
     body = (
         # First line: pre-fill "{" + '"bad":true}\n' → '{"bad":true}' — invalid WineObject
-        json.dumps({"message": {"content": '"bad":true}\n'}, "done": False}) + "\n"
+        json.dumps({"message": {"content": '"bad":true}\n'}, "done": False})
+        + "\n"
         # Second line: model emits full JSON with its own "{"
-        + json.dumps({"message": {"content": json.dumps(_MARGAUX) + "\n"}, "done": False}) + "\n"
-        + json.dumps({"done": True}) + "\n"
+        + json.dumps({"message": {"content": json.dumps(_MARGAUX) + "\n"}, "done": False})
+        + "\n"
+        + json.dumps({"done": True})
+        + "\n"
     ).encode()
     transport = _MockTransport(body=body)
     with _with_transport(transport):
@@ -218,6 +221,7 @@ async def test_extract_wines_malformed_json_skipped():
 # ---------------------------------------------------------------------------
 # check_reachable
 # ---------------------------------------------------------------------------
+
 
 async def test_check_reachable_ok():
     transport = _MockTransport(status=200, body=b'{"models":[]}')
@@ -240,6 +244,7 @@ async def test_check_reachable_down():
 # ---------------------------------------------------------------------------
 # Request shape
 # ---------------------------------------------------------------------------
+
 
 async def test_request_uses_correct_model_and_options():
     transport = _MockTransport()

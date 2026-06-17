@@ -53,7 +53,7 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
     global _scanning
     _scanning = True
 
-    queue: asyncio.Queue[tuple[str, Any] | None] = asyncio.Queue()
+    queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
     wines: list[WineObject] = []
     cache_hits = 0
     pending_images = 0
@@ -66,14 +66,16 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
                 await queue.put(("wine", wine))
                 wine_index += 1
         except Exception as exc:
-            await queue.put((
-                "error",
-                ErrorEvent(
-                    code="OLLAMA_DOWN",
-                    wine_index=wine_index,
-                    message=str(exc),
-                ),
-            ))
+            await queue.put(
+                (
+                    "error",
+                    ErrorEvent(
+                        code="OLLAMA_DOWN",
+                        wine_index=wine_index,
+                        message=str(exc),
+                    ),
+                )
+            )
         finally:
             await queue.put(("extraction_done", None))
 
@@ -86,7 +88,7 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
         while True:
             try:
                 item = await asyncio.wait_for(queue.get(), timeout=15.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 yield ": ping\n\n"
                 continue
 
@@ -109,13 +111,11 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
                     wines.append(wine)
                     yield _sse("wine", wine.model_dump_with_id())
                     pending_images += 1
-                    asyncio.ensure_future(
-                        _fetch_image_to_queue(wine, queue, scan_id)
-                    )
+                    asyncio.ensure_future(_fetch_image_to_queue(wine, queue, scan_id))
 
             elif event_type == "image":
-                image_event: ImageEvent = data
-                yield _sse("image", image_event.model_dump())
+                img_event: ImageEvent = data
+                yield _sse("image", img_event.model_dump())
 
             elif event_type == "image_done":
                 pending_images -= 1
@@ -154,6 +154,7 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
             yield _sse("notes", notes.model_dump())
         except Exception:
             from backend.models.wine import NotesEvent
+
             yield _sse(
                 "notes",
                 NotesEvent(wine_id=wine.wine_id).model_dump(),
@@ -181,7 +182,10 @@ async def scan(image: UploadFile, request: Request) -> StreamingResponse:
     if len(image_data) > config.MAX_UPLOAD_SIZE:
         raise HTTPException(
             status_code=413,
-            detail={"code": "UPLOAD_TOO_LARGE", "message": f"Max {config.MAX_UPLOAD_SIZE} bytes"},
+            detail={
+                "code": "UPLOAD_TOO_LARGE",
+                "message": f"Max {config.MAX_UPLOAD_SIZE} bytes",
+            },
         )
 
     if _scanning:

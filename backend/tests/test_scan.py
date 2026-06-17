@@ -1,8 +1,5 @@
-import io
 from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, patch
-
-import pytest
 
 from backend.models.wine import NotesEvent, WineObject
 from tests.conftest import make_jpeg
@@ -70,6 +67,7 @@ async def test_scan_oversized(client):
 
 async def test_scan_scanner_busy(client):
     import backend.routers.scan as scan_mod
+
     scan_mod._scanning = True
     try:
         r = await client.post(
@@ -133,6 +131,7 @@ async def test_scan_happy_path(client):
     assert "complete" in event_types
 
     import json
+
     complete_data = json.loads(next(d for e, d in events if e == "complete"))
     assert complete_data["wine_count"] == 2
     assert "scan_id" in complete_data
@@ -161,6 +160,7 @@ async def test_scan_ollama_down(client):
     assert "complete" in event_types
 
     import json
+
     error_data = json.loads(next(d for e, d in events if e == "error"))
     assert error_data["code"] == "OLLAMA_DOWN"
 
@@ -173,10 +173,14 @@ async def test_two_phase_sse_order(client):
             "backend.routers.scan.ollama_client.extract_wines",
             return_value=_wine_stream(MARGAUX, OPUS),
         ),
-        patch("backend.routers.scan.brave_client.fetch_image", new=AsyncMock(return_value=None)),
-        patch("backend.routers.scan.sommelier.get_notes", new=AsyncMock(
-            side_effect=lambda w: NotesEvent(wine_id=w.wine_id)
-        )),
+        patch(
+            "backend.routers.scan.brave_client.fetch_image",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "backend.routers.scan.sommelier.get_notes",
+            new=AsyncMock(side_effect=lambda w: NotesEvent(wine_id=w.wine_id)),
+        ),
         patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
     ):
         async with client.stream(
@@ -199,10 +203,14 @@ async def test_event_complete_has_scan_id(client):
             "backend.routers.scan.ollama_client.extract_wines",
             return_value=_wine_stream(MARGAUX),
         ),
-        patch("backend.routers.scan.brave_client.fetch_image", new=AsyncMock(return_value=None)),
-        patch("backend.routers.scan.sommelier.get_notes", new=AsyncMock(
-            side_effect=lambda w: NotesEvent(wine_id=w.wine_id)
-        )),
+        patch(
+            "backend.routers.scan.brave_client.fetch_image",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "backend.routers.scan.sommelier.get_notes",
+            new=AsyncMock(side_effect=lambda w: NotesEvent(wine_id=w.wine_id)),
+        ),
         patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
     ):
         async with client.stream(
@@ -213,6 +221,7 @@ async def test_event_complete_has_scan_id(client):
             body = await r.aread()
 
     import json
+
     events = _collect_sse(body.decode())
     complete = json.loads(next(d for e, d in events if e == "complete"))
     assert "scan_id" in complete

@@ -65,7 +65,7 @@ def _portrait_score(result: dict[str, Any]) -> float:
     w = props.get("width")
     if not h or not w or w == 0:
         return -1.0
-    return h / w
+    return float(h) / float(w)
 
 
 async def _download_image(url: str) -> bytes | None:
@@ -174,7 +174,10 @@ async def fetch_image(wine: WineObject) -> ImageEvent | None:
             continue
 
         log.debug(
-            "[Brave] selected %s (%d bytes, attempt %d)", thumb_url, len(image_data), idx + 1
+            "[Brave] selected %s (%d bytes, attempt %d)",
+            thumb_url,
+            len(image_data),
+            idx + 1,
         )
         return ImageEvent(
             wine_id=wine_id,

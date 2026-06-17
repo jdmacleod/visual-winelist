@@ -11,3 +11,6 @@ xcuserdata/
 DerivedData/
 *.dSYM
 *.dSYM.zip
+
+# pre-commit
+.pre-commit-cache/

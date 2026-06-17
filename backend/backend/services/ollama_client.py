@@ -67,9 +67,7 @@ async def extract_wines(image_data: bytes) -> AsyncIterator[WineObject]:
                 json=body,
             ) as response:
                 if response.status_code != 200:
-                    raise ConnectionError(
-                        f"Ollama returned HTTP {response.status_code}"
-                    )
+                    raise ConnectionError(f"Ollama returned HTTP {response.status_code}")
 
                 token_buffer = ""
                 first_token = True
@@ -106,9 +104,7 @@ async def extract_wines(image_data: bytes) -> AsyncIterator[WineObject]:
                         yield wine
 
     except httpx.ConnectError as exc:
-        raise ConnectionRefusedError(
-            f"Ollama not reachable at {config.OLLAMA_BASE_URL}"
-        ) from exc
+        raise ConnectionRefusedError(f"Ollama not reachable at {config.OLLAMA_BASE_URL}") from exc
     except httpx.TimeoutException as exc:
         raise TimeoutError("Ollama extraction timed out after 120s") from exc
 

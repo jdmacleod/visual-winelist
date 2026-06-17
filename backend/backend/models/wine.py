@@ -1,6 +1,7 @@
 import hashlib
 from typing import Any
-from pydantic import BaseModel, model_validator
+
+from pydantic import BaseModel
 
 
 def _cache_key(producer: str | None, name: str, vintage: str | None) -> str:
@@ -38,6 +39,7 @@ class WineObject(BaseModel):
 
 # SSE event payloads
 
+
 class ImageEvent(BaseModel):
     wine_id: str
     url: str  # /wines/{wine_id}/image — client fetches bytes separately (D10)
@@ -63,6 +65,7 @@ class CompleteEvent(BaseModel):
 
 
 # Curator / search response models
+
 
 class WineRecord(BaseModel):
     wine_id: str
