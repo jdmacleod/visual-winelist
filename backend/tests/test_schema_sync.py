@@ -25,6 +25,9 @@ def test_schema_file_exists() -> None:
 
 def test_python_model_matches_schema() -> None:
     schema = json.loads(SCHEMA_PATH.read_text())
+    assert "properties" in schema, (
+        "wine-schema.json missing top-level 'properties' key — is it a valid JSON Schema object?"
+    )
     schema_fields = set(schema["properties"].keys())
     schema_required = set(schema.get("required", []))
 
