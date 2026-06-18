@@ -21,3 +21,4 @@ data/
 
 # Local environment variables
 .env
+.gstack/
