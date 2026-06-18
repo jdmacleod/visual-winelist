@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "WineObject",
-  "description": "Extraction schema for a single wine entry as emitted by Qwen3-VL via the backend's /scan endpoint. This is the canonical field definition — keep in sync with WineObject.swift (macOS + iOS), backend/backend/models/wine.py, and web/src/types/wine.ts. See CONTRIBUTING.md.",
+  "description": "Extraction-phase schema for a single wine entry as emitted by Qwen3-VL via the backend's /scan endpoint Phase 1. Defines only the 10 VLM-extracted fields — NOT the full in-memory client model (which additionally carries wine_id, tastingNote, and pairings injected by Phase 2 SSE events). Canonical field definition for extraction fields — keep in sync with WineObject.swift (macOS + iOS), backend/backend/models/wine.py, and web/src/types/wine.ts. See CONTRIBUTING.md.",
   "type": "object",
   "required": ["name", "confidence"],
   "properties": {
