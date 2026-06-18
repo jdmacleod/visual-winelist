@@ -11,7 +11,11 @@ struct WineGridView: View {
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(viewModel.wines) { state in
                     NavigationLink {
-                        WineDetailView(state: state, isScanning: viewModel.isScanning)
+                        WineDetailView(
+                            state: state,
+                            isScanning: viewModel.isScanning,
+                            notesIncomplete: viewModel.notesIncomplete
+                        )
                     } label: {
                         WineBottleCard(state: state)
                     }

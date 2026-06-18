@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WineObject",
+  "description": "Extraction schema for a single wine entry as emitted by Qwen3-VL via the backend's /scan endpoint. This is the canonical field definition — keep in sync with WineObject.swift (macOS + iOS), backend/backend/models/wine.py, and web/src/types/wine.ts. See CONTRIBUTING.md.",
+  "type": "object",
+  "required": ["name", "confidence"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Wine name as printed on the list"
+    },
+    "producer": {
+      "type": ["string", "null"],
+      "description": "Winery or producer name; often the same as name"
+    },
+    "vintage": {
+      "type": ["string", "null"],
+      "description": "4-digit year as a string, e.g. \"2019\""
+    },
+    "variety": {
+      "type": ["string", "null"],
+      "description": "Grape variety or blend, e.g. \"Cabernet Sauvignon\""
+    },
+    "appellation": {
+      "type": ["string", "null"],
+      "description": "Region or appellation, e.g. \"Napa Valley, California\""
+    },
+    "price": {
+      "type": ["string", "null"],
+      "description": "Price as printed including currency symbol, e.g. \"$48\""
+    },
+    "description": {
+      "type": ["string", "null"],
+      "description": "Tasting notes or description text from the list"
+    },
+    "listSection": {
+      "type": ["string", "null"],
+      "description": "Section header under which this wine appears, e.g. \"Red Wines\""
+    },
+    "rawText": {
+      "type": ["string", "null"],
+      "description": "Complete original text for this wine entry as it appears on the list"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Model self-reported certainty that name and vintage are correctly extracted. 0.9+ = clear text, 0.6-0.8 = partially legible, <0.6 = guesses."
+    }
+  },
+  "additionalProperties": false
+}

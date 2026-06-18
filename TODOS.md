@@ -51,18 +51,3 @@ Vivino + Wine.com deep links per wine detail view.
 Share wine card via iOS share sheet / AirDrop.
 
 ---
-
-## WineObject schema sync enforcement
-
-`shared/wine-schema.json` as single source of truth + CI check that fails on
-drift between Swift/Python/TypeScript definitions. Currently documented in
-`CONTRIBUTING.md` as a manual discipline.
-
----
-
-## iOS reconnect behavior on long scans
-
-SSE connection stays open 2-3.5 min. If connection drops mid-Phase 2 (notes),
-client silently stops receiving notes with no "incomplete" indicator. Add
-reconnect logic or at minimum show "notes may be incomplete" in WineDetailView
-when the stream closed before all notes arrived.

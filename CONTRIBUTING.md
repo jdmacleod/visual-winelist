@@ -73,7 +73,7 @@ npm run build                                     # production build (runs tsc +
   ```
   BRAVE_API_KEY=your_key uv run pytest -m integration tests/validate_brave_hitrate.py -v -s
   ```
-- **WineObject schema** is defined in three places: `Sources/VisualWinelist/Models/WineObject.swift` (macOS), `ios/Sources/VisualWinelistIOS/Models/WineObject.swift` (iOS), `backend/backend/models/wine.py` (Python), and `web/src/types/wine.ts` (TypeScript). Adding a field requires updating all four. CI does not currently enforce schema sync — check manually.
+- **WineObject schema** is defined in `shared/wine-schema.json` (canonical) and mirrored in four files: `Sources/VisualWinelist/Models/WineObject.swift` (macOS), `ios/Sources/VisualWinelistIOS/Models/WineObject.swift` (iOS), `backend/backend/models/wine.py` (Python), and `web/src/types/wine.ts` (TypeScript). Adding or renaming a field requires updating all five. CI runs `tests/test_schema_sync.py` which verifies the Python model matches `wine-schema.json` automatically; Swift and TypeScript must be checked manually.
 - See [docs/explanation/](docs/explanation/) for architecture and design reasoning before changing core flows (SSE streaming, Ollama pre-fill, Brave ranking, two-phase sommelier).
 
 ## Cutting a release

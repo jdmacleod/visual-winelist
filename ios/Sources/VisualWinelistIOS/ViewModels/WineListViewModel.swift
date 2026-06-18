@@ -8,6 +8,7 @@ class WineListViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var selectedWine: WineObject?
     @Published var backendStatus: BackendStatus = .unknown
+    @Published var notesIncomplete: Bool = false
 
     enum BackendStatus {
         case unknown, ok, degraded(String), unreachable
@@ -63,16 +64,27 @@ class WineListViewModel: ObservableObject {
         wines = []
         selectedWine = nil
         errorMessage = nil
+        notesIncomplete = false
     }
 
     // MARK: - Private
 
     private func performScan(photoData: Data) async {
         isScanning = true
+        notesIncomplete = false
         scanMessage = "Sending photo to backend…"
         errorMessage = nil
 
+        var receivedComplete = false
+        var userCancelled = false
+
         defer {
+            // If the stream closed without event:complete and the user didn't cancel,
+            // the connection likely dropped mid-Phase 2 (notes). Mark so WineDetailView
+            // can show an indicator on wines that are still missing tasting notes.
+            if !receivedComplete && !userCancelled && !wines.isEmpty {
+                notesIncomplete = true
+            }
             isScanning = false
             scanMessage = ""
             activeScanSession = nil
@@ -104,6 +116,7 @@ class WineListViewModel: ObservableObject {
                     }
 
                 case .complete(let payload):
+                    receivedComplete = true
                     let hit = payload.cache_hits
                     scanMessage = "\(payload.wine_count) wine\(payload.wine_count == 1 ? "" : "s")"
                         + (hit > 0 ? " · \(hit) from cache" : "")
@@ -123,7 +136,10 @@ class WineListViewModel: ObservableObject {
             errorMessage = "Backend not reachable at \(url)\n\nCheck WiFi and try again"
         } catch {
             let ns = error as NSError
-            guard ns.code != NSURLErrorCancelled else { return }  // user cancelled, not an error
+            if ns.code == NSURLErrorCancelled {
+                userCancelled = true
+                return
+            }
             errorMessage = "Scan failed — \(error.localizedDescription)"
         }
     }
