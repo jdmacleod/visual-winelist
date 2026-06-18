@@ -29,14 +29,18 @@ struct SetupView: View {
     // MARK: - Sections
 
     private var heroSection: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "server.rack")
+        VStack(spacing: 16) {
+            Image(systemName: "wineglass")
                 .font(.system(size: 56))
-                .foregroundStyle(.secondary)
-            Text("Enter your backend server's local network address. Localhost doesn't work on a physical device — you need the server's LAN IP.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+                .foregroundStyle(Color(red: 0.45, green: 0.1, blue: 0.2))
+            VStack(spacing: 6) {
+                Text("Point. Scan. Discover.")
+                    .font(.title3.bold())
+                Text("Connect to your backend server to start scanning wine lists and get instant tasting notes.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
         }
         .frame(maxWidth: .infinity)
     }

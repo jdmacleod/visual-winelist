@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum AppPhase {
     case camera, scanning, grid, error(String)
@@ -36,7 +37,10 @@ struct ContentView: View {
             else if !viewModel.wines.isEmpty { phase = .grid }
         }
         .onChange(of: viewModel.wines.count) { count in
-            if count > 0, case .scanning = phase { phase = .grid }
+            if count > 0, case .scanning = phase {
+                phase = .grid
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            }
         }
     }
 
@@ -48,14 +52,20 @@ struct ContentView: View {
                 .ignoresSafeArea()
 
             VStack {
-                // Degraded backend banner
-                if case .degraded(let reason) = viewModel.backendStatus {
-                    Text("⚠ Backend degraded: \(reason)")
-                        .font(.caption)
-                        .foregroundStyle(.white)
-                        .padding(8)
-                        .background(.orange.opacity(0.85), in: RoundedRectangle(cornerRadius: 6))
-                        .padding(.top, 8)
+                // Degraded backend banner — tap to open Settings
+                if case .degraded = viewModel.backendStatus {
+                    Button {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    } label: {
+                        Label("Setup needed — open Settings", systemImage: "gear")
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                            .padding(8)
+                            .background(.orange.opacity(0.85), in: RoundedRectangle(cornerRadius: 6))
+                    }
+                    .padding(.top, 8)
                 }
 
                 Spacer()
@@ -85,6 +95,7 @@ struct ContentView: View {
                     }
                     .disabled(!camera.isSessionRunning)
                     .padding(.bottom, 50)
+                    .accessibilityLabel("Capture wine list")
                 }
             }
         }
@@ -151,6 +162,7 @@ struct ContentView: View {
                         Image(systemName: "trash")
                     }
                     .disabled(viewModel.isScanning)
+                    .accessibilityLabel("Clear all wines")
                 }
             }
         }
@@ -174,12 +186,14 @@ struct ContentView: View {
             }
             .buttonStyle(.borderedProminent)
         }
+        .onAppear { UINotificationFeedbackGenerator().notificationOccurred(.error) }
     }
 
     // MARK: - Actions
 
     private func capture() async {
         guard camera.isSessionRunning else { return }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         phase = .scanning
         do {
             let photoData = try await camera.capturePhoto()

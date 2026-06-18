@@ -49,13 +49,13 @@ struct WineBottleCard: View {
         .overlay(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(state.wine.name)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.white)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                 if let vintage = state.wine.vintage {
                     Text(vintage)
-                        .font(.system(size: 11))
+                        .font(.caption2)
                         .foregroundStyle(.white.opacity(0.8))
                 }
             }
@@ -66,7 +66,7 @@ struct WineBottleCard: View {
 
     private var uncertaintyBadge: some View {
         Text("?")
-            .font(.system(size: 11, weight: .bold))
+            .font(.caption2.weight(.bold))
             .foregroundStyle(.white)
             .padding(4)
             .background(.orange, in: Circle())

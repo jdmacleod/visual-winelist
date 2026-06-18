@@ -11,11 +11,12 @@ struct WineGridView: View {
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(viewModel.wines) { state in
                     NavigationLink {
-                        WineDetailView(state: state)
+                        WineDetailView(state: state, isScanning: viewModel.isScanning)
                     } label: {
                         WineBottleCard(state: state)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(cardLabel(for: state))
                 }
             }
             .padding(16)
@@ -33,6 +34,13 @@ struct WineGridView: View {
         .safeAreaInset(edge: .bottom) {
             scanMoreBar
         }
+    }
+
+    private func cardLabel(for state: WineState) -> String {
+        var label = state.wine.name
+        if let vintage = state.wine.vintage { label += ", \(vintage)" }
+        if state.isLowConfidence { label += ", low confidence" }
+        return label
     }
 
     private var scanMoreBar: some View {

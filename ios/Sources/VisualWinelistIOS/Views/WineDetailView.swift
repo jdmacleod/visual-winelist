@@ -3,6 +3,7 @@ import UIKit
 
 struct WineDetailView: View {
     let state: WineState
+    var isScanning: Bool = false
 
     private var wine: WineObject { state.wine }
 
@@ -16,7 +17,11 @@ struct WineDetailView: View {
 
                 VStack(alignment: .leading, spacing: 20) {
                     header
-                    if let note = wine.tastingNote { tastingNoteSection(note) }
+                    if let note = wine.tastingNote {
+                        tastingNoteSection(note)
+                    } else if isScanning {
+                        notesLoadingSection
+                    }
                     if !wine.pairings.isEmpty { pairingsSection(wine.pairings) }
                     if let desc = wine.description { descriptionSection(desc) }
                     metadata
@@ -46,19 +51,16 @@ struct WineDetailView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(wine.name)
-                    .font(.title2.bold())
-                Spacer()
-                if let price = wine.price {
-                    Text(price)
-                        .font(.title3.bold())
-                        .foregroundStyle(.secondary)
-                }
-            }
+        VStack(alignment: .leading, spacing: 4) {
+            Text(wine.name)
+                .font(.title2.bold())
             if let vintage = wine.vintage {
                 Text(vintage)
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
+            if let price = wine.price {
+                Text(price)
                     .font(.title3)
                     .foregroundStyle(.secondary)
             }
@@ -68,6 +70,17 @@ struct WineDetailView: View {
                     .foregroundStyle(.tertiary)
                     .padding(.top, 2)
             }
+        }
+    }
+
+    private var notesLoadingSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("TASTING NOTE")
+                .font(.caption.bold())
+                .foregroundStyle(.tertiary)
+            Text("Arriving from sommelier — dark fruit, structured tannins, long finish")
+                .font(.body)
+                .redacted(reason: .placeholder)
         }
     }
 
