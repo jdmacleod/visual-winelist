@@ -52,6 +52,14 @@ For device builds, open `ios/Package.swift` in Xcode and run on a connected iPho
 
 ## React curator (TypeScript)
 
+**Docker (serves a production build):**
+
+```bash
+docker compose --profile curator up   # http://localhost
+```
+
+**Local dev server (hot reload, recommended for curator UI work):**
+
 ```bash
 cd web
 npm install

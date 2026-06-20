@@ -2,10 +2,16 @@
 # the Metal GPU, so containerised Ollama runs 10-30x slower. See:
 # docs/explanation/technical-notes.md
 #
-# Prerequisites:
-#   1. ollama serve          (run on host, leave running)
-#   2. cp .env.example .env  (add BRAVE_API_KEY)
-#   3. docker compose up
+# Start backend only (default):
+#   ollama serve
+#   cp .env.example .env  # add BRAVE_API_KEY
+#   docker compose up
+#
+# Start backend + React curator:
+#   docker compose --profile curator up
+#
+# The curator is served at http://localhost and proxies all API calls
+# to the backend container internally — no separate backend URL needed.
 
 services:
   api:
@@ -14,8 +20,7 @@ services:
       - "8000:8000"
     environment:
       - BRAVE_API_KEY=${BRAVE_API_KEY}
-      # Reaches Ollama running natively on the host (macOS/Windows Docker Desktop magic)
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       - IMAGE_CACHE_DIR=/cache
       - DATABASE_URL=sqlite+aiosqlite:////data/cache.db
     volumes:
@@ -23,8 +28,18 @@ services:
       - ./data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  curator:
+    build: ./web
+    profiles: [curator]
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped

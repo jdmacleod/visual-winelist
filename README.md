@@ -1,7 +1,7 @@
 # Visual Winelist
 
 [![CI](https://github.com/jdmacleod/visual-winelist/actions/workflows/ci.yml/badge.svg)](https://github.com/jdmacleod/visual-winelist/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/release-v0.2.0-blue.svg)](https://github.com/jdmacleod/visual-winelist/releases)
+[![Latest release](https://img.shields.io/badge/release-v0.2.1-blue.svg)](https://github.com/jdmacleod/visual-winelist/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform: macOS 14+ · iOS 16+](https://img.shields.io/badge/platform-macOS%2014%2B%20%C2%B7%20iOS%2016%2B-lightgrey.svg)](https://github.com/jdmacleod/visual-winelist)
 [![Swift 5.9+](https://img.shields.io/badge/swift-5.9%2B-orange.svg)](https://swift.org)
@@ -103,13 +103,25 @@ See [ios/README.md](ios/README.md) for build instructions.
 
 ### 4. React curator
 
+**With Docker (recommended):**
+
+```bash
+docker compose --profile curator up
+```
+
+Opens at `http://localhost`. The curator container proxies all API calls to the backend container — no extra configuration needed.
+
+**Without Docker (development):**
+
 ```bash
 cd web
 npm install
 npm run dev    # open http://localhost:5173
 ```
 
-See [web/README.md](web/README.md) for production deployment.
+API calls are proxied to `http://localhost:8000` via Vite (configured in `vite.config.ts`).
+
+See [web/README.md](web/README.md) for more options.
 
 ## Usage
 
