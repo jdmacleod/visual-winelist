@@ -1,5 +1,15 @@
 repos:
   # ---------------------------------------------------------------------------
+  # Secret scanning — must run before any other hook
+  # Catches API keys, tokens, and credentials before they reach git history.
+  # Allowlisted patterns: see .gitleaks.toml
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.27.2
+    hooks:
+      - id: gitleaks
+
+  # ---------------------------------------------------------------------------
   # General file hygiene
   # ---------------------------------------------------------------------------
   - repo: https://github.com/pre-commit/pre-commit-hooks

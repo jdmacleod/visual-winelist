@@ -62,6 +62,31 @@ npx eslint --max-warnings 0 src                   # lint
 npm run build                                     # production build (runs tsc + vite)
 ```
 
+## Environment setup
+
+Copy `.env.example` to `.env` and restrict its permissions before adding your API key:
+
+```bash
+cp .env.example .env
+chmod 600 .env   # prevents other local users/processes from reading your keys
+```
+
+`.env` is gitignored and must never be committed. The pre-commit hooks include a
+secret scanner (gitleaks) that will block accidental key commits.
+
+### Docker volume ownership (Linux hosts only)
+
+The backend container runs as UID 1001. On Linux, Docker creates bind-mount
+directories as root on first `docker compose up`. Pre-create them with matching
+ownership so the container can write to them:
+
+```bash
+mkdir -p image-cache data
+sudo chown -R 1001:1001 image-cache data
+```
+
+macOS Docker Desktop handles this transparently — no action needed.
+
 ## Making changes
 
 - Keep PRs focused — one logical change per PR.

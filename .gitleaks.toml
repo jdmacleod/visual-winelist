@@ -1,0 +1,15 @@
+# Gitleaks configuration
+# https://github.com/gitleaks/gitleaks
+
+[extend]
+# Use gitleaks' built-in ruleset as the base.
+useDefault = true
+
+[[allowlists]]
+description = "Placeholder values in .env.example"
+paths = [".env.example"]
+regexes = [
+  # The example file intentionally contains a fake key value.
+  # Anchored so a real key pasted on the same line isn't suppressed.
+  "^your_brave_search_api_key_here$",
+]

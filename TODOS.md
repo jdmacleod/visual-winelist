@@ -51,3 +51,19 @@ Vivino + Wine.com deep links per wine detail view.
 Share wine card via iOS share sheet / AirDrop.
 
 ---
+
+## Security: CI gitleaks full-history scan
+
+The pre-commit hook blocks new secrets in local commits but can be bypassed with
+`--no-verify` or a direct GitHub web/API push. Add a `gitleaks detect --source .`
+job to `.github/workflows/ci.yml` that scans full history on every PR.
+
+---
+
+## Security: Pin Docker base image digests
+
+`FROM python:3.13-slim` and `COPY --from=ghcr.io/astral-sh/uv:latest` are floating
+tags. Pin both to specific SHA256 digests (or a semver for uv) for reproducible,
+supply-chain-safe builds.
+
+---
