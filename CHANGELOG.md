@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.2.1 (2026-06-20)
+
+### Security
+
+- **Secret scanning pre-commit hook** — gitleaks v8.27.2 is now enforced as the
+  first pre-commit hook, blocking commits that contain API keys or credentials
+  before they reach git history. See `.gitleaks.toml` for allowlisted placeholder
+  values.
+- **Non-root Docker container** — the backend FastAPI process runs as a pinned
+  system user (UID 1001) rather than root, limiting blast radius of a future RCE.
+  On Linux hosts, volume directories (`./image-cache`, `./data`) must be
+  pre-created with `chown -R 1001:1001` before starting; macOS Docker Desktop
+  handles this transparently.
+- **`.env` permission guidance** — `CONTRIBUTING.md` now documents `chmod 600 .env`
+  and the `OLLAMA_BASE_URL` configuration option for contributors.
+
 ## v0.2.0 (2026-06-18)
 
 ### Added
