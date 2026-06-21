@@ -12,12 +12,16 @@ import XCTest
 
 final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     static var handler: ((URLRequest) -> (HTTPURLResponse, Data))?
+    /// When true, startLoading() returns immediately without delivering any data.
+    /// URLSession still calls didCompleteWithError(NSURLErrorCancelled) when the
+    /// task is cancelled, which IOSScanSession converts to a clean stream finish.
+    static var holdLoading = false
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
-        let url = request.url ?? URL(string: "http://localhost:8000")!
+        if MockURLProtocol.holdLoading { return }
         guard let handler = MockURLProtocol.handler else {
             client?.urlProtocol(self, didFailWithError: URLError(.unknown))
             return
@@ -37,6 +41,7 @@ final class IOSTestSuite: XCTestCase {
 
     override func tearDown() {
         MockURLProtocol.handler = nil
+        MockURLProtocol.holdLoading = false
         super.tearDown()
     }
 
@@ -128,5 +133,44 @@ final class IOSTestSuite: XCTestCase {
         defer { UserDefaults.standard.removeObject(forKey: key) }
 
         XCTAssertNil(StartupValidator.backendURL(), "empty BACKEND_URL should return nil")
+    }
+
+    func testBackendURLInvalidURLReturnsNil() {
+        let key = "BACKEND_URL"
+        UserDefaults.standard.set("not-a-url:::", forKey: key)
+        defer { UserDefaults.standard.removeObject(forKey: key) }
+
+        XCTAssertNil(
+            StartupValidator.backendURL(), "invalid URL format should return nil (no scheme)")
+    }
+
+    // MARK: - IOSScanSession: cancel stops stream cleanly
+
+    func testIOSScanSessionCancelStopsStream() async {
+        // holdLoading=true makes startLoading() return without delivering data.
+        // Cancelling the task triggers NSURLErrorCancelled → IOSScanSession maps
+        // this to continuation.finish() (a clean end, not an error throw).
+        MockURLProtocol.holdLoading = true
+
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+
+        let request = URLRequest(url: URL(string: "http://localhost:8000/scan")!)
+        let (stream, session) = IOSScanSession.make(request: request, configuration: config)
+
+        var events: [SSEEvent] = []
+        let consumeTask = Task {
+            do {
+                for try await event in stream { events.append(event) }
+            } catch {
+                XCTFail("stream must end cleanly after cancel, not throw: \(error)")
+            }
+        }
+
+        try? await Task.sleep(nanoseconds: 10_000_000)  // let the task start
+        session.cancel()
+        await consumeTask.value
+
+        XCTAssertEqual(events.count, 0, "cancelled session should yield no events")
     }
 }
