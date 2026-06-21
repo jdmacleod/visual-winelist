@@ -138,6 +138,32 @@ test('changing status filter resets page to 1', async () => {
   });
 });
 
+test('shows fetchError banner when searchWines rejects', async () => {
+  vi.mocked(searchWines).mockRejectedValue(new Error('backend down'));
+  render(<App />);
+  await waitFor(() => {
+    expect(screen.getByText('backend down')).toBeInTheDocument();
+  });
+});
+
+test('shows actionError when deleteWine rejects', async () => {
+  const user = userEvent.setup();
+  vi.mocked(searchWines).mockResolvedValue(makeResponse([makeWine()]));
+  vi.mocked(deleteWine).mockRejectedValue(new Error('Delete failed'));
+
+  render(<App />);
+  await waitFor(() => screen.getByRole('button', { name: /Test Wine/ }));
+
+  await user.click(screen.getByRole('button', { name: /Test Wine/ }));
+  await user.click(screen.getByRole('button', { name: /^delete$/i }));
+  const confirmDialog = screen.getByRole('dialog', { name: /delete wine/i });
+  await user.click(within(confirmDialog).getByRole('button', { name: /^delete$/i }));
+
+  await waitFor(() => {
+    expect(screen.getByText('Delete failed')).toBeInTheDocument();
+  });
+});
+
 test('actionError clears when selected wine changes', async () => {
   const user = userEvent.setup();
   const wine1 = makeWine({ wine_id: 'wine-1', name: 'Wine One' });

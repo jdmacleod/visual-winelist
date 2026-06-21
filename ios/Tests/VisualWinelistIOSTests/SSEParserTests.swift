@@ -11,9 +11,8 @@ import XCTest
 // platform-agnostic core is extracted into its own library target.
 
 final class IOSTestSuite: XCTestCase {
-    func testTestTargetExists() {
-        // Placeholder — verifies the test target infrastructure is in place.
+    func testTestTargetExists() throws {
         // Replace with real tests in T9 (SSEParser) and T10 (IOSScanSession).
-        XCTAssertTrue(true)
+        throw XCTSkip("iOS test target placeholder — real tests tracked in T9/T10")
     }
 }
