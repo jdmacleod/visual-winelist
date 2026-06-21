@@ -60,6 +60,26 @@ job to `.github/workflows/ci.yml` that scans full history on every PR.
 
 ---
 
+## SSE: lineBuffer memory cap in BackendClient.swift
+
+The byte-iteration loop in `BackendClient.scan()` accumulates bytes in `lineBuffer`
+with no capacity limit. A misbehaving backend or misconfigured proxy flushing a
+multi-MB response as a single line would cause unbounded `Data` growth until OOM
+or connection close. Fix: add a hard cap (e.g. 1 MB) that discards oversized
+pseudo-lines and continues.
+
+---
+
+## SSE: iOS UTF-8 chunk boundary issue in IOSScanSession.swift
+
+`didReceive data:` decodes the full `Data` chunk to `String` before line
+splitting. If a URLSession delivery boundary falls mid-multibyte character (e.g.
+an accented wine name), the entire chunk is silently dropped — potentially
+several complete SSE events. Fix: accumulate raw `Data` in `lineBuffer` and
+decode per-line after splitting on `0x0A`, matching `BackendClient.swift`.
+
+---
+
 ## Security: Pin Docker base image digests
 
 `FROM python:3.13-slim` and `COPY --from=ghcr.io/astral-sh/uv:latest` are floating

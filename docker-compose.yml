@@ -41,5 +41,5 @@ services:
       - "80:80"
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped

@@ -152,25 +152,29 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
                 scan_id=scan_id,
             ).model_dump(),
         )
-        return
-    finally:
         _scanning = False
+        return
 
     # Phase 2: sommelier notes (serial — Ollama single-instance)
-    for wine in wines:
-        try:
-            notes = await sommelier.get_notes(wine)
-            yield _sse("notes", notes.model_dump())
-            # Update cache record with notes; image_path already set by Phase 1.
+    # _scanning stays True through Phase 2: sommelier calls Ollama and a
+    # concurrent scan would interleave with the single-instance Ollama session.
+    try:
+        for wine in wines:
             try:
-                await cache.write(wine, None, notes.tasting_note, notes.pairings)
+                notes = await sommelier.get_notes(wine)
+                yield _sse("notes", notes.model_dump())
+                # Update cache record with notes; image_path already set by Phase 1.
+                try:
+                    await cache.write(wine, None, notes.tasting_note, notes.pairings)
+                except Exception:
+                    log.warning("cache.write (notes) failed for %s", wine.wine_id, exc_info=True)
             except Exception:
-                log.warning("cache.write (notes) failed for %s", wine.wine_id, exc_info=True)
-        except Exception:
-            yield _sse(
-                "notes",
-                NotesEvent(wine_id=wine.wine_id).model_dump(),
-            )
+                yield _sse(
+                    "notes",
+                    NotesEvent(wine_id=wine.wine_id).model_dump(),
+                )
+    finally:
+        _scanning = False
 
     yield _sse(
         "complete",

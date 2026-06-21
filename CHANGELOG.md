@@ -1,5 +1,39 @@
 # Changelog
 
+## v0.2.2 (2026-06-20)
+
+### Fixed
+
+- **SSE empty-line bug** — `URLSession.AsyncBytes.lines` silently drops empty
+  lines, which are the SSE event-boundary signal. `BackendClient.scan()` now
+  iterates raw bytes, splitting on `\n` and preserving empty lines exactly as
+  `IOSScanSession` does. Previously the macOS client always received 0 wines.
+- **Qwen3-VL thinking mode** — `"think": False` is now sent in Ollama options
+  (primary) with an assistant pre-fill `{` as belt-and-suspenders for older
+  Ollama builds. Without this, Qwen3-VL emits a `<think>` block before JSON
+  output, which the token-buffer logic cannot parse.
+- **`_scanning` lock covers sommelier phase** — the busy-lock (`_scanning`) was
+  previously released before Phase 2 (sommelier notes), allowing a concurrent
+  scan to interleave with the single-instance Ollama session. Lock now covers
+  the full scan lifecycle.
+- **Ollama pre-fill defensive check** — `ollama_client.py` now guards against
+  future Ollama builds that might echo the pre-fill `{` in streamed tokens,
+  which would produce malformed `{{...}` JSON.
+- **Docker startup ordering** — `curator` now depends on `api` with
+  `condition: service_healthy` (was `service_started`), so nginx only starts
+  routing traffic after the FastAPI server passes its health check.
+- **`OLLAMA_BASE_URL` default removed** — `.env.example` no longer sets a
+  default `OLLAMA_BASE_URL`, preventing Docker-internal URL bleed-through when
+  running outside Docker.
+
+### Added
+
+- **Docker Compose curator profile** — `docker compose --profile curator up`
+  starts the React curator frontend at `http://localhost`, proxying API calls
+  to the backend container internally.
+- **`scripts/test-scan.py`** — diagnostic script to exercise the `/scan` SSE
+  endpoint directly and report per-wine extraction results.
+
 ## v0.2.1 (2026-06-20)
 
 ### Security

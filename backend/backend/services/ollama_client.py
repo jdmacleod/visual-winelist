@@ -99,8 +99,11 @@ async def extract_wines(image_data: bytes) -> AsyncIterator[WineObject]:
                         continue
 
                     # First token continues the pre-filled "{" — prepend it.
+                    # Guard against future Ollama builds that echo the pre-fill
+                    # in streamed tokens (would produce "{{..." and break JSON).
                     if first_token:
-                        token = "{" + token
+                        if not token.startswith("{"):
+                            token = "{" + token
                         first_token = False
 
                     token_buffer += token
