@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 import uuid
 from collections.abc import AsyncIterator
 from typing import Any
@@ -63,6 +64,10 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
     _scanning = True
     extraction_task: asyncio.Task[None] | None = None
 
+    t_scan_start = time.perf_counter()
+    t_extraction_end: float = 0.0
+    t_phase1_end: float = 0.0
+
     try:
         queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
         wines: list[WineObject] = []
@@ -71,7 +76,7 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
         wine_index = 0
 
         async def run_extraction() -> None:
-            nonlocal wine_index
+            nonlocal wine_index, t_extraction_end
             try:
                 async for wine in ollama_client.extract_wines(image_data):
                     await queue.put(("wine", wine))
@@ -88,6 +93,7 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
                     )
                 )
             finally:
+                t_extraction_end = time.perf_counter()
                 await queue.put(("extraction_done", None))
 
         extraction_task = asyncio.ensure_future(run_extraction())
@@ -156,6 +162,8 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
             )
             return
 
+        t_phase1_end = time.perf_counter()
+
         # Phase 2: sommelier notes (serial — Ollama single-instance)
         for wine in wines:
             try:
@@ -172,12 +180,39 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
                     NotesEvent(wine_id=wine.wine_id).model_dump(),
                 )
 
+        t_scan_end = time.perf_counter()
+
+        ollama_ms = int((t_extraction_end - t_scan_start) * 1000) if t_extraction_end else None
+        image_ms = (
+            int((t_phase1_end - t_extraction_end) * 1000)
+            if t_extraction_end and t_phase1_end
+            else None
+        )
+        sommelier_ms = int((t_scan_end - t_phase1_end) * 1000) if t_phase1_end else None
+        total_ms = int((t_scan_end - t_scan_start) * 1000)
+
+        log.info(
+            "[scan:%s] complete wines=%d cache_hits=%d"
+            " ollama_ms=%s image_ms=%s sommelier_ms=%s total_ms=%d",
+            scan_id,
+            len(wines),
+            cache_hits,
+            ollama_ms,
+            image_ms,
+            sommelier_ms,
+            total_ms,
+        )
+
         yield _sse(
             "complete",
             CompleteEvent(
                 wine_count=len(wines),
                 cache_hits=cache_hits,
                 scan_id=scan_id,
+                ollama_ms=ollama_ms,
+                image_ms=image_ms,
+                sommelier_ms=sommelier_ms,
+                total_ms=total_ms,
             ).model_dump(),
         )
 

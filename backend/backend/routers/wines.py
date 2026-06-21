@@ -61,7 +61,13 @@ async def get_wine_image(wine_id: str) -> FileResponse:
         raise HTTPException(status_code=404, detail="Image not found")
     if not os.path.exists(record.image_path):
         raise HTTPException(status_code=404, detail="Image file missing")
-    return FileResponse(record.image_path, media_type="image/jpeg")
+    # Images are content-addressed (wine_id = sha256 of producer+name+vintage) and
+    # never mutate, so a 1-year immutable cache is safe.
+    return FileResponse(
+        record.image_path,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
 
 
 @router.delete("/wines/{wine_id}", status_code=204)

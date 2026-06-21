@@ -73,6 +73,8 @@ export default function WineDetailPanel({
               <img
                 src={absoluteImageUrl(wine.image_url)}
                 alt={wine.name}
+                loading="lazy"
+                decoding="async"
                 className="w-full h-full object-cover"
               />
             ) : (
