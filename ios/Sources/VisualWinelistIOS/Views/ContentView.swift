@@ -141,8 +141,6 @@ struct ContentView: View {
                 .padding(.top, 12)
             }
         }
-        // T10: cancel the URLSession task if user navigates away mid-scan
-        .onDisappear { viewModel.cancelScan() }
     }
 
     // MARK: - Grid view
