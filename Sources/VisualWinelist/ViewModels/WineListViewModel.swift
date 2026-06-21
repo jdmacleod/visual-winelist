@@ -8,15 +8,20 @@ class WineListViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var selectedWine: WineObject?
     @Published var backendStatus: BackendStatus = .unknown
+    @Published var notesIncomplete: Bool = false
 
     enum BackendStatus {
         case unknown, ok, degraded(String), unreachable
     }
 
-    private let backend: BackendClient
+    private let backend: any BackendClientProtocol
 
     init(backendURL: URL) {
         self.backend = BackendClient(baseURL: backendURL)
+    }
+
+    init(backend: any BackendClientProtocol) {
+        self.backend = backend
     }
 
     // MARK: - Health
@@ -52,6 +57,7 @@ class WineListViewModel: ObservableObject {
         wines = []
         selectedWine = nil
         errorMessage = nil
+        notesIncomplete = false
     }
 
     // MARK: - Private
@@ -60,10 +66,17 @@ class WineListViewModel: ObservableObject {
         isScanning = true
         scanMessage = "Sending photo to backend…"
         errorMessage = nil
+        notesIncomplete = false
+
+        var receivedComplete = false
+        var userCancelled = false
 
         defer {
             isScanning = false
             scanMessage = ""
+            if !receivedComplete && !userCancelled && !wines.isEmpty {
+                notesIncomplete = true
+            }
         }
 
         do {
@@ -94,6 +107,7 @@ class WineListViewModel: ObservableObject {
                     }
 
                 case .complete(let payload):
+                    receivedComplete = true
                     let hit = payload.cache_hits
                     scanMessage =
                         "\(payload.wine_count) wine\(payload.wine_count == 1 ? "" : "s")"
@@ -111,6 +125,8 @@ class WineListViewModel: ObservableObject {
                 errorMessage = "No wines found — try a flatter angle or better lighting"
             }
 
+        } catch is CancellationError {
+            userCancelled = true
         } catch BackendError.scannerBusy {
             errorMessage = "Scanner is busy — another scan is in progress"
         } catch BackendError.unreachable(let url) {

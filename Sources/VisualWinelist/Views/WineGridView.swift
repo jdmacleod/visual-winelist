@@ -38,7 +38,11 @@ struct WineGridView: View {
                 set: { _ in viewModel.selectedWine = nil }
             )
         ) { state in
-            WineDetailView(state: state)
+            WineDetailView(
+                state: state,
+                isScanning: viewModel.isScanning,
+                notesIncomplete: viewModel.notesIncomplete
+            )
         }
     }
 

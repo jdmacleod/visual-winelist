@@ -5,6 +5,8 @@ import SwiftUI
 
 struct WineDetailView: View {
     let state: WineState
+    var isScanning: Bool = false
+    var notesIncomplete: Bool = false
     @Environment(\.dismiss) private var dismiss
 
     private var wine: WineObject { state.wine }
@@ -20,7 +22,13 @@ struct WineDetailView: View {
 
                     VStack(alignment: .leading, spacing: 20) {
                         header
-                        if let note = wine.tastingNote { tastingNoteSection(note) }
+                        if let note = wine.tastingNote {
+                            tastingNoteSection(note)
+                        } else if isScanning {
+                            notesLoadingSection
+                        } else if notesIncomplete {
+                            notesIncompleteSection
+                        }
                         if !wine.pairings.isEmpty { pairingsSection(wine.pairings) }
                         if let description = wine.description { descriptionSection(description) }
                         metadata
@@ -90,6 +98,33 @@ struct WineDetailView: View {
                     .padding(.top, 2)
             }
         }
+    }
+
+    private var notesLoadingSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("TASTING NOTE")
+                .font(.caption.bold())
+                .foregroundStyle(.tertiary)
+            Text("Generating…")
+                .font(.body)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private var notesIncompleteSection: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "wifi.slash")
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Tasting notes unavailable")
+                    .font(.subheadline.bold())
+                Text("Connection dropped mid-scan")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(10)
+        .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private func tastingNoteSection(_ text: String) -> some View {

@@ -1,5 +1,11 @@
 import Foundation
 
+protocol BackendClientProtocol: Sendable {
+    func checkHealth() async throws -> HealthResponse
+    func scan(photoData: Data) -> AsyncThrowingStream<SSEEvent, Error>
+    func fetchImage(wineId: String) async throws -> Data
+}
+
 enum BackendError: Error, LocalizedError, Sendable {
     case unreachable(String)
     case scannerBusy
@@ -132,6 +138,8 @@ struct BackendClient: Sendable {
         return request
     }
 }
+
+extension BackendClient: BackendClientProtocol {}
 
 private extension Data {
     mutating func appendString(_ string: String) {
