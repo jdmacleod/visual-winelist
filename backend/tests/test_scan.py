@@ -125,6 +125,37 @@ async def test_scan_scanner_busy(client):
         scan_mod._scanning = False
 
 
+async def test_scan_lock_released_on_generator_close():
+    """_scanning must reset to False when the client disconnects mid-scan.
+
+    Simulates iOS navigating away: the StreamingResponse generator is closed
+    early (GeneratorExit is a BaseException, not Exception, so the inner
+    `except Exception` blocks do NOT catch it). Without the outer try/finally
+    the lock stays True forever and every subsequent scan gets 503.
+    """
+    import backend.routers.scan as scan_mod
+    from backend.routers.scan import _scan_sse
+
+    async def _no_wines(_image_data: bytes) -> AsyncIterator[WineObject]:
+        return
+        yield  # noqa: unreachable — makes this an async generator function
+
+    assert not scan_mod._scanning, "pre-condition: lock must start False"
+
+    with patch("backend.routers.scan.ollama_client.extract_wines", _no_wines):
+        gen = _scan_sse(make_jpeg(), "test-disconnect")
+        # Generator runs Phase 1+2, yields the complete event, then suspends.
+        # At this suspend point the finally block has NOT run — _scanning is True.
+        first = await gen.__anext__()
+        assert "complete" in first, f"expected complete event, got: {first!r}"
+        assert scan_mod._scanning, "lock must be True while generator is suspended"
+
+        # Simulate client disconnect: close the generator before it is exhausted.
+        await gen.aclose()
+
+    assert not scan_mod._scanning, "_scanning must be False after generator.aclose()"
+
+
 async def test_scan_happy_path(client):
     """Two wines extracted; SSE stream has wine events, notes events, complete sentinel."""
 

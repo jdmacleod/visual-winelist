@@ -61,104 +61,102 @@ async def _fetch_image_to_queue(
 async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
     global _scanning
     _scanning = True
+    extraction_task: asyncio.Task[None] | None = None
 
-    queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
-    wines: list[WineObject] = []
-    cache_hits = 0
-    pending_images = 0
-    wine_index = 0
-
-    async def run_extraction() -> None:
-        nonlocal wine_index
-        try:
-            async for wine in ollama_client.extract_wines(image_data):
-                await queue.put(("wine", wine))
-                wine_index += 1
-        except Exception as exc:
-            await queue.put(
-                (
-                    "error",
-                    ErrorEvent(
-                        code="OLLAMA_DOWN",
-                        wine_index=wine_index,
-                        message=str(exc),
-                    ),
-                )
-            )
-        finally:
-            await queue.put(("extraction_done", None))
-
-    asyncio.ensure_future(run_extraction())
-
-    # Phase 1: drain queue until extraction + all image tasks complete
-    # Keepalive: send SSE comment every 15s to prevent proxy/iOS from closing connection
-    extraction_done = False
     try:
-        while True:
+        queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
+        wines: list[WineObject] = []
+        cache_hits = 0
+        pending_images = 0
+        wine_index = 0
+
+        async def run_extraction() -> None:
+            nonlocal wine_index
             try:
-                item = await asyncio.wait_for(queue.get(), timeout=15.0)
-            except TimeoutError:
-                yield ": ping\n\n"
-                continue
-
-            event_type, data = item
-
-            if event_type == "wine":
-                wine: WineObject = data
-                cached = await cache.lookup(wine.wine_id)
-                if cached is not None:
-                    cache_hits += 1
-                    wines.append(wine)
-                    yield _sse("wine", wine.model_dump_with_id())
-                    image_event = ImageEvent(
-                        wine_id=wine.wine_id,
-                        url=f"/wines/{wine.wine_id}/image",
-                        placeholder=False,
+                async for wine in ollama_client.extract_wines(image_data):
+                    await queue.put(("wine", wine))
+                    wine_index += 1
+            except Exception as exc:
+                await queue.put(
+                    (
+                        "error",
+                        ErrorEvent(
+                            code="OLLAMA_DOWN",
+                            wine_index=wine_index,
+                            message=str(exc),
+                        ),
                     )
-                    yield _sse("image", image_event.model_dump())
-                else:
-                    wines.append(wine)
-                    yield _sse("wine", wine.model_dump_with_id())
-                    pending_images += 1
-                    asyncio.ensure_future(_fetch_image_to_queue(wine, queue, scan_id))
+                )
+            finally:
+                await queue.put(("extraction_done", None))
 
-            elif event_type == "image":
-                img_event: ImageEvent = data
-                yield _sse("image", img_event.model_dump())
+        extraction_task = asyncio.ensure_future(run_extraction())
 
-            elif event_type == "image_done":
-                pending_images -= 1
+        # Phase 1: drain queue until extraction + all image tasks complete
+        # Keepalive: send SSE comment every 15s to prevent proxy/iOS from closing connection
+        extraction_done = False
+        try:
+            while True:
+                try:
+                    item = await asyncio.wait_for(queue.get(), timeout=15.0)
+                except TimeoutError:
+                    yield ": ping\n\n"
+                    continue
 
-            elif event_type == "error":
-                error: ErrorEvent = data
-                yield _sse("error", error.model_dump())
+                event_type, data = item
 
-            elif event_type == "extraction_done":
-                extraction_done = True
+                if event_type == "wine":
+                    wine: WineObject = data
+                    cached = await cache.lookup(wine.wine_id)
+                    if cached is not None:
+                        cache_hits += 1
+                        wines.append(wine)
+                        yield _sse("wine", wine.model_dump_with_id())
+                        image_event = ImageEvent(
+                            wine_id=wine.wine_id,
+                            url=f"/wines/{wine.wine_id}/image",
+                            placeholder=False,
+                        )
+                        yield _sse("image", image_event.model_dump())
+                    else:
+                        wines.append(wine)
+                        yield _sse("wine", wine.model_dump_with_id())
+                        pending_images += 1
+                        asyncio.ensure_future(_fetch_image_to_queue(wine, queue, scan_id))
 
-            if extraction_done and pending_images == 0:
-                break
+                elif event_type == "image":
+                    img_event: ImageEvent = data
+                    yield _sse("image", img_event.model_dump())
 
-    except Exception as exc:
-        yield _sse(
-            "error",
-            ErrorEvent(code="INTERNAL_ERROR", message=str(exc)).model_dump(),
-        )
-        yield _sse(
-            "complete",
-            CompleteEvent(
-                wine_count=len(wines),
-                cache_hits=cache_hits,
-                scan_id=scan_id,
-            ).model_dump(),
-        )
-        _scanning = False
-        return
+                elif event_type == "image_done":
+                    pending_images -= 1
 
-    # Phase 2: sommelier notes (serial — Ollama single-instance)
-    # _scanning stays True through Phase 2: sommelier calls Ollama and a
-    # concurrent scan would interleave with the single-instance Ollama session.
-    try:
+                elif event_type == "error":
+                    error: ErrorEvent = data
+                    yield _sse("error", error.model_dump())
+
+                elif event_type == "extraction_done":
+                    extraction_done = True
+
+                if extraction_done and pending_images == 0:
+                    break
+
+        except Exception as exc:
+            yield _sse(
+                "error",
+                ErrorEvent(code="INTERNAL_ERROR", message=str(exc)).model_dump(),
+            )
+            yield _sse(
+                "complete",
+                CompleteEvent(
+                    wine_count=len(wines),
+                    cache_hits=cache_hits,
+                    scan_id=scan_id,
+                ).model_dump(),
+            )
+            return
+
+        # Phase 2: sommelier notes (serial — Ollama single-instance)
         for wine in wines:
             try:
                 notes = await sommelier.get_notes(wine)
@@ -173,17 +171,22 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
                     "notes",
                     NotesEvent(wine_id=wine.wine_id).model_dump(),
                 )
-    finally:
-        _scanning = False
 
-    yield _sse(
-        "complete",
-        CompleteEvent(
-            wine_count=len(wines),
-            cache_hits=cache_hits,
-            scan_id=scan_id,
-        ).model_dump(),
-    )
+        yield _sse(
+            "complete",
+            CompleteEvent(
+                wine_count=len(wines),
+                cache_hits=cache_hits,
+                scan_id=scan_id,
+            ).model_dump(),
+        )
+
+    finally:
+        # Always release the lock — even on client disconnect (GeneratorExit/CancelledError
+        # are BaseException, not Exception, so inner except blocks don't catch them).
+        _scanning = False
+        if extraction_task is not None and not extraction_task.done():
+            extraction_task.cancel()
 
 
 @router.post("/scan")
