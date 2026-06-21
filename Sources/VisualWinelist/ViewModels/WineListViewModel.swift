@@ -61,6 +61,20 @@ class WineListViewModel: ObservableObject {
         scanMessage = "Sending photo to backend…"
         errorMessage = nil
 
+        // Diagnostic: log image format so we can detect HEIC vs JPEG vs other
+        let magic = photoData.prefix(12).map { String(format: "%02X", $0) }.joined(separator: " ")
+        let format: String
+        if photoData.prefix(3) == Data([0xFF, 0xD8, 0xFF]) {
+            format = "JPEG"
+        } else if photoData.prefix(8) == Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) {
+            format = "PNG"
+        } else if photoData.count > 8 && String(data: photoData[4..<12], encoding: .ascii)?.hasPrefix("ftyp") == true {
+            format = "HEIC/MP4 (ftyp box)"
+        } else {
+            format = "unknown"
+        }
+        print("[DIAG] performScan: \(photoData.count) bytes, format=\(format), magic=\(magic)")
+
         defer {
             isScanning = false
             scanMessage = ""
@@ -105,6 +119,7 @@ class WineListViewModel: ObservableObject {
             // Only show the generic hint if no specific error was already surfaced
             // from an SSE event: error payload. An OLLAMA_DOWN or similar error
             // would otherwise be silently overwritten by this message.
+            print("[DIAG] scan loop ended: extractedCount=\(extractedCount), errorMessage=\(errorMessage ?? "nil")")
             if extractedCount == 0 && errorMessage == nil {
                 errorMessage = "No wines found — try a flatter angle or better lighting"
             }

@@ -30,16 +30,43 @@ struct SSEParser {
         let decoder = JSONDecoder()
         switch eventType {
         case "wine":
-            return (try? decoder.decode(WineObject.self, from: jsonData)).map { .wine($0) }
+            do {
+                let wine = try decoder.decode(WineObject.self, from: jsonData)
+                return .wine(wine)
+            } catch {
+                print("[DIAG] SSEParser: WineObject decode FAILED: \(error)\n  data=\(data.prefix(300))")
+                return nil
+            }
         case "image":
-            return (try? decoder.decode(ImageSSEPayload.self, from: jsonData)).map { .image($0) }
+            do {
+                return .image(try decoder.decode(ImageSSEPayload.self, from: jsonData))
+            } catch {
+                print("[DIAG] SSEParser: ImageSSEPayload decode FAILED: \(error)")
+                return nil
+            }
         case "notes":
-            return (try? decoder.decode(NotesSSEPayload.self, from: jsonData)).map { .notes($0) }
+            do {
+                return .notes(try decoder.decode(NotesSSEPayload.self, from: jsonData))
+            } catch {
+                print("[DIAG] SSEParser: NotesSSEPayload decode FAILED: \(error)")
+                return nil
+            }
         case "error":
-            return (try? decoder.decode(ErrorSSEPayload.self, from: jsonData)).map { .error($0) }
+            do {
+                return .error(try decoder.decode(ErrorSSEPayload.self, from: jsonData))
+            } catch {
+                print("[DIAG] SSEParser: ErrorSSEPayload decode FAILED: \(error)")
+                return nil
+            }
         case "complete":
-            return (try? decoder.decode(CompleteSSEPayload.self, from: jsonData)).map { .complete($0) }
+            do {
+                return .complete(try decoder.decode(CompleteSSEPayload.self, from: jsonData))
+            } catch {
+                print("[DIAG] SSEParser: CompleteSSEPayload decode FAILED: \(error)")
+                return nil
+            }
         default:
+            print("[DIAG] SSEParser: unknown eventType=\(eventType)")
             return nil
         }
     }

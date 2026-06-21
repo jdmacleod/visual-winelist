@@ -46,30 +46,41 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
         completionHandler: @escaping (URLSession.ResponseDisposition) -> Void
     ) {
         guard let http = response as? HTTPURLResponse else {
+            print("[DIAG] IOSScanSession: non-HTTP response")
             continuation.finish(throwing: BackendError.unreachable(""))
             completionHandler(.cancel)
             return
         }
+        print("[DIAG] IOSScanSession: HTTP \(http.statusCode), content-type=\(http.value(forHTTPHeaderField: "Content-Type") ?? "nil")")
         switch http.statusCode {
         case 200:
             completionHandler(.allow)
         case 503:
+            print("[DIAG] IOSScanSession: SCANNER_BUSY")
             continuation.finish(throwing: BackendError.scannerBusy)
             completionHandler(.cancel)
         default:
+            print("[DIAG] IOSScanSession: non-200 status \(http.statusCode)")
             continuation.finish(throwing: BackendError.httpError(http.statusCode))
             completionHandler(.cancel)
         }
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        guard let chunk = String(data: data, encoding: .utf8) else { return }
+        guard let chunk = String(data: data, encoding: .utf8) else {
+            print("[DIAG] IOSScanSession: received non-UTF8 data chunk (\(data.count) bytes)")
+            return
+        }
         lineBuffer += chunk
         // Split on newlines; keep any partial final line in the buffer
         while let newlineRange = lineBuffer.range(of: "\n") {
             let line = String(lineBuffer[lineBuffer.startIndex..<newlineRange.lowerBound])
             lineBuffer = String(lineBuffer[newlineRange.upperBound...])
+            if !line.isEmpty && !line.hasPrefix(":") {
+                print("[DIAG] SSE line: \(line.prefix(120))")
+            }
             if let event = parser.feed(line: line) {
+                print("[DIAG] SSE event yielded: \(event)")
                 continuation.yield(event)
             }
         }
@@ -79,11 +90,14 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
         if let error {
             let ns = error as NSError
             if ns.code == NSURLErrorCancelled {
+                print("[DIAG] IOSScanSession: cancelled (clean)")
                 continuation.finish()  // user-initiated cancel: clean end, not an error
             } else {
+                print("[DIAG] IOSScanSession: error: \(error)")
                 continuation.finish(throwing: error)
             }
         } else {
+            print("[DIAG] IOSScanSession: stream finished cleanly")
             continuation.finish()
         }
     }

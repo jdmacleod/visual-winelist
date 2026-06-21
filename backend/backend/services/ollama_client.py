@@ -22,6 +22,7 @@ re-pull qwen3-vl:8b to restore extraction.
 
 import base64
 import json
+import logging
 from collections.abc import AsyncIterator
 
 import httpx
@@ -29,6 +30,8 @@ import httpx
 from backend import config
 from backend.models.wine import WineObject
 from backend.prompts.wine_extraction import WINE_EXTRACTION_PROMPT
+
+log = logging.getLogger(__name__)
 
 _MODEL = "qwen3-vl:8b"
 _TIMEOUT = 120.0
@@ -50,6 +53,8 @@ async def extract_wines(image_data: bytes) -> AsyncIterator[WineObject]:
     Mirrors OllamaClient.swift:extractWines — same token buffer logic,
     same pre-fill trick, same 120s timeout.
     """
+    magic = " ".join(f"{b:02X}" for b in image_data[:4])
+    log.info("[DIAG] extract_wines: %d bytes, magic=%s", len(image_data), magic)
     body = {
         "model": _MODEL,
         "messages": [
@@ -81,6 +86,7 @@ async def extract_wines(image_data: bytes) -> AsyncIterator[WineObject]:
                 if response.status_code != 200:
                     raise ConnectionError(f"Ollama returned HTTP {response.status_code}")
 
+                wine_count = 0
                 token_buffer = ""
                 first_token = True
 
@@ -106,6 +112,10 @@ async def extract_wines(image_data: bytes) -> AsyncIterator[WineObject]:
                         token_buffer = token_buffer[idx + 1 :]
                         wine = _try_parse(line)
                         if wine is not None:
+                            wine_count += 1
+                            log.info(
+                                "[DIAG] extract_wines: yielding wine #%d: %s", wine_count, wine.name
+                            )
                             yield wine
 
                 # Flush: complete JSON object without a trailing newline.
@@ -113,7 +123,15 @@ async def extract_wines(image_data: bytes) -> AsyncIterator[WineObject]:
                 if trimmed.startswith("{") and trimmed.endswith("}"):
                     wine = _try_parse(trimmed)
                     if wine is not None:
+                        wine_count += 1
+                        log.info(
+                            "[DIAG] extract_wines: flush yielded wine #%d: %s",
+                            wine_count,
+                            wine.name,
+                        )
                         yield wine
+
+                log.info("[DIAG] extract_wines: done, %d wines yielded", wine_count)
 
     except httpx.ConnectError as exc:
         raise ConnectionRefusedError(f"Ollama not reachable at {config.OLLAMA_BASE_URL}") from exc
