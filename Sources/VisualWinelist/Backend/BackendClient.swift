@@ -99,6 +99,8 @@ struct BackendClient: Sendable {
                     || urlError.code == .networkConnectionLost
                     || urlError.code == .cannotFindHost
                     || urlError.code == .timedOut
+                    || urlError.code == .notConnectedToInternet
+                    || urlError.code == .secureConnectionFailed
                 {
                     continuation.finish(throwing: BackendError.unreachable(baseURL.absoluteString))
                 } catch {

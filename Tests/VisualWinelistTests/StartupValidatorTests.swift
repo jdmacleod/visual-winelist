@@ -8,10 +8,7 @@ final class StartupValidatorTests: XCTestCase {
     // MARK: - StartupValidator.validate()
 
     func testValidateReturnsLocalhostDefault() throws {
-        guard ProcessInfo.processInfo.environment["BACKEND_URL"] == nil else {
-            throw XCTSkip("BACKEND_URL is set in test environment — cannot test default")
-        }
-        let url = try StartupValidator.validate()
+        let url = try StartupValidator.validate(environment: [:])
         XCTAssertEqual(url.absoluteString, "http://localhost:8000")
     }
 

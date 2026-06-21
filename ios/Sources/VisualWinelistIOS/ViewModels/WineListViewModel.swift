@@ -131,6 +131,9 @@ class WineListViewModel: ObservableObject {
 
                 case .ping:
                     break
+
+                case .parseError:
+                    break
                 }
             }
 

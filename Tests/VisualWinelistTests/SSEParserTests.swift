@@ -154,12 +154,16 @@ final class SSEParserTests: XCTestCase {
         XCTAssertNil(result, "default 'message' event type is unknown and should return nil")
     }
 
-    func testMalformedJsonReturnsNil() {
+    func testMalformedJsonReturnsParseError() {
         var parser = SSEParser()
         _ = parser.feed(line: "event: wine")
         _ = parser.feed(line: "data: not valid json {{")
         let result = parser.feed(line: "")
-        XCTAssertNil(result, "malformed JSON should return nil rather than crash")
+        guard case .parseError(let desc) = result else {
+            XCTFail("malformed JSON should return .parseError, got \(String(describing: result))")
+            return
+        }
+        XCTAssertTrue(desc.hasPrefix("wine:"), "parseError description should include event type; got: \(desc)")
     }
 
     func testMultipleEventsSequential() {

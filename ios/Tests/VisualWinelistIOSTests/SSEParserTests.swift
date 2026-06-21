@@ -11,16 +11,21 @@ import XCTest
 // MARK: - MockURLProtocol
 
 final class MockURLProtocol: URLProtocol, @unchecked Sendable {
+    // FIXME: static vars are not parallel-test-safe — see TODOS.md
     static var handler: ((URLRequest) -> (HTTPURLResponse, Data))?
     /// When true, startLoading() returns immediately without delivering any data.
     /// URLSession still calls didCompleteWithError(NSURLErrorCancelled) when the
     /// task is cancelled, which IOSScanSession converts to a clean stream finish.
     static var holdLoading = false
+    /// Called at the start of startLoading(), before holdLoading check.
+    /// Use to synchronize tests that need to know when the URLSession task has started.
+    static var onStartLoading: (() -> Void)?
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
+        MockURLProtocol.onStartLoading?()
         if MockURLProtocol.holdLoading { return }
         guard let handler = MockURLProtocol.handler else {
             client?.urlProtocol(self, didFailWithError: URLError(.unknown))
@@ -42,6 +47,7 @@ final class IOSTestSuite: XCTestCase {
     override func tearDown() {
         MockURLProtocol.handler = nil
         MockURLProtocol.holdLoading = false
+        MockURLProtocol.onStartLoading = nil
         super.tearDown()
     }
 
@@ -167,7 +173,9 @@ final class IOSTestSuite: XCTestCase {
             }
         }
 
-        try? await Task.sleep(nanoseconds: 10_000_000)  // let the task start
+        let started = expectation(description: "URLSession startLoading called")
+        MockURLProtocol.onStartLoading = { started.fulfill() }
+        await fulfillment(of: [started], timeout: 2.0)
         session.cancel()
         await consumeTask.value
 

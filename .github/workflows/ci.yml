@@ -171,8 +171,9 @@ jobs:
             TOTAL=$(awk '/TOTAL/{print $NF}' /tmp/swift-cov.txt 2>/dev/null | tr -d '%' | head -1)
             echo "Swift coverage: ${TOTAL:-unknown}%"
             if [ -n "$TOTAL" ]; then
-              python3 -c "import sys; cov=float('$TOTAL'); sys.exit(0 if cov >= 70 else 1)" || \
-                { echo "Swift coverage ${TOTAL}% is below the 70% minimum"; exit 1; }
+              SWIFT_COV_MIN=70
+              python3 -c "import sys; cov=float('$TOTAL'); sys.exit(0 if cov >= $SWIFT_COV_MIN else 1)" || \
+                { echo "Swift coverage ${TOTAL}% is below the ${SWIFT_COV_MIN}% minimum"; exit 1; }
             fi
           else
             echo "::warning::Swift coverage data not found — threshold check skipped (build may have produced no profdata)"

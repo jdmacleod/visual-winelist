@@ -141,8 +141,11 @@ final class WineListViewModelTests: XCTestCase {
         let vm = WineListViewModel(backend: SlowClient())
         let scanTask = Task { await vm.scan(photoData: Data()) }
 
-        // Yield to let the scan task start and set isScanning = true
-        try? await Task.sleep(nanoseconds: 10_000_000)
+        // Poll until isScanning=true (up to 100ms) so we don't race against task startup.
+        for _ in 0..<20 {
+            if vm.isScanning { break }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
         XCTAssertTrue(vm.isScanning, "scan should be in-progress before cancel")
 
         scanTask.cancel()

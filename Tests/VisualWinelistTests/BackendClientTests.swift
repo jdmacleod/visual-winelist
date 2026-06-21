@@ -5,6 +5,7 @@ import XCTest
 // MARK: - URLProtocol stub
 
 private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
+    // FIXME: static var is not parallel-test-safe — see TODOS.md
     static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data?))?
 
     override class func canInit(with request: URLRequest) -> Bool { true }
