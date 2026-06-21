@@ -4,6 +4,7 @@ struct SetupView: View {
     @AppStorage("BACKEND_URL") private var savedURL = ""
     @State private var inputURL = ""
     @State private var validationError: String?
+    @FocusState private var isURLFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -23,6 +24,10 @@ struct SetupView: View {
             }
             .navigationTitle("Connect to Backend")
             .navigationBarTitleDisplayMode(.large)
+            .onAppear {
+                inputURL = savedURL
+                isURLFocused = true
+            }
         }
     }
 
@@ -55,6 +60,7 @@ struct SetupView: View {
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
                 .submitLabel(.go)
+                .focused($isURLFocused)
                 .onSubmit { connect() }
         }
     }
