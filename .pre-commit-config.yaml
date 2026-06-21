@@ -50,6 +50,21 @@ repos:
         pass_filenames: false
 
   # ---------------------------------------------------------------------------
+  # Swift — swift-format (formatting)
+  # Uses Xcode-bundled swift-format via xcrun — requires Xcode installed.
+  # Formats files in-place; re-stage the fixed files to unblock the commit.
+  # Mirrors the CI swift-ci "Format check" step.
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: swift-format
+        name: swift-format
+        entry: xcrun swift-format format -i --configuration .swift-format
+        language: system
+        files: \.swift$
+        pass_filenames: true
+
+  # ---------------------------------------------------------------------------
   # TypeScript — prettier (formatting)
   # Managed hook: runs automatically when *.ts / *.tsx files exist under web/.
   # No Node setup required — pre-commit installs prettier in its own env.

@@ -33,8 +33,7 @@ struct ContentView: View {
             if let err { phase = .error(err.localizedDescription) }
         }
         .onChange(of: viewModel.errorMessage) { msg in
-            if let msg { phase = .error(msg) }
-            else if !viewModel.wines.isEmpty { phase = .grid }
+            if let msg { phase = .error(msg) } else if !viewModel.wines.isEmpty { phase = .grid }
         }
         .onChange(of: viewModel.wines.count) { count in
             if count > 0, case .scanning = phase {

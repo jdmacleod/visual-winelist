@@ -18,6 +18,6 @@ let package = Package(
             name: "VisualWinelistTests",
             dependencies: ["VisualWinelist"],
             path: "Tests/VisualWinelistTests"
-        )
+        ),
     ]
 )

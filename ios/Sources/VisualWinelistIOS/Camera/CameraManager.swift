@@ -65,7 +65,8 @@ class CameraManager: NSObject, ObservableObject {
             session.sessionPreset = .photo
 
             // Prefer the rear wide-angle camera on iPhone/iPad
-            let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
+            let device =
+                AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
                 ?? AVCaptureDevice.default(for: .video)
             guard let device,
                 let input = try? AVCaptureDeviceInput(device: device)

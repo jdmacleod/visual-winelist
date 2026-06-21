@@ -5,7 +5,7 @@
   "respectsExistingLineBreaks": true,
   "lineBreakBeforeControlFlowKeywords": false,
   "rules": {
-    "AlwaysUseLowerCamelCase": true,
+    "AlwaysUseLowerCamelCase": false,
     "NeverUseImplicitlyUnwrappedOptionals": false
   }
 }

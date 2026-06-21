@@ -113,13 +113,19 @@ struct PlaceholderBottle: View {
         let lower = appellation.lowercased()
         if lower.contains("bordeaux") || lower.contains("burgundy") || lower.contains("champagne")
             || lower.contains("france")
-        { return "🇫🇷" }
+        {
+            return "🇫🇷"
+        }
         if lower.contains("napa") || lower.contains("sonoma") || lower.contains("california")
             || lower.contains("oregon") || lower.contains("washington")
-        { return "🇺🇸" }
+        {
+            return "🇺🇸"
+        }
         if lower.contains("tuscany") || lower.contains("barolo") || lower.contains("italy")
             || lower.contains("sicily")
-        { return "🇮🇹" }
+        {
+            return "🇮🇹"
+        }
         if lower.contains("rioja") || lower.contains("spain") || lower.contains("priorat") { return "🇪🇸" }
         if lower.contains("argentina") || lower.contains("mendoza") { return "🇦🇷" }
         if lower.contains("chile") { return "🇨🇱" }

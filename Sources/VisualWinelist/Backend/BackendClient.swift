@@ -95,7 +95,8 @@ struct BackendClient: Sendable {
     // MARK: - Image fetch
 
     func fetchImage(wineId: String) async throws -> Data {
-        let url = baseURL
+        let url =
+            baseURL
             .appendingPathComponent("wines")
             .appendingPathComponent(wineId)
             .appendingPathComponent("image")

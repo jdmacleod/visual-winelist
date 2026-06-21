@@ -121,5 +121,16 @@ jobs:
       - name: Test
         run: swift test
 
-      - name: Lint (swift-format)
-        run: swift format lint -r --configuration .swift-format Sources Tests Scripts
+      - name: Format check (swift-format)
+        # swift format lint exits 0 even with warnings — use format+diff instead.
+        # Formats all Swift in-place; git diff catches any files that changed.
+        # ios/Sources and ios/Tests are included so the iOS client is covered.
+        run: |
+          swift format format -r -i --configuration .swift-format \
+            Sources Tests ios/Sources ios/Tests Scripts
+          git diff --exit-code -- '*.swift' || {
+            echo ""
+            echo "Swift formatting violations. Fix locally with:"
+            echo "  xcrun swift-format format -r -i --configuration .swift-format Sources Tests ios/Sources ios/Tests Scripts"
+            exit 1
+          }

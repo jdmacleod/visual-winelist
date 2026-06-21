@@ -113,7 +113,8 @@ class WineListViewModel: ObservableObject {
                 case .error(let payload):
                     switch payload.code {
                     case "OLLAMA_DOWN":
-                        errorMessage = "Extraction failed — \(payload.message)\n\nIs Ollama running with qwen3-vl:8b? Run: ollama serve"
+                        errorMessage =
+                            "Extraction failed — \(payload.message)\n\nIs Ollama running with qwen3-vl:8b? Run: ollama serve"
                     default:
                         errorMessage = "Scan error (\(payload.code)): \(payload.message)"
                     }
@@ -121,7 +122,8 @@ class WineListViewModel: ObservableObject {
                 case .complete(let payload):
                     receivedComplete = true
                     let hit = payload.cache_hits
-                    scanMessage = "\(payload.wine_count) wine\(payload.wine_count == 1 ? "" : "s")"
+                    scanMessage =
+                        "\(payload.wine_count) wine\(payload.wine_count == 1 ? "" : "s")"
                         + (hit > 0 ? " · \(hit) from cache" : "")
 
                 case .ping:

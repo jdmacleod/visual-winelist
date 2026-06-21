@@ -11,9 +11,9 @@ struct WineObject: Codable, Identifiable, Equatable, Sendable {
     let listSection: String?
     let rawText: String?
     let confidence: Double
-    var wineId: String?        // set by backend (wine_id field)
-    var tastingNote: String?   // set from event: notes (sommelier)
-    var pairings: [String]     // set from event: notes (sommelier)
+    var wineId: String?  // set by backend (wine_id field)
+    var tastingNote: String?  // set from event: notes (sommelier)
+    var pairings: [String]  // set from event: notes (sommelier)
 
     enum CodingKeys: String, CodingKey {
         case name, producer, vintage, variety, appellation, price, description

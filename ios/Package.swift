@@ -9,10 +9,10 @@ let package = Package(
             name: "VisualWinelistIOS",
             path: "Sources/VisualWinelistIOS",
             resources: [
-                .copy("Resources/Settings.bundle"),
+                .copy("Resources/Settings.bundle")
             ],
             swiftSettings: [
-                .enableExperimentalFeature("StrictConcurrency"),
+                .enableExperimentalFeature("StrictConcurrency")
             ]
         )
     ]
