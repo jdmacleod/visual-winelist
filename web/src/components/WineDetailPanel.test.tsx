@@ -137,3 +137,40 @@ test('uploadWineImage shows error when upload network call fails', async () => {
     expect(screen.getByText('Upload failed')).toBeInTheDocument();
   });
 });
+
+test('uploadWineImage success calls onImageUpdate', async () => {
+  const user = userEvent.setup();
+  vi.mocked(uploadWineImage).mockResolvedValueOnce({
+    wine_id: 'test-wine-id',
+    image_url: '/wines/test-wine-id/image',
+  });
+
+  render(<WineDetailPanel {...defaultProps} wine={makeWine()} />);
+
+  const validFile = new File([new ArrayBuffer(1024)], 'bottle.jpg', {
+    type: 'image/jpeg',
+  });
+  const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+  await user.upload(fileInput, validFile);
+
+  await waitFor(() => {
+    expect(defaultProps.onImageUpdate).toHaveBeenCalledWith(
+      'test-wine-id',
+      expect.stringContaining('/wines/test-wine-id/image'),
+    );
+  });
+});
+
+test('onVerify called when Mark verified button is clicked', async () => {
+  const user = userEvent.setup();
+  render(<WineDetailPanel {...defaultProps} wine={makeWine({ verified: false })} />);
+  await user.click(screen.getByRole('button', { name: /mark verified/i }));
+  expect(defaultProps.onVerify).toHaveBeenCalledWith(true);
+});
+
+test('onDelete called when Delete button is clicked', async () => {
+  const user = userEvent.setup();
+  render(<WineDetailPanel {...defaultProps} wine={makeWine()} />);
+  await user.click(screen.getByRole('button', { name: /delete/i }));
+  expect(defaultProps.onDelete).toHaveBeenCalled();
+});
