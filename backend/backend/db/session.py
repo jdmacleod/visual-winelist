@@ -15,6 +15,7 @@ _INDEX_DDL = [
     "CREATE INDEX IF NOT EXISTS idx_wine_appellation ON wine_cache (appellation)",
     "CREATE INDEX IF NOT EXISTS idx_wine_verified ON wine_cache (verified)",
     "CREATE INDEX IF NOT EXISTS idx_wine_created_at ON wine_cache (created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_wine_updated_at ON wine_cache (updated_at)",
 ]
 
 

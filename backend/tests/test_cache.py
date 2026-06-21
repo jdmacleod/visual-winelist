@@ -387,7 +387,10 @@ async def test_upload_wine_image_not_found(client):
     assert r.status_code == 404
 
 
-async def test_upload_wine_image_wrong_content_type(client):
+async def test_upload_wine_image_wrong_content_type(client, tmp_path, monkeypatch):
+    import backend.config as cfg
+
+    monkeypatch.setattr(cfg, "IMAGE_CACHE_DIR", str(tmp_path))
     wine = _wine()
     await cache.write(wine, None, None, [])
     r = await client.post(
@@ -519,3 +522,13 @@ async def test_get_image_cache_control_header(client, tmp_path):
     r = await client.get(f"/wines/{wine.wine_id}/image")
     assert r.status_code == 200
     assert r.headers["cache-control"] == "public, max-age=86400"
+
+
+async def test_search_sort_name_desc(client):
+    await cache.write(_wine("Zinfandel", "Z Winery", "2019"), None, None, [])
+    await cache.write(_wine("Chardonnay", "C Winery", "2020"), None, None, [])
+
+    r = await client.get("/wines/search", params={"sort": "name", "order": "desc"})
+    assert r.status_code == 200
+    names = [rec["name"] for rec in r.json()["results"]]
+    assert names == sorted(names, reverse=True)

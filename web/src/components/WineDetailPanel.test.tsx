@@ -106,3 +106,34 @@ test('handleFileChange shows error for files over 10 MB without uploading', asyn
   expect(screen.getByText('Image must be under 10 MB')).toBeInTheDocument();
   expect(uploadWineImage).not.toHaveBeenCalled();
 });
+
+test('saveEdit shows error when patchWine network call fails', async () => {
+  const user = userEvent.setup();
+  vi.mocked(patchWine).mockRejectedValueOnce(new Error('Network error'));
+
+  render(<WineDetailPanel {...defaultProps} wine={makeWine()} />);
+  await user.click(screen.getByRole('button', { name: /edit/i }));
+  await user.click(screen.getByRole('button', { name: /save/i }));
+
+  await waitFor(() => {
+    expect(screen.getByText('Network error')).toBeInTheDocument();
+  });
+  expect(defaultProps.onUpdate).not.toHaveBeenCalled();
+});
+
+test('uploadWineImage shows error when upload network call fails', async () => {
+  const user = userEvent.setup();
+  vi.mocked(uploadWineImage).mockRejectedValueOnce(new Error('Upload failed'));
+
+  render(<WineDetailPanel {...defaultProps} wine={makeWine()} />);
+
+  const validFile = new File([new ArrayBuffer(1024)], 'bottle.jpg', {
+    type: 'image/jpeg',
+  });
+  const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+  await user.upload(fileInput, validFile);
+
+  await waitFor(() => {
+    expect(screen.getByText('Upload failed')).toBeInTheDocument();
+  });
+});

@@ -27,6 +27,10 @@ struct CompleteSSEPayload: Decodable, Sendable {
     let wine_count: Int
     let cache_hits: Int
     let scan_id: String
+    let ollama_ms: Int?
+    let image_ms: Int?
+    let sommelier_ms: Int?
+    let total_ms: Int?
 }
 
 // GET /health response
