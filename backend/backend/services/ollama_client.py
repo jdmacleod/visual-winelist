@@ -37,15 +37,15 @@ log = logging.getLogger(__name__)
 
 _MODEL = "qwen3-vl:8b"
 _TIMEOUT = 120.0
-_MAX_IMAGE_DIM = 1024  # longest side in pixels; keeps visual tokens within Qwen3-VL's 4096 ctx
+_MAX_IMAGE_DIM = 2048  # longest side in pixels; keeps visual tokens within num_ctx=8192 budget
 
 
 def _resize_for_model(image_data: bytes) -> bytes:
     """Downscale JPEG so longest side ≤ _MAX_IMAGE_DIM before sending to Ollama.
 
     iPhone 12MP photos (4032×3024) produce ~4200 visual tokens — more than
-    qwen3-vl:8b's default 4096 context window. Resizing to 1024px drops that
-    to ~300-500 tokens with no meaningful loss of text legibility.
+    qwen3-vl:8b's default 4096 context window. Resizing to 2048px drops that
+    to ~1100 tokens, well within num_ctx=8192 while preserving fine print legibility.
     Returns original bytes unchanged if already within the limit.
     """
     try:
