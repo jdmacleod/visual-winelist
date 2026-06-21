@@ -13,7 +13,7 @@ struct WineBottleCard: View {
             }
         }
         .aspectRatio(3 / 4, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: .cornerRadiusCard))
         .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
     }
 

@@ -32,7 +32,7 @@ struct SetupView: View {
         VStack(spacing: 16) {
             Image(systemName: "wineglass")
                 .font(.system(size: 56))
-                .foregroundStyle(Color(red: 0.45, green: 0.1, blue: 0.2))
+                .foregroundStyle(.wineRed)
             VStack(spacing: 6) {
                 Text("Point. Scan. Discover.")
                     .font(.title3.bold())
@@ -82,7 +82,7 @@ struct SetupView: View {
                     .font(.caption.monospaced())
                     .padding(8)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 6))
+                    .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: .cornerRadiusSmall))
                 Text("Then enter: http://<that-ip>:8000")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -92,7 +92,7 @@ struct SetupView: View {
             }
         }
         .padding(16)
-        .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
+        .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: .cornerRadiusLarge))
     }
 
     // MARK: - Actions

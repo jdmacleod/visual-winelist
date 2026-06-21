@@ -85,7 +85,7 @@ struct WineDetailView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(10)
-        .background(.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+        .background(.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: .cornerRadiusMedium))
     }
 
     private var notesLoadingSection: some View {
@@ -169,6 +169,6 @@ struct WineDetailView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(10)
-        .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+        .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: .cornerRadiusMedium))
     }
 }

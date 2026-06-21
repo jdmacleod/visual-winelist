@@ -62,7 +62,7 @@ struct ContentView: View {
                             .font(.caption)
                             .foregroundStyle(.white)
                             .padding(8)
-                            .background(.orange.opacity(0.85), in: RoundedRectangle(cornerRadius: 6))
+                            .background(.orange.opacity(0.85), in: RoundedRectangle(cornerRadius: .cornerRadiusSmall))
                     }
                     .padding(.top, 8)
                 }
@@ -108,7 +108,7 @@ struct ContentView: View {
                     Label("Results", systemImage: "list.bullet")
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: .cornerRadiusMedium))
                 }
                 .padding()
             }
