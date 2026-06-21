@@ -1,8 +1,9 @@
 import os
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
-from sqlalchemy import func, or_, select
+from sqlalchemy import asc, desc, func, or_, select
 
 from backend.db import session as db_session
 from backend.db.models import WineCacheRecord
@@ -11,11 +12,26 @@ from backend.services import cache
 
 router = APIRouter()
 
+_SORT_COLS = {
+    "name": WineCacheRecord.name,
+    "producer": WineCacheRecord.producer,
+    "created_at": WineCacheRecord.created_at,
+    "updated_at": WineCacheRecord.updated_at,
+}
+
 
 @router.get("/wines/search", response_model=SearchResponse)
-async def search_wines(q: str = "", page: int = 1, page_size: int = 20) -> SearchResponse:
+async def search_wines(
+    q: str = "",
+    page: int = 1,
+    page_size: int = 20,
+    status: Literal["all", "verified", "unverified", "no_image"] = "all",
+    sort: Literal["name", "producer", "created_at", "updated_at"] = "created_at",
+    order: Literal["asc", "desc"] = "desc",
+) -> SearchResponse:
     async with db_session.SessionLocal() as session:
         stmt = select(WineCacheRecord)
+
         if q:
             pattern = f"%{q}%"
             stmt = stmt.where(
@@ -26,8 +42,24 @@ async def search_wines(q: str = "", page: int = 1, page_size: int = 20) -> Searc
                 )
             )
 
+        if status == "verified":
+            stmt = stmt.where(WineCacheRecord.verified == True)  # noqa: E712
+        elif status == "unverified":
+            stmt = stmt.where(WineCacheRecord.verified == False)  # noqa: E712
+        elif status == "no_image":
+            stmt = stmt.where(WineCacheRecord.image_path.is_(None))
+
+        order_fn = asc if order == "asc" else desc
+        stmt = stmt.order_by(order_fn(_SORT_COLS[sort]))
+
         total: int = (
             await session.execute(select(func.count()).select_from(stmt.subquery()))
+        ).scalar_one()
+
+        verified_total: int = (
+            await session.execute(
+                select(func.count()).where(WineCacheRecord.verified == True)  # noqa: E712
+            )
         ).scalar_one()
 
         rows = (
@@ -51,7 +83,13 @@ async def search_wines(q: str = "", page: int = 1, page_size: int = 20) -> Searc
         )
         for r in rows
     ]
-    return SearchResponse(results=results, total=total, page=page, page_size=page_size)
+    return SearchResponse(
+        results=results,
+        total=total,
+        page=page,
+        page_size=page_size,
+        verified_total=verified_total,
+    )
 
 
 @router.get("/wines/{wine_id}/image")

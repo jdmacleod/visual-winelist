@@ -1,16 +1,32 @@
 import { useState, useEffect, useCallback } from 'react';
 import { searchWines, curate, deleteWine } from './api/client';
-import type { WineRecord, SearchResponse } from './types/wine';
+import type { WineRecord, SearchResponse, StatusFilter, SortOption } from './types/wine';
 import WineCard from './components/WineCard';
 import WineDetailPanel from './components/WineDetailPanel';
 import Pagination from './components/Pagination';
 
 const PAGE_SIZE = 20;
 
+const STATUS_LABELS: Record<StatusFilter, string> = {
+  all: 'All',
+  verified: 'Verified',
+  unverified: 'Unverified',
+  no_image: 'No Image',
+};
+
+const SORT_LABELS: Record<SortOption, string> = {
+  newest: 'Newest',
+  oldest: 'Oldest',
+  name_asc: 'Name A→Z',
+  producer_asc: 'Producer A→Z',
+};
+
 export default function App() {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [page, setPage] = useState(1);
+  const [status, setStatus] = useState<StatusFilter>('all');
+  const [sortOption, setSortOption] = useState<SortOption>('newest');
   const [results, setResults] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -26,11 +42,16 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [query]);
 
+  // Reset to page 1 when filter or sort changes.
+  useEffect(() => {
+    setPage(1);
+  }, [status, sortOption]);
+
   const fetchWines = useCallback(async () => {
     setLoading(true);
     setFetchError(null);
     try {
-      const data = await searchWines(debouncedQuery, page, PAGE_SIZE);
+      const data = await searchWines(debouncedQuery, page, PAGE_SIZE, status, sortOption);
       setResults(data);
     } catch (err) {
       setFetchError(
@@ -41,7 +62,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedQuery, page]);
+  }, [debouncedQuery, page, status, sortOption]);
 
   useEffect(() => {
     void fetchWines();
@@ -62,6 +83,7 @@ export default function App() {
                 results: prev.results.map((w) =>
                   w.wine_id === updated.wine_id ? { ...w, ...patch } : w,
                 ),
+                verified_total: prev.verified_total + (updated.verified ? 1 : -1),
               }
             : null,
         );
@@ -101,13 +123,26 @@ export default function App() {
           <span className="text-2xl" aria-hidden="true">
             🍷
           </span>
-          <h1 className="text-xl font-semibold text-stone-800">Visual Winelist Curator</h1>
+          <div>
+            <h1 className="text-xl font-semibold text-stone-800">Visual Winelist Curator</h1>
+            {results && (
+              <p className="text-xs text-stone-400 mt-0.5">
+                {results.total.toLocaleString()} wine{results.total !== 1 ? 's' : ''} in cache
+                {results.verified_total > 0 && (
+                  <span className="text-green-600">
+                    {' '}
+                    · {results.verified_total.toLocaleString()} verified
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
         </div>
       </header>
 
-      {/* Search bar */}
+      {/* Search + filter/sort bar */}
       <div className="bg-white border-b border-stone-200">
-        <div className="max-w-7xl mx-auto px-6 py-3">
+        <div className="max-w-7xl mx-auto px-6 py-3 space-y-2.5">
           <input
             type="search"
             placeholder="Search wines, producers, appellations…"
@@ -115,20 +150,43 @@ export default function App() {
             onChange={(e) => setQuery(e.target.value)}
             className="w-full max-w-lg px-4 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
           />
-          {results && (
-            <p className="mt-1.5 text-xs text-stone-400">
-              {results.total.toLocaleString()} wine{results.total !== 1 ? 's' : ''} in cache
-              {results.results.some((w) => w.verified) && (
-                <span>
-                  {' '}
-                  ·{' '}
-                  <span className="text-green-600">
-                    {results.results.filter((w) => w.verified).length} verified this page
-                  </span>
-                </span>
-              )}
-            </p>
-          )}
+
+          {/* Filter pills + sort */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5" role="group" aria-label="Filter wines">
+              {(Object.keys(STATUS_LABELS) as StatusFilter[]).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setStatus(s)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    status === s
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                  }`}
+                >
+                  {STATUS_LABELS[s]}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label htmlFor="sort-select" className="text-xs text-stone-400 whitespace-nowrap">
+                Sort:
+              </label>
+              <select
+                id="sort-select"
+                value={sortOption}
+                onChange={(e) => setSortOption(e.target.value as SortOption)}
+                className="text-xs border border-stone-200 rounded-md px-2 py-1 text-stone-600 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                {(Object.keys(SORT_LABELS) as SortOption[]).map((s) => (
+                  <option key={s} value={s}>
+                    {SORT_LABELS[s]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -151,8 +209,14 @@ export default function App() {
             <p className="text-5xl mb-4" aria-hidden="true">
               🍷
             </p>
-            <p className="text-lg font-medium text-stone-500">No wines cached yet</p>
-            <p className="text-sm mt-2">Scan some wine lists with the iOS or macOS app first</p>
+            <p className="text-lg font-medium text-stone-500">
+              {status === 'all' && !query ? 'No wines cached yet' : 'No wines match this filter'}
+            </p>
+            <p className="text-sm mt-2">
+              {status === 'all' && !query
+                ? 'Scan some wine lists with the iOS or macOS app first'
+                : 'Try a different filter or search term'}
+            </p>
           </div>
         )}
 

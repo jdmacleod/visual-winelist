@@ -97,3 +97,4 @@ class SearchResponse(BaseModel):
     total: int
     page: int
     page_size: int
+    verified_total: int = 0

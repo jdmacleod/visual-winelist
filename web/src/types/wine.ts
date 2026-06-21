@@ -16,4 +16,8 @@ export interface SearchResponse {
   total: number;
   page: number;
   page_size: number;
+  verified_total: number;
 }
+
+export type StatusFilter = 'all' | 'verified' | 'unverified' | 'no_image';
+export type SortOption = 'newest' | 'oldest' | 'name_asc' | 'producer_asc';
