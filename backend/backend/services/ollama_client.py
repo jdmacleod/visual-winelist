@@ -54,7 +54,7 @@ async def extract_wines(image_data: bytes) -> AsyncIterator[WineObject]:
     same pre-fill trick, same 120s timeout.
     """
     magic = " ".join(f"{b:02X}" for b in image_data[:4])
-    log.info("[DIAG] extract_wines: %d bytes, magic=%s", len(image_data), magic)
+    log.info("extract_wines: %d bytes, magic=%s", len(image_data), magic)
     body = {
         "model": _MODEL,
         "messages": [
@@ -113,9 +113,7 @@ async def extract_wines(image_data: bytes) -> AsyncIterator[WineObject]:
                         wine = _try_parse(line)
                         if wine is not None:
                             wine_count += 1
-                            log.info(
-                                "[DIAG] extract_wines: yielding wine #%d: %s", wine_count, wine.name
-                            )
+                            log.info("extract_wines: yielding wine #%d: %s", wine_count, wine.name)
                             yield wine
 
                 # Flush: complete JSON object without a trailing newline.
@@ -125,13 +123,13 @@ async def extract_wines(image_data: bytes) -> AsyncIterator[WineObject]:
                     if wine is not None:
                         wine_count += 1
                         log.info(
-                            "[DIAG] extract_wines: flush yielded wine #%d: %s",
+                            "extract_wines: flush yielded wine #%d: %s",
                             wine_count,
                             wine.name,
                         )
                         yield wine
 
-                log.info("[DIAG] extract_wines: done, %d wines yielded", wine_count)
+                log.info("extract_wines: done, %d wines yielded", wine_count)
 
     except httpx.ConnectError as exc:
         raise ConnectionRefusedError(f"Ollama not reachable at {config.OLLAMA_BASE_URL}") from exc

@@ -36,8 +36,6 @@ struct BackendClient: Sendable {
     /// Returns a stream of SSE events and a session handle for cancellation (T10).
     /// Call session.cancel() when the view dismisses to release the URLSession task.
     func scan(photoData: Data) -> (stream: AsyncThrowingStream<SSEEvent, Error>, session: IOSScanSession) {
-        let magic = photoData.prefix(4).map { String(format: "%02X", $0) }.joined(separator: " ")
-        print("[DIAG] BackendClient.scan: \(photoData.count) bytes, magic=\(magic), url=\(baseURL)/scan")
         let request = buildScanRequest(photoData: photoData)
         return IOSScanSession.make(request: request)
     }

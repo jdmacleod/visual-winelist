@@ -184,9 +184,9 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
 
 @router.post("/scan")
 async def scan(image: UploadFile, request: Request) -> StreamingResponse:
-    log.info("[DIAG] /scan: content_type=%s", image.content_type)
+    log.info("/scan: content_type=%s", image.content_type)
     if image.content_type not in ("image/jpeg", "image/jpg"):
-        log.warning("[DIAG] /scan: rejected content_type=%s", image.content_type)
+        log.warning("/scan: rejected content_type=%s", image.content_type)
         raise HTTPException(
             status_code=400,
             detail={"code": "INVALID_CONTENT_TYPE", "message": "JPEG required"},
@@ -194,7 +194,7 @@ async def scan(image: UploadFile, request: Request) -> StreamingResponse:
 
     image_data = await image.read()
     magic = " ".join(f"{b:02X}" for b in image_data[:4])
-    log.info("[DIAG] /scan: received %d bytes, magic=%s", len(image_data), magic)
+    log.info("/scan: received %d bytes, magic=%s", len(image_data), magic)
     if len(image_data) > config.MAX_UPLOAD_SIZE:
         raise HTTPException(
             status_code=413,
