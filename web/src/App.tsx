@@ -3,6 +3,7 @@ import { searchWines, curate, deleteWine } from './api/client';
 import type { WineRecord, SearchResponse, StatusFilter, SortOption } from './types/wine';
 import WineCard from './components/WineCard';
 import WineDetailPanel from './components/WineDetailPanel';
+import ConfirmModal from './components/ConfirmModal';
 import Pagination from './components/Pagination';
 
 const PAGE_SIZE = 20;
@@ -33,6 +34,7 @@ export default function App() {
   const [selected, setSelected] = useState<WineRecord | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<WineRecord | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -123,21 +125,27 @@ export default function App() {
     setSelected((prev) => (prev ? { ...prev, image_url: newImageUrl } : null));
   }, []);
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = useCallback(() => {
     if (!selected) return;
-    if (!confirm(`Delete "${selected.name}" from the cache?`)) return;
+    setDeleteTarget(selected);
+  }, [selected]);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
     setActionLoading(true);
     setActionError(null);
     try {
-      await deleteWine(selected.wine_id);
+      await deleteWine(deleteTarget.wine_id);
+      setDeleteTarget(null);
       setSelected(null);
       await fetchWines();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Delete failed');
+      setDeleteTarget(null);
     } finally {
       setActionLoading(false);
     }
-  }, [selected, fetchWines]);
+  }, [deleteTarget, fetchWines]);
 
   const totalPages = results ? Math.ceil(results.total / PAGE_SIZE) : 0;
 
@@ -271,6 +279,17 @@ export default function App() {
           onImageUpdate={handleImageUpdate}
           loading={actionLoading}
           actionError={actionError}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          title="Delete wine?"
+          message={`"${deleteTarget.name}" will be permanently removed from the cache.`}
+          confirmLabel="Delete"
+          loading={actionLoading}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeleteTarget(null)}
         />
       )}
     </div>

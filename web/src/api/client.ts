@@ -4,6 +4,15 @@ import type { SearchResponse, StatusFilter, SortOption, WineRecord } from '../ty
 // In production: nginx handles routing. Override with VITE_API_BASE_URL if needed.
 const BASE_URL = import.meta.env['VITE_API_BASE_URL'] ?? '';
 
+async function timedFetch(input: string, init?: RequestInit): Promise<Response> {
+  const method = init?.method ?? 'GET';
+  const t0 = performance.now();
+  const res = await fetch(input, init);
+  const ms = Math.round(performance.now() - t0);
+  console.debug(`[api] ${method} ${input} → ${res.status} (${ms}ms)`);
+  return res;
+}
+
 // Map the UI sort label to backend sort+order params.
 const SORT_PARAMS: Record<SortOption, { sort: string; order: string }> = {
   newest: { sort: 'created_at', order: 'desc' },
@@ -28,7 +37,7 @@ export async function searchWines(
     sort,
     order,
   });
-  const res = await fetch(`${BASE_URL}/wines/search?${params}`);
+  const res = await timedFetch(`${BASE_URL}/wines/search?${params}`);
   if (!res.ok) throw new Error(`Search failed: ${res.status}`);
   return res.json() as Promise<SearchResponse>;
 }
@@ -37,7 +46,7 @@ export async function curate(
   wineId: string,
   verified: boolean,
 ): Promise<{ wine_id: string; verified: boolean }> {
-  const res = await fetch(`${BASE_URL}/curate`, {
+  const res = await timedFetch(`${BASE_URL}/curate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ wine_id: wineId, verified }),
@@ -47,7 +56,7 @@ export async function curate(
 }
 
 export async function deleteWine(wineId: string): Promise<void> {
-  const res = await fetch(`${BASE_URL}/wines/${wineId}`, { method: 'DELETE' });
+  const res = await timedFetch(`${BASE_URL}/wines/${wineId}`, { method: 'DELETE' });
   if (!res.ok && res.status !== 404) throw new Error(`Delete failed: ${res.status}`);
 }
 
@@ -57,7 +66,7 @@ export async function uploadWineImage(
 ): Promise<{ wine_id: string; image_url: string }> {
   const formData = new FormData();
   formData.append('file', file);
-  const res = await fetch(`${BASE_URL}/wines/${wineId}/image`, {
+  const res = await timedFetch(`${BASE_URL}/wines/${wineId}/image`, {
     method: 'POST',
     body: formData,
   });
@@ -69,7 +78,7 @@ export async function patchWine(
   wineId: string,
   fields: Partial<Pick<WineRecord, 'name' | 'producer' | 'vintage' | 'variety' | 'appellation'>>,
 ): Promise<WineRecord> {
-  const res = await fetch(`${BASE_URL}/wines/${wineId}`, {
+  const res = await timedFetch(`${BASE_URL}/wines/${wineId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(fields),
