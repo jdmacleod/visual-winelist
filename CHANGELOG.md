@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.2.4 (2026-06-21)
+
+### Fixed
+
+- **iOS: all wines now appear after scanning** — the scan was silently cancelled
+  as soon as the first wine arrived. `scanningView.onDisappear` was firing
+  `cancelScan()` when SwiftUI transitioned to the grid view on the first wine
+  event, killing the SSE connection. The Cancel button already handles
+  intentional cancellation; the `onDisappear` hook was removed.
+- **Backend: scanner lock released on client disconnect** — if the iOS app
+  navigated away mid-scan, `_scanning` stayed `True` permanently and every
+  subsequent scan returned HTTP 503 `SCANNER_BUSY` until the server restarted.
+  The `_scan_sse` async generator now wraps its full body in `try/finally`,
+  which correctly fires on `GeneratorExit` (a `BaseException`) when the client
+  drops the SSE connection.
+
+### Changed
+
+- **Ollama image resolution increased to 2048px** — the maximum image dimension
+  sent to Ollama was raised from 1024px to 2048px to improve text legibility on
+  dense wine lists. With `num_ctx=8192`, a 2048px photo produces ~1100 visual
+  tokens — well within budget while preserving fine-print detail that matters
+  for accurate wine extraction.
+
 ## v0.2.3 (2026-06-20)
 
 ### Chore
