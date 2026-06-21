@@ -603,3 +603,19 @@ async def test_search_sort_verified_first(client):
     assert r.status_code == 200
     names = [rec["name"] for rec in r.json()["results"]]
     assert names[0] == "Verified Wine", f"verified wine should sort first; got: {names}"
+
+
+async def test_search_sort_verified_last(client):
+    """?sort=verified&order=asc puts unverified wines before verified ones."""
+    wine_a = _wine("Unverified Wine", "Winery A", "2019")
+    wine_b = _wine("Verified Wine", "Winery B", "2020")
+    await cache.write(wine_a, None, None, [])
+    await cache.write(wine_b, None, None, [])
+    await client.post("/curate", json={"wine_id": wine_b.wine_id, "verified": True})
+
+    r = await client.get("/wines/search", params={"sort": "verified", "order": "asc"})
+    assert r.status_code == 200
+    names = [rec["name"] for rec in r.json()["results"]]
+    assert names[0] == "Unverified Wine", (
+        f"unverified wine should sort first with asc; got: {names}"
+    )

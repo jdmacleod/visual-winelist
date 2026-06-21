@@ -87,6 +87,38 @@ final class WineListViewModelTests: XCTestCase {
         XCTAssertFalse(vm.notesIncomplete, "clear() must reset notesIncomplete")
     }
 
+    // MARK: - Error code routing
+
+    private func makeErrorEvent(code: String, message: String = "test message") -> SSEEvent {
+        .error(ErrorSSEPayload(code: code, wine_index: nil, message: message))
+    }
+
+    func testOllamaDownSetsActionableErrorMessage() async {
+        let vm = WineListViewModel(backend: MockBackendClient(events: [makeErrorEvent(code: "OLLAMA_DOWN")]))
+        await vm.scan(photoData: Data())
+        XCTAssertNotNil(vm.errorMessage)
+        XCTAssertTrue(vm.errorMessage?.contains("ollama serve") == true, "OLLAMA_DOWN message must include run hint")
+    }
+
+    func testOllamaTimeoutSetsActionableErrorMessage() async {
+        let vm = WineListViewModel(backend: MockBackendClient(events: [makeErrorEvent(code: "OLLAMA_TIMEOUT")]))
+        await vm.scan(photoData: Data())
+        XCTAssertNotNil(vm.errorMessage)
+        XCTAssertTrue(
+            vm.errorMessage?.contains("timed out") == true,
+            "OLLAMA_TIMEOUT message must describe the timeout condition")
+    }
+
+    func testUnknownErrorCodeSetsGenericErrorMessage() async {
+        let vm = WineListViewModel(
+            backend: MockBackendClient(events: [makeErrorEvent(code: "PARSE_ERROR", message: "bad json")]))
+        await vm.scan(photoData: Data())
+        XCTAssertNotNil(vm.errorMessage)
+        XCTAssertTrue(
+            vm.errorMessage?.contains("PARSE_ERROR") == true,
+            "Unknown error code must be included in the generic fallback message")
+    }
+
     // MARK: - Cancel on dismiss
 
     func testWineListViewModelCancelOnDismiss() async {
