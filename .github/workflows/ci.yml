@@ -57,7 +57,7 @@ jobs:
         run: uv sync --extra dev
 
       - name: pytest
-        run: uv run pytest -m "not integration"
+        run: uv run pytest -m "not integration" --cov-fail-under=80
 
   # ---------------------------------------------------------------------------
   # TypeScript — lint (prettier + ESLint)
@@ -119,7 +119,7 @@ jobs:
             echo "present=true" >> $GITHUB_OUTPUT
           else
             echo "present=false" >> $GITHUB_OUTPUT
-            echo "No web/package.json — skipping TypeScript tests (T11 not yet built)"
+            echo "No web/package.json — skipping TypeScript tests"
           fi
 
       - uses: actions/setup-node@v4
@@ -166,7 +166,8 @@ jobs:
             BINARY="$XCTEST/Contents/MacOS/$(basename "$XCTEST" .xctest)"
             xcrun llvm-cov report "$BINARY" \
               -instr-profile="$PROFDATA" \
-              --ignore-filename-regex='.*Tests.*' 2>/dev/null | tee /tmp/swift-cov.txt || true
+              --ignore-filename-regex='.*Tests.*' 2>/dev/null | tee /tmp/swift-cov.txt || \
+              echo "::warning::llvm-cov report failed — coverage threshold check may be inaccurate"
             TOTAL=$(awk '/TOTAL/{print $NF}' /tmp/swift-cov.txt 2>/dev/null | tr -d '%' | head -1)
             echo "Swift coverage: ${TOTAL:-unknown}%"
             if [ -n "$TOTAL" ]; then
@@ -174,7 +175,7 @@ jobs:
                 { echo "Swift coverage ${TOTAL}% is below the 70% minimum"; exit 1; }
             fi
           else
-            echo "Coverage data not found — skipping threshold check"
+            echo "::warning::Swift coverage data not found — threshold check skipped (build may have produced no profdata)"
           fi
 
       - name: Format check (swift-format)

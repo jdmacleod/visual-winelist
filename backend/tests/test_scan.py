@@ -1,3 +1,4 @@
+import json
 from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, patch
 
@@ -207,8 +208,6 @@ async def test_scan_happy_path(client):
     # complete sentinel present (D9)
     assert "complete" in event_types
 
-    import json
-
     complete_data = json.loads(next(d for e, d in events if e == "complete"))
     assert complete_data["wine_count"] == 2
     assert "scan_id" in complete_data
@@ -235,8 +234,6 @@ async def test_scan_ollama_down(client):
     event_types = [e for e, _ in events]
     assert "error" in event_types
     assert "complete" in event_types
-
-    import json
 
     error_data = json.loads(next(d for e, d in events if e == "error"))
     assert error_data["code"] == "OLLAMA_DOWN"
@@ -297,8 +294,6 @@ async def test_event_complete_has_scan_id(client):
         ) as r:
             body = await r.aread()
 
-    import json
-
     events = _collect_sse(body.decode())
     complete = json.loads(next(d for e, d in events if e == "complete"))
     assert "scan_id" in complete
@@ -324,14 +319,14 @@ async def test_scan_ollama_timeout(client):
             assert r.status_code == 200
             body = await r.aread()
 
-    import json
-
     events = _collect_sse(body.decode())
     event_types = [e for e, _ in events]
     assert "error" in event_types
     assert "complete" in event_types
     error_data = json.loads(next(d for e, d in events if e == "error"))
     assert error_data["code"] == "OLLAMA_TIMEOUT"
+    complete_data = json.loads(next(d for e, d in events if e == "complete"))
+    assert complete_data["wine_count"] == 0
 
 
 async def test_scan_cache_miss_writes_to_db(client):
@@ -398,8 +393,6 @@ async def test_scan_id_in_response_header(client):
             body = await r.aread()
 
     assert scan_id_header is not None, "X-Scan-Id header must be present on /scan response"
-
-    import json
 
     events = _collect_sse(body.decode())
     complete = json.loads(next(d for e, d in events if e == "complete"))

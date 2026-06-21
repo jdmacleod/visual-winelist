@@ -102,6 +102,9 @@ class WineListViewModel: ObservableObject {
                     case "OLLAMA_DOWN":
                         errorMessage =
                             "Extraction failed — \(payload.message)\n\nIs Ollama running with qwen3-vl:8b? Run: ollama serve"
+                    case "OLLAMA_TIMEOUT":
+                        errorMessage =
+                            "Ollama timed out — the wine list may be too long, or the model is busy. Try a shorter section."
                     default:
                         errorMessage = "Scan error (\(payload.code)): \(payload.message)"
                     }
