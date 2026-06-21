@@ -86,7 +86,9 @@ struct ContentView: View {
                     .padding(8)
                     .background(.black.opacity(0.4), in: Capsule())
 
-                    Button(action: { Task { await capture() } }) {
+                    Button {
+                        Task { await capture() }
+                    } label: {
                         ZStack {
                             Circle().fill(.white).frame(width: 72, height: 72)
                             Circle().stroke(.white.opacity(0.5), lineWidth: 4).frame(width: 84, height: 84)

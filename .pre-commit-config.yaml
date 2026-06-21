@@ -65,6 +65,22 @@ repos:
         pass_filenames: true
 
   # ---------------------------------------------------------------------------
+  # Swift — SwiftLint (linting)
+  # Uses system-installed SwiftLint (brew install swiftlint).
+  # Runs lint only — formatting is handled by swift-format above.
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: swiftlint
+        name: swiftlint
+        # Explicit paths mirror the CI step — Scripts/ is excluded (eval scripts
+        # use scripting conventions that differ from library code).
+        entry: swiftlint lint --config .swiftlint.yml Sources Tests ios/Sources ios/Tests
+        language: system
+        files: \.swift$
+        pass_filenames: false
+
+  # ---------------------------------------------------------------------------
   # TypeScript — prettier (formatting)
   # Managed hook: runs automatically when *.ts / *.tsx files exist under web/.
   # No Node setup required — pre-commit installs prettier in its own env.

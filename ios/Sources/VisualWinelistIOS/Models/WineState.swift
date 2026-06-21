@@ -10,8 +10,8 @@ enum WineState: Identifiable, Sendable {
 
     var wine: WineObject {
         switch self {
-        case .extracting(let w), .fetchingImage(let w), .placeholder(let w): return w
-        case .ready(let w, _): return w
+        case .extracting(let wine), .fetchingImage(let wine), .placeholder(let wine): return wine
+        case .ready(let wine, _): return wine
         }
     }
 

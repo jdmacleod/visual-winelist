@@ -54,20 +54,20 @@ struct WineObject: Codable, Identifiable, Equatable, Sendable {
     }
 
     init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        name = try c.decode(String.self, forKey: .name)
-        producer = try c.decodeIfPresent(String.self, forKey: .producer)
-        vintage = try c.decodeIfPresent(String.self, forKey: .vintage)
-        variety = try c.decodeIfPresent(String.self, forKey: .variety)
-        appellation = try c.decodeIfPresent(String.self, forKey: .appellation)
-        price = try c.decodeIfPresent(String.self, forKey: .price)
-        description = try c.decodeIfPresent(String.self, forKey: .description)
-        listSection = try c.decodeIfPresent(String.self, forKey: .listSection)
-        rawText = try c.decodeIfPresent(String.self, forKey: .rawText)
-        confidence = try c.decode(Double.self, forKey: .confidence)
-        wineId = try c.decodeIfPresent(String.self, forKey: .wineId)
-        tastingNote = try c.decodeIfPresent(String.self, forKey: .tastingNote)
-        pairings = (try? c.decode([String].self, forKey: .pairings)) ?? []
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        producer = try container.decodeIfPresent(String.self, forKey: .producer)
+        vintage = try container.decodeIfPresent(String.self, forKey: .vintage)
+        variety = try container.decodeIfPresent(String.self, forKey: .variety)
+        appellation = try container.decodeIfPresent(String.self, forKey: .appellation)
+        price = try container.decodeIfPresent(String.self, forKey: .price)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        listSection = try container.decodeIfPresent(String.self, forKey: .listSection)
+        rawText = try container.decodeIfPresent(String.self, forKey: .rawText)
+        confidence = try container.decode(Double.self, forKey: .confidence)
+        wineId = try container.decodeIfPresent(String.self, forKey: .wineId)
+        tastingNote = try container.decodeIfPresent(String.self, forKey: .tastingNote)
+        pairings = (try? container.decode([String].self, forKey: .pairings)) ?? []
     }
 
     var id: String { wineId ?? "\(name.lowercased())-\(vintage ?? "nv")" }

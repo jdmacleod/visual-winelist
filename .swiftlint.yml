@@ -1,0 +1,38 @@
+excluded:
+  - .build
+  - ios/.build
+  - DerivedData
+  - Scripts   # eval scripts use scripting conventions, not library code style
+
+disabled_rules:
+  # swift-format places { on a new line after wrapped conditions; this rule
+  # conflicts with that output and produces false positives on formatted code.
+  - opening_brace
+  # File-level swiftlint:disable comments are intentional (e.g. BackendModels.swift
+  # uses snake_case for JSON Codable fields). This rule is too noisy.
+  - blanket_disable_command
+  # UIView.layerClass must be overridden with `override class var`, not `static var`.
+  # This rule produces false positives for the standard UIView override pattern.
+  - static_over_final_class
+
+line_length:
+  warning: 120
+  error: 140
+  ignores_comments: true
+  ignores_urls: true
+
+identifier_name:
+  min_length:
+    warning: 3
+    error: 1   # single-letter vars are warnings only; errors only below length 1 (impossible)
+  max_length:
+    warning: 40
+    error: 60
+  excluded:
+    - id   # SwiftUI Identifiable requirement
+    - ok   # BackendStatus enum case
+    - ns   # NSError, universally understood Swift abbreviation
+
+cyclomatic_complexity:
+  warning: 15
+  error: 30

@@ -1,3 +1,4 @@
+// swiftlint:disable identifier_name
 import Foundation
 
 // Decoded from event: image

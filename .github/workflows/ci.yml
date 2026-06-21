@@ -134,3 +134,10 @@ jobs:
             echo "  xcrun swift-format format -r -i --configuration .swift-format Sources Tests ios/Sources ios/Tests Scripts"
             exit 1
           }
+
+      - name: Lint (SwiftLint)
+        run: |
+          if ! command -v swiftlint &>/dev/null; then
+            brew install swiftlint
+          fi
+          swiftlint lint --config .swiftlint.yml Sources Tests ios/Sources ios/Tests

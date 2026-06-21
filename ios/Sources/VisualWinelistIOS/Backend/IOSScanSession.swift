@@ -22,12 +22,12 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
     ) -> (stream: AsyncThrowingStream<SSEEvent, Error>, session: IOSScanSession) {
         var created: IOSScanSession!
         let stream = AsyncThrowingStream<SSEEvent, Error> { continuation in
-            let s = IOSScanSession(continuation: continuation)
-            created = s
+            let session = IOSScanSession(continuation: continuation)
+            created = session
             // delegateQueue: nil → URLSession creates its own serial queue
-            let urlSession = URLSession(configuration: .default, delegate: s, delegateQueue: nil)
-            s.dataTask = urlSession.dataTask(with: request)
-            s.dataTask?.resume()
+            let urlSession = URLSession(configuration: .default, delegate: session, delegateQueue: nil)
+            session.dataTask = urlSession.dataTask(with: request)
+            session.dataTask?.resume()
         }
         return (stream, created)
     }

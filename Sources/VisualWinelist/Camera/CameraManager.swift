@@ -121,7 +121,9 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
         let capturedData: Data? = error == nil ? photo.fileDataRepresentation() : nil
         let capturedError = error
         print(
-            "[Camera] didFinishProcessingPhoto: error=\(capturedError?.localizedDescription ?? "nil") dataBytes=\(capturedData?.count ?? -1)"
+            "[Camera] didFinishProcessingPhoto:"
+                + " error=\(capturedError?.localizedDescription ?? "nil")"
+                + " dataBytes=\(capturedData?.count ?? -1)"
         )
 
         Task { @MainActor in
