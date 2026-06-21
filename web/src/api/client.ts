@@ -1,4 +1,4 @@
-import type { SearchResponse, StatusFilter, SortOption } from '../types/wine';
+import type { SearchResponse, StatusFilter, SortOption, WineRecord } from '../types/wine';
 
 // In dev: Vite proxies /wines and /curate to http://localhost:8000.
 // In production: nginx handles routing. Override with VITE_API_BASE_URL if needed.
@@ -49,6 +49,33 @@ export async function curate(
 export async function deleteWine(wineId: string): Promise<void> {
   const res = await fetch(`${BASE_URL}/wines/${wineId}`, { method: 'DELETE' });
   if (!res.ok && res.status !== 404) throw new Error(`Delete failed: ${res.status}`);
+}
+
+export async function uploadWineImage(
+  wineId: string,
+  file: File,
+): Promise<{ wine_id: string; image_url: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${BASE_URL}/wines/${wineId}/image`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+  return res.json() as Promise<{ wine_id: string; image_url: string }>;
+}
+
+export async function patchWine(
+  wineId: string,
+  fields: Partial<Pick<WineRecord, 'name' | 'producer' | 'vintage' | 'variety' | 'appellation'>>,
+): Promise<WineRecord> {
+  const res = await fetch(`${BASE_URL}/wines/${wineId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) throw new Error(`Update failed: ${res.status}`);
+  return res.json() as Promise<WineRecord>;
 }
 
 export function absoluteImageUrl(relativeUrl: string): string {

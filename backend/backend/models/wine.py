@@ -92,6 +92,16 @@ class CurateRequest(BaseModel):
     verified: bool = True
 
 
+class WinePatch(BaseModel):
+    """Partial update payload for curator edits. Only provided fields are written."""
+
+    name: str | None = None
+    producer: str | None = None
+    vintage: str | None = None
+    variety: str | None = None
+    appellation: str | None = None
+
+
 class SearchResponse(BaseModel):
     results: list[WineRecord]
     total: int

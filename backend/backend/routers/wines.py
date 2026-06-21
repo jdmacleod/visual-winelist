@@ -1,13 +1,14 @@
 import os
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import asc, desc, func, or_, select
 
+from backend import config
 from backend.db import session as db_session
 from backend.db.models import WineCacheRecord
-from backend.models.wine import SearchResponse, WineRecord
+from backend.models.wine import SearchResponse, WinePatch, WineRecord
 from backend.services import cache
 
 router = APIRouter()
@@ -99,12 +100,54 @@ async def get_wine_image(wine_id: str) -> FileResponse:
         raise HTTPException(status_code=404, detail="Image not found")
     if not os.path.exists(record.image_path):
         raise HTTPException(status_code=404, detail="Image file missing")
-    # Images are content-addressed (wine_id = sha256 of producer+name+vintage) and
-    # never mutate, so a 1-year immutable cache is safe.
+    # Curator can replace images, so skip 'immutable' and cap at 24h.
     return FileResponse(
         record.image_path,
         media_type="image/jpeg",
-        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@router.post("/wines/{wine_id}/image")
+async def upload_wine_image(wine_id: str, file: UploadFile) -> dict[str, str]:
+    record = await cache.lookup(wine_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Wine record not found")
+
+    allowed_types = {"image/jpeg", "image/jpg"}
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="JPEG image required")
+
+    max_bytes = 10 * 1024 * 1024
+    data = await file.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise HTTPException(status_code=413, detail="Image must be under 10 MB")
+
+    image_path = os.path.join(config.IMAGE_CACHE_DIR, f"{wine_id}.jpg")
+    with open(image_path, "wb") as fp:
+        fp.write(data)
+
+    await cache.update_image(wine_id, image_path)
+    return {"wine_id": wine_id, "image_url": f"/wines/{wine_id}/image"}
+
+
+@router.patch("/wines/{wine_id}", response_model=WineRecord)
+async def update_wine(wine_id: str, patch: WinePatch) -> WineRecord:
+    fields = patch.model_dump(exclude_unset=True)
+    updated = await cache.update_fields(wine_id, fields)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Wine record not found")
+    return WineRecord(
+        wine_id=updated.wine_id,
+        name=updated.name,
+        producer=updated.producer,
+        vintage=updated.vintage,
+        variety=updated.variety,
+        appellation=updated.appellation,
+        tasting_note=updated.tasting_note,
+        pairings=updated.pairings,
+        verified=updated.verified,
+        image_url=f"/wines/{updated.wine_id}/image" if updated.image_path else None,
     )
 
 

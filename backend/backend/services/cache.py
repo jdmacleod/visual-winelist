@@ -72,3 +72,32 @@ async def delete(wine_id: str) -> bool:
         await session.delete(record)
         await session.commit()
         return True
+
+
+async def update_image(wine_id: str, image_path: str) -> bool:
+    """Set image_path for a cached record. Returns False if record not found."""
+    async with db_session.SessionLocal() as session:
+        record = await session.get(WineCacheRecord, wine_id)
+        if record is None:
+            return False
+        record.image_path = image_path
+        record.updated_at = datetime.now(UTC)
+        await session.commit()
+        return True
+
+
+async def update_fields(
+    wine_id: str,
+    fields: dict[str, str | None],
+) -> WineCacheRecord | None:
+    """Update editable text fields on a cached record. Returns updated record or None."""
+    async with db_session.SessionLocal() as session:
+        record = await session.get(WineCacheRecord, wine_id)
+        if record is None:
+            return None
+        for key, value in fields.items():
+            setattr(record, key, value)
+        record.updated_at = datetime.now(UTC)
+        await session.commit()
+        await session.refresh(record)
+        return record

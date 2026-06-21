@@ -97,6 +97,32 @@ export default function App() {
     [selected],
   );
 
+  const handleUpdate = useCallback((updated: WineRecord) => {
+    setResults((prev) =>
+      prev
+        ? {
+            ...prev,
+            results: prev.results.map((w) => (w.wine_id === updated.wine_id ? updated : w)),
+          }
+        : null,
+    );
+    setSelected(updated);
+  }, []);
+
+  const handleImageUpdate = useCallback((wineId: string, newImageUrl: string) => {
+    setResults((prev) =>
+      prev
+        ? {
+            ...prev,
+            results: prev.results.map((w) =>
+              w.wine_id === wineId ? { ...w, image_url: newImageUrl } : w,
+            ),
+          }
+        : null,
+    );
+    setSelected((prev) => (prev ? { ...prev, image_url: newImageUrl } : null));
+  }, []);
+
   const handleDelete = useCallback(async () => {
     if (!selected) return;
     if (!confirm(`Delete "${selected.name}" from the cache?`)) return;
@@ -241,6 +267,8 @@ export default function App() {
           onClose={() => setSelected(null)}
           onVerify={handleVerify}
           onDelete={handleDelete}
+          onUpdate={handleUpdate}
+          onImageUpdate={handleImageUpdate}
           loading={actionLoading}
           actionError={actionError}
         />
