@@ -67,6 +67,18 @@ final class WineListViewModelTests: XCTestCase {
         XCTAssertFalse(vm.notesIncomplete, "notesIncomplete should stay false when no wines were extracted")
     }
 
+    func testStreamThrowsAfterWineEventSetsNotesIncomplete() async {
+        let vm = WineListViewModel(
+            backend: MockBackendClient(
+                events: [makeWineEvent()],
+                error: BackendError.unreachable("mock error")
+            ))
+        await vm.scan(photoData: Data())
+        XCTAssertTrue(
+            vm.notesIncomplete,
+            "notesIncomplete should be true when stream throws after extracting wines")
+    }
+
     func testClearResetsNotesIncomplete() async {
         let vm = WineListViewModel(backend: MockBackendClient(events: [makeWineEvent()]))
         await vm.scan(photoData: Data())

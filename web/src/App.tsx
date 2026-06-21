@@ -100,14 +100,16 @@ export default function App() {
   );
 
   const handleUpdate = useCallback((updated: WineRecord) => {
-    setResults((prev) =>
-      prev
-        ? {
-            ...prev,
-            results: prev.results.map((w) => (w.wine_id === updated.wine_id ? updated : w)),
-          }
-        : null,
-    );
+    setResults((prev) => {
+      if (!prev) return null;
+      const old = prev.results.find((w) => w.wine_id === updated.wine_id);
+      const verifiedDelta = old ? (updated.verified ? 1 : 0) - (old.verified ? 1 : 0) : 0;
+      return {
+        ...prev,
+        results: prev.results.map((w) => (w.wine_id === updated.wine_id ? updated : w)),
+        verified_total: prev.verified_total + verifiedDelta,
+      };
+    });
     setSelected(updated);
   }, []);
 

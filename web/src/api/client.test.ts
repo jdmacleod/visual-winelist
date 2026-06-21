@@ -1,4 +1,11 @@
-import { searchWines, curate, deleteWine, absoluteImageUrl } from './client';
+import {
+  searchWines,
+  curate,
+  deleteWine,
+  absoluteImageUrl,
+  patchWine,
+  uploadWineImage,
+} from './client';
 
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -71,4 +78,49 @@ test('deleteWine throws on other non-ok status', async () => {
 
 test('absoluteImageUrl prepends BASE_URL', () => {
   expect(absoluteImageUrl('/wines/abc/image')).toBe('/wines/abc/image');
+});
+
+test('patchWine returns updated WineRecord on success', async () => {
+  const body = {
+    wine_id: 'abc',
+    name: 'New Name',
+    producer: 'Winery',
+    vintage: '2020',
+    variety: 'Cab',
+    appellation: 'Napa',
+    tasting_note: null,
+    pairings: [],
+    verified: false,
+    image_url: null,
+  };
+  mockFetch.mockResolvedValueOnce(makeOkResponse(body));
+  const result = await patchWine('abc', { name: 'New Name' });
+  expect(result).toEqual(body);
+  expect(mockFetch).toHaveBeenCalledWith(
+    expect.stringContaining('/wines/abc'),
+    expect.objectContaining({ method: 'PATCH' }),
+  );
+});
+
+test('patchWine throws on non-ok response', async () => {
+  mockFetch.mockResolvedValueOnce(makeErrorResponse(404));
+  await expect(patchWine('abc', { name: 'New Name' })).rejects.toThrow('Update failed: 404');
+});
+
+test('uploadWineImage returns wine_id and image_url on success', async () => {
+  const body = { wine_id: 'abc', image_url: '/wines/abc/image' };
+  mockFetch.mockResolvedValueOnce(makeOkResponse(body));
+  const file = new File([new ArrayBuffer(1024)], 'bottle.jpg', { type: 'image/jpeg' });
+  const result = await uploadWineImage('abc', file);
+  expect(result).toEqual(body);
+  expect(mockFetch).toHaveBeenCalledWith(
+    expect.stringContaining('/wines/abc/image'),
+    expect.objectContaining({ method: 'POST' }),
+  );
+});
+
+test('uploadWineImage throws on non-ok response', async () => {
+  mockFetch.mockResolvedValueOnce(makeErrorResponse(400));
+  const file = new File([new ArrayBuffer(1024)], 'bottle.jpg', { type: 'image/jpeg' });
+  await expect(uploadWineImage('abc', file)).rejects.toThrow('Upload failed: 400');
 });

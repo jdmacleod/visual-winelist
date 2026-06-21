@@ -438,6 +438,16 @@ async def test_patch_wine_not_found(client):
     assert r.status_code == 404
 
 
+async def test_patch_wine_empty_body(client):
+    wine = _wine()
+    await cache.write(wine, None, None, [])
+    r = await client.patch(f"/wines/{wine.wine_id}", json={})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["name"] == wine.name
+    assert body["producer"] == wine.producer
+
+
 # ---------------------------------------------------------------------------
 # GET /wines/search — status filter, verified_total, sort
 # ---------------------------------------------------------------------------
@@ -532,3 +542,13 @@ async def test_search_sort_name_desc(client):
     assert r.status_code == 200
     names = [rec["name"] for rec in r.json()["results"]]
     assert names == sorted(names, reverse=True)
+
+
+async def test_search_sort_producer_asc(client):
+    await cache.write(_wine("Wine A", "Zanzibar Winery", "2019"), None, None, [])
+    await cache.write(_wine("Wine B", "Amalfi Winery", "2020"), None, None, [])
+
+    r = await client.get("/wines/search", params={"sort": "producer", "order": "asc"})
+    assert r.status_code == 200
+    producers = [rec["producer"] for rec in r.json()["results"]]
+    assert producers == sorted(producers)

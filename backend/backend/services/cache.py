@@ -17,6 +17,10 @@ from backend.db import session as db_session
 from backend.db.models import WineCacheRecord
 from backend.models.wine import WineObject
 
+_EDITABLE_FIELDS: frozenset[str] = frozenset(
+    {"name", "producer", "vintage", "variety", "appellation"}
+)
+
 
 async def lookup(wine_id: str) -> WineCacheRecord | None:
     """Return cached record if it exists, else None."""
@@ -95,7 +99,7 @@ async def update_fields(
         record = await session.get(WineCacheRecord, wine_id)
         if record is None:
             return None
-        for key, value in fields.items():
+        for key, value in {k: v for k, v in fields.items() if k in _EDITABLE_FIELDS}.items():
             setattr(record, key, value)
         record.updated_at = datetime.now(UTC)
         await session.commit()
