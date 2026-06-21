@@ -1,5 +1,71 @@
 # Changelog
 
+## v0.2.5 (2026-06-21)
+
+### Added
+
+- **Curator: status filter** — `GET /wines/search` now accepts `status=all|verified|unverified|no_image`
+  to filter the curator grid by curation state.
+- **Curator: sort controls** — sort by `name`, `producer`, `created_at`, or `updated_at` with
+  `order=asc|desc`. React UI exposes a sort dropdown alongside the status filter.
+- **Curator: `verified_total` count** — search responses now include `verified_total: int` so the
+  header can show "N verified" without a separate round-trip.
+- **Curator: image upload** — `POST /wines/{id}/image` accepts a replacement JPEG (≤ 10 MB) and
+  stores it in the image cache. Accessible from the wine detail panel.
+- **Curator: inline field editing** — `PATCH /wines/{id}` accepts partial updates for name,
+  producer, vintage, variety, and appellation. The detail panel shows an inline edit form.
+- **Curator: delete with confirmation** — `DELETE /wines/{id}` removes a record from the cache.
+  The React UI shows an animated `ConfirmModal` before executing.
+- **`timedFetch`** — all React API calls are now wrapped in a timing shim that logs per-request
+  duration to the console, making it easy to spot slow backend calls in devtools.
+- **macOS reconnect detection** — `WineListViewModel.notesIncomplete` is set to `true` when the
+  SSE stream closes without `event:complete`, surfacing the "connection dropped mid-scan" banner
+  in the macOS Wine Detail view.
+- **`WineListViewModel` testability** — the view model now takes a `BackendClientProtocol`
+  dependency, enabling unit tests with a `MockBackendClient` without a real SSE server.
+- **DB indexes** — six single-column indexes added for `name`, `producer`, `appellation`,
+  `verified`, `created_at`, and `updated_at` to speed up common filter/sort queries.
+- **Image `Cache-Control` header** — `GET /wines/{id}/image` now sets
+  `Cache-Control: public, max-age=86400` so browsers/CDNs cache bottle photos for 24 hours.
+- **Scan timing metrics** — `event:complete` now includes `ollama_ms`, `image_ms`,
+  `sommelier_ms`, and `total_ms` timing fields for performance monitoring.
+- **Lazy image loading** — wine card `<img>` tags in the React curator now use `loading="lazy"`
+  to defer off-screen image fetches.
+
+### Fixed
+
+- **Path traversal in image upload** — `wine_id` from the URL path is now validated against
+  `os.path.realpath` to prevent directory traversal (e.g. `../../etc/...`).
+- **Blocking file I/O in async handler** — `open()/write()` in the image upload handler is now
+  wrapped in `asyncio.to_thread` to avoid blocking the event loop during large uploads.
+- **`update_fields` field allowlist** — `cache.update_fields` now filters incoming dict keys to
+  `_EDITABLE_FIELDS`, preventing unconstrained `setattr` from setting non-editable columns.
+- **`update_image` race condition** — if a wine record is deleted between the initial lookup
+  and the file write, the orphaned file is cleaned up and HTTP 404 is returned (was HTTP 200).
+- **`handleVerify` double-count** — `verified_total` delta in `handleVerify` now computes
+  against the previous in-state `verified` value rather than using a fixed `+1/-1`, preventing
+  double-counting on rapid re-clicks.
+- **Stale `actionError` across wines** — action error messages are now cleared when the selected
+  wine changes, preventing wine A's error from showing on wine B's detail panel.
+- **`WinePatch` blank string validation** — `PATCH /wines/{id}` now rejects blank/whitespace-only
+  strings with HTTP 422, preventing empty names from being written through direct API calls.
+- **`page=0` negative offset** — `GET /wines/search?page=0` previously computed `OFFSET=-20`,
+  which SQLite silently mapped to 0, returning duplicate page-1 results. `page` now enforces
+  `ge=1` via `Query`.
+- **Scan timing sentinel** — `t_extraction_end` and `t_phase1_end` in `scan.py` now use
+  `Optional[float] = None` instead of `0.0`, replacing falsy-checks with explicit `is not None`
+  guards.
+- **`handleUpdate` `verified_total` tracking** — when a PATCH response returns a different
+  `verified` value, `verified_total` is now adjusted accordingly (defensive guard).
+
+### Tests
+
+- Python test suite: 102 tests (was 40), covering image upload, field patch, search filter/sort,
+  and cache service edge cases.
+- React vitest suite: 34 tests (was 0), covering `WineCard`, `WineDetailPanel`, `ConfirmModal`,
+  and all API client functions including `patchWine` and `uploadWineImage`.
+- Swift XCTest: macOS `WineListViewModel` reconnect detection (4 test cases).
+
 ## v0.2.4 (2026-06-21)
 
 ### Fixed

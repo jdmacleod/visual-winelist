@@ -54,6 +54,34 @@ decode per-line after splitting on `0x0A`, matching `BackendClient.swift`.
 
 ---
 
+## Security: JPEG magic-byte validation on image upload
+
+`POST /wines/{id}/image` rejects non-JPEG `Content-Type` headers but does not
+validate actual file magic bytes. A client can send any binary with
+`Content-Type: image/jpeg`. Fix: check `data[:2] == b'\xff\xd8'` before writing.
+
+---
+
+## Performance: Collapse verified_total COUNT into main search query
+
+`GET /wines/search` runs two DB round-trips per request: one for results, one
+for `verified_total`. Replace with a single query using conditional aggregation:
+`count(*) FILTER (WHERE verified = TRUE)` so `verified_total` comes back in the
+same query.
+
+---
+
+## UX: Per-wine `notesIncomplete` tracking
+
+`notesIncomplete` is scan-session-scoped: set to `true` when the SSE stream
+closes without `event:complete`. Wines in the cache that never had sommelier
+notes generated (Ollama was unavailable at scan time) also show `tasting_note = nil`
+but would not show the "connection dropped" banner. Consider per-wine incomplete
+tracking so cached wines with no notes show a distinct "notes unavailable" state
+rather than appearing identical to freshly-scanned wines that got notes.
+
+---
+
 ## Security: Pin Docker base image digests
 
 `FROM python:3.13-slim` and `COPY --from=ghcr.io/astral-sh/uv:latest` are floating
