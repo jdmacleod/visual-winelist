@@ -20,8 +20,10 @@ enum StartupError: Error, LocalizedError {
 }
 
 struct StartupValidator {
-    static func validate() throws -> URL {
-        let raw = ProcessInfo.processInfo.environment["BACKEND_URL"] ?? "http://localhost:8000"
+    static func validate(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) throws -> URL {
+        let raw = environment["BACKEND_URL"] ?? "http://localhost:8000"
         guard let url = URL(string: raw), url.scheme != nil else {
             throw StartupError.invalidBackendURL(raw)
         }

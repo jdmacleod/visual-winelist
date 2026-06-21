@@ -21,7 +21,7 @@ let package = Package(
         // CI wiring comes in a follow-up (T12).
         .testTarget(
             name: "VisualWinelistIOSTests",
-            dependencies: [],
+            dependencies: ["VisualWinelistIOS"],
             path: "Tests/VisualWinelistIOSTests"
         ),
     ]

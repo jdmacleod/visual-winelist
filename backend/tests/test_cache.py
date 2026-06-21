@@ -3,6 +3,7 @@ Tests for CacheService (T4): lookup, write (upsert), delete, search, curate.
 All tests use the per-test SQLite DB wired up by conftest.use_test_db.
 """
 
+import hashlib
 import json
 from unittest.mock import AsyncMock, patch
 
@@ -552,3 +553,53 @@ async def test_search_sort_producer_asc(client):
     assert r.status_code == 200
     producers = [rec["producer"] for rec in r.json()["results"]]
     assert producers == sorted(producers)
+
+
+# ---------------------------------------------------------------------------
+# Cache key formula (D11)
+# ---------------------------------------------------------------------------
+
+
+async def test_cache_key_formula():
+    """sha256(lower(producer) + ":" + lower(name) + ":" + (vintage or "nv"))"""
+    wine = WineObject(
+        name="Château Margaux", producer="Château Margaux", vintage="2018", confidence=0.9
+    )
+    raw = "château margaux:château margaux:2018"
+    expected = hashlib.sha256(raw.encode()).hexdigest()
+    assert wine.wine_id == expected
+
+
+async def test_cache_key_none_producer_falls_back_to_name():
+    """None producer normalizes to name so wine_id matches a record with producer == name."""
+    wine_no_prod = WineObject(name="Opus One", producer=None, vintage="2019", confidence=0.9)
+    wine_self_prod = WineObject(
+        name="Opus One", producer="Opus One", vintage="2019", confidence=0.9
+    )
+    assert wine_no_prod.wine_id == wine_self_prod.wine_id
+
+
+async def test_cache_key_collision_different_producers():
+    """Different producers for the same wine name produce different wine_ids."""
+    wine_a = WineObject(name="Pinot Noir", producer="Winery A", vintage="2020", confidence=0.9)
+    wine_b = WineObject(name="Pinot Noir", producer="Winery B", vintage="2020", confidence=0.9)
+    assert wine_a.wine_id != wine_b.wine_id
+
+
+# ---------------------------------------------------------------------------
+# Sort by verified
+# ---------------------------------------------------------------------------
+
+
+async def test_search_sort_verified_first(client):
+    """?sort=verified&order=desc puts verified wines before unverified."""
+    wine_a = _wine("Unverified Wine", "Winery A", "2019")
+    wine_b = _wine("Verified Wine", "Winery B", "2020")
+    await cache.write(wine_a, None, None, [])
+    await cache.write(wine_b, None, None, [])
+    await client.post("/curate", json={"wine_id": wine_b.wine_id, "verified": True})
+
+    r = await client.get("/wines/search", params={"sort": "verified", "order": "desc"})
+    assert r.status_code == 200
+    names = [rec["name"] for rec in r.json()["results"]]
+    assert names[0] == "Verified Wine", f"verified wine should sort first; got: {names}"

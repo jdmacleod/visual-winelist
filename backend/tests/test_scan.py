@@ -1,7 +1,8 @@
 from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, patch
 
-from backend.models.wine import NotesEvent, WineObject
+from backend.models.wine import ImageEvent, NotesEvent, WineObject
+from backend.services import cache
 from tests.conftest import make_jpeg
 
 MARGAUX = WineObject(
@@ -302,3 +303,106 @@ async def test_event_complete_has_scan_id(client):
     complete = json.loads(next(d for e, d in events if e == "complete"))
     assert "scan_id" in complete
     assert complete["wine_count"] == 1
+
+
+async def test_scan_ollama_timeout(client):
+    """TimeoutError from Ollama extraction → SSE error event with OLLAMA_TIMEOUT code."""
+
+    async def raise_timeout(image_data: bytes) -> AsyncIterator[WineObject]:
+        raise TimeoutError("Ollama extraction timed out")
+        yield  # pragma: no cover
+
+    with patch(
+        "backend.routers.scan.ollama_client.extract_wines",
+        side_effect=raise_timeout,
+    ):
+        async with client.stream(
+            "POST",
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+        ) as r:
+            assert r.status_code == 200
+            body = await r.aread()
+
+    import json
+
+    events = _collect_sse(body.decode())
+    event_types = [e for e, _ in events]
+    assert "error" in event_types
+    assert "complete" in event_types
+    error_data = json.loads(next(d for e, d in events if e == "error"))
+    assert error_data["code"] == "OLLAMA_TIMEOUT"
+
+
+async def test_scan_cache_miss_writes_to_db(client):
+    """Cache miss → Brave finds an image → cache.write called → record exists in test DB."""
+    fake_image = ImageEvent(
+        wine_id=MARGAUX.wine_id,
+        url=f"/wines/{MARGAUX.wine_id}/image",
+        placeholder=False,
+    )
+    with (
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(MARGAUX),
+        ),
+        patch(
+            "backend.routers.scan.brave_client.fetch_image",
+            new=AsyncMock(return_value=fake_image),
+        ),
+        patch(
+            "backend.routers.scan.sommelier.get_notes",
+            new=AsyncMock(side_effect=lambda w: NotesEvent(wine_id=w.wine_id)),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        async with client.stream(
+            "POST",
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+        ) as r:
+            assert r.status_code == 200
+            await r.aread()
+
+    record = await cache.lookup(MARGAUX.wine_id)
+    assert record is not None, (
+        "cache.write must be called on a Brave cache-miss with an image result"
+    )
+    assert record.name == MARGAUX.name
+
+
+async def test_scan_id_in_response_header(client):
+    """X-Scan-Id response header is present and matches scan_id in event:complete payload."""
+    with (
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(MARGAUX),
+        ),
+        patch(
+            "backend.routers.scan.brave_client.fetch_image",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "backend.routers.scan.sommelier.get_notes",
+            new=AsyncMock(side_effect=lambda w: NotesEvent(wine_id=w.wine_id)),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        async with client.stream(
+            "POST",
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+        ) as r:
+            assert r.status_code == 200
+            scan_id_header = r.headers.get("x-scan-id")
+            body = await r.aread()
+
+    assert scan_id_header is not None, "X-Scan-Id header must be present on /scan response"
+
+    import json
+
+    events = _collect_sse(body.decode())
+    complete = json.loads(next(d for e, d in events if e == "complete"))
+    assert complete["scan_id"] == scan_id_header, (
+        "scan_id in event:complete must match X-Scan-Id response header"
+    )

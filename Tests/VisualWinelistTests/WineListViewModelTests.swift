@@ -86,4 +86,37 @@ final class WineListViewModelTests: XCTestCase {
         vm.clear()
         XCTAssertFalse(vm.notesIncomplete, "clear() must reset notesIncomplete")
     }
+
+    // MARK: - Cancel on dismiss
+
+    func testWineListViewModelCancelOnDismiss() async {
+        // AsyncThrowingStream.next() returns nil (stream end) when the consuming Task is
+        // cancelled, so the for-try-await loop exits normally. isScanning must still be
+        // reset to false and notesIncomplete must stay false (no wines were extracted).
+        struct SlowClient: BackendClientProtocol {
+            func checkHealth() async throws -> HealthResponse { throw BackendError.unreachable("") }
+            func scan(photoData: Data) -> AsyncThrowingStream<SSEEvent, Error> {
+                AsyncThrowingStream { continuation in
+                    Task {
+                        try? await Task.sleep(nanoseconds: 60_000_000_000)
+                        continuation.finish()
+                    }
+                }
+            }
+            func fetchImage(wineId: String) async throws -> Data { Data() }
+        }
+
+        let vm = WineListViewModel(backend: SlowClient())
+        let scanTask = Task { await vm.scan(photoData: Data()) }
+
+        // Yield to let the scan task start and set isScanning = true
+        try? await Task.sleep(nanoseconds: 10_000_000)
+        XCTAssertTrue(vm.isScanning, "scan should be in-progress before cancel")
+
+        scanTask.cancel()
+        await scanTask.value
+
+        XCTAssertFalse(vm.isScanning, "isScanning must reset to false after task cancellation")
+        XCTAssertFalse(vm.notesIncomplete, "notesIncomplete must stay false when no wines were extracted")
+    }
 }

@@ -17,15 +17,18 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
     }
 
     /// Create a stream + a session handle. Keep the session to call cancel() later.
+    /// The `configuration` parameter defaults to `.default`; pass a custom one in tests
+    /// to inject MockURLProtocol without a live network connection.
     static func make(
-        request: URLRequest
+        request: URLRequest,
+        configuration: URLSessionConfiguration = .default
     ) -> (stream: AsyncThrowingStream<SSEEvent, Error>, session: IOSScanSession) {
         var created: IOSScanSession!
         let stream = AsyncThrowingStream<SSEEvent, Error> { continuation in
             let session = IOSScanSession(continuation: continuation)
             created = session
             // delegateQueue: nil → URLSession creates its own serial queue
-            let urlSession = URLSession(configuration: .default, delegate: session, delegateQueue: nil)
+            let urlSession = URLSession(configuration: configuration, delegate: session, delegateQueue: nil)
             session.dataTask = urlSession.dataTask(with: request)
             session.dataTask?.resume()
         }

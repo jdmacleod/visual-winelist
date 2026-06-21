@@ -21,7 +21,11 @@ struct SSEParser {
             return dispatch()
         }
         if line.hasPrefix("event: ") { eventType = String(line.dropFirst(7)); return nil }
-        if line.hasPrefix("data: ") { data = String(line.dropFirst(6)); return nil }
+        if line.hasPrefix("data: ") {
+            let value = String(line.dropFirst(6))
+            data = data.isEmpty ? value : data + "\n" + value
+            return nil
+        }
         return nil
     }
 

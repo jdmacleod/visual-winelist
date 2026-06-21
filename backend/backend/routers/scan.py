@@ -81,6 +81,17 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
                 async for wine in ollama_client.extract_wines(image_data):
                     await queue.put(("wine", wine))
                     wine_index += 1
+            except TimeoutError as exc:
+                await queue.put(
+                    (
+                        "error",
+                        ErrorEvent(
+                            code="OLLAMA_TIMEOUT",
+                            wine_index=wine_index,
+                            message=str(exc),
+                        ),
+                    )
+                )
             except Exception as exc:
                 await queue.put(
                     (

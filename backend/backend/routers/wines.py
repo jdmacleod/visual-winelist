@@ -19,6 +19,7 @@ _SORT_COLS = {
     "producer": WineCacheRecord.producer,
     "created_at": WineCacheRecord.created_at,
     "updated_at": WineCacheRecord.updated_at,
+    "verified": WineCacheRecord.verified,
 }
 
 
@@ -28,7 +29,7 @@ async def search_wines(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=200),
     status: Literal["all", "verified", "unverified", "no_image"] = "all",
-    sort: Literal["name", "producer", "created_at", "updated_at"] = "created_at",
+    sort: Literal["name", "producer", "created_at", "updated_at", "verified"] = "created_at",
     order: Literal["asc", "desc"] = "desc",
 ) -> SearchResponse:
     async with db_session.SessionLocal() as session:
