@@ -311,3 +311,211 @@ async def test_scan_cache_hit_skips_brave(client):
     assert image_data_lines
     first_image = json.loads(image_data_lines[0])
     assert first_image.get("placeholder") is False
+
+
+# ---------------------------------------------------------------------------
+# cache.update_image()
+# ---------------------------------------------------------------------------
+
+
+async def test_update_image_happy_path():
+    wine = _wine()
+    await cache.write(wine, "/old/path.jpg", None, [])
+    result = await cache.update_image(wine.wine_id, "/new/path.jpg")
+    assert result is True
+    record = await cache.lookup(wine.wine_id)
+    assert record is not None
+    assert record.image_path == "/new/path.jpg"
+
+
+async def test_update_image_not_found():
+    result = await cache.update_image("no-such-id", "/some/path.jpg")
+    assert result is False
+
+
+# ---------------------------------------------------------------------------
+# cache.update_fields()
+# ---------------------------------------------------------------------------
+
+
+async def test_update_fields_happy_path():
+    wine = _wine()
+    await cache.write(wine, None, None, [])
+    record = await cache.update_fields(wine.wine_id, {"name": "Updated Name", "vintage": "2021"})
+    assert record is not None
+    assert record.name == "Updated Name"
+    assert record.vintage == "2021"
+    assert record.producer == wine.producer  # unchanged
+
+
+async def test_update_fields_not_found():
+    result = await cache.update_fields("no-such-id", {"name": "Whatever"})
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# POST /wines/{wine_id}/image
+# ---------------------------------------------------------------------------
+
+
+async def test_upload_wine_image_happy_path(client, tmp_path, monkeypatch):
+    import backend.config as cfg
+
+    monkeypatch.setattr(cfg, "IMAGE_CACHE_DIR", str(tmp_path))
+    wine = _wine()
+    await cache.write(wine, None, None, [])
+
+    r = await client.post(
+        f"/wines/{wine.wine_id}/image",
+        files={"file": ("bottle.jpg", make_jpeg(), "image/jpeg")},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["wine_id"] == wine.wine_id
+    assert body["image_url"] == f"/wines/{wine.wine_id}/image"
+    # Verify the image_path was updated in cache
+    record = await cache.lookup(wine.wine_id)
+    assert record is not None
+    assert record.image_path is not None
+
+
+async def test_upload_wine_image_not_found(client):
+    r = await client.post(
+        "/wines/no-such-id/image",
+        files={"file": ("bottle.jpg", make_jpeg(), "image/jpeg")},
+    )
+    assert r.status_code == 404
+
+
+async def test_upload_wine_image_wrong_content_type(client):
+    wine = _wine()
+    await cache.write(wine, None, None, [])
+    r = await client.post(
+        f"/wines/{wine.wine_id}/image",
+        files={"file": ("photo.png", b"fake-png-data", "image/png")},
+    )
+    assert r.status_code == 400
+
+
+async def test_upload_wine_image_too_large(client, tmp_path, monkeypatch):
+    import backend.config as cfg
+
+    monkeypatch.setattr(cfg, "IMAGE_CACHE_DIR", str(tmp_path))
+    wine = _wine()
+    await cache.write(wine, None, None, [])
+    big_data = b"x" * (10 * 1024 * 1024 + 1)
+    r = await client.post(
+        f"/wines/{wine.wine_id}/image",
+        files={"file": ("big.jpg", big_data, "image/jpeg")},
+    )
+    assert r.status_code == 413
+
+
+# ---------------------------------------------------------------------------
+# PATCH /wines/{wine_id}
+# ---------------------------------------------------------------------------
+
+
+async def test_patch_wine_happy_path(client):
+    wine = _wine()
+    await cache.write(wine, None, None, [])
+    r = await client.patch(
+        f"/wines/{wine.wine_id}",
+        json={"name": "New Name", "vintage": "2022"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["name"] == "New Name"
+    assert body["vintage"] == "2022"
+    assert body["producer"] == wine.producer  # unchanged
+
+
+async def test_patch_wine_not_found(client):
+    r = await client.patch("/wines/no-such-id", json={"name": "Whatever"})
+    assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# GET /wines/search — status filter, verified_total, sort
+# ---------------------------------------------------------------------------
+
+
+async def test_search_status_verified_filter(client):
+    wine_v = _wine("Verified Wine", "Winery A", "2019")
+    wine_u = _wine("Unverified Wine", "Winery B", "2020")
+    await cache.write(wine_v, "/img/v.jpg", None, [])
+    await cache.write(wine_u, "/img/u.jpg", None, [])
+    await client.post("/curate", json={"wine_id": wine_v.wine_id, "verified": True})
+
+    r = await client.get("/wines/search", params={"status": "verified"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total"] == 1
+    assert body["results"][0]["name"] == "Verified Wine"
+
+
+async def test_search_status_unverified_filter(client):
+    wine_v = _wine("Verified Wine", "Winery A", "2019")
+    wine_u = _wine("Unverified Wine", "Winery B", "2020")
+    await cache.write(wine_v, "/img/v.jpg", None, [])
+    await cache.write(wine_u, "/img/u.jpg", None, [])
+    await client.post("/curate", json={"wine_id": wine_v.wine_id, "verified": True})
+
+    r = await client.get("/wines/search", params={"status": "unverified"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total"] == 1
+    assert body["results"][0]["name"] == "Unverified Wine"
+
+
+async def test_search_status_no_image_filter(client):
+    wine_img = _wine("Has Image", "A", "2019")
+    wine_no = _wine("No Image", "B", "2020")
+    await cache.write(wine_img, "/img/a.jpg", None, [])
+    await cache.write(wine_no, None, None, [])
+
+    r = await client.get("/wines/search", params={"status": "no_image"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total"] == 1
+    assert body["results"][0]["name"] == "No Image"
+
+
+async def test_search_verified_total_field(client):
+    wine1 = _wine("Wine A", "Winery A", "2019")
+    wine2 = _wine("Wine B", "Winery B", "2020")
+    await cache.write(wine1, None, None, [])
+    await cache.write(wine2, None, None, [])
+    await client.post("/curate", json={"wine_id": wine1.wine_id, "verified": True})
+
+    r = await client.get("/wines/search")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total"] == 2
+    assert body["verified_total"] == 1
+
+
+async def test_search_sort_name_asc(client):
+    await cache.write(_wine("Zinfandel", "Z Winery", "2019"), None, None, [])
+    await cache.write(_wine("Chardonnay", "C Winery", "2020"), None, None, [])
+
+    r = await client.get("/wines/search", params={"sort": "name", "order": "asc"})
+    assert r.status_code == 200
+    names = [rec["name"] for rec in r.json()["results"]]
+    assert names == sorted(names)
+
+
+# ---------------------------------------------------------------------------
+# GET /wines/{wine_id}/image — Cache-Control header
+# ---------------------------------------------------------------------------
+
+
+async def test_get_image_cache_control_header(client, tmp_path):
+    img = tmp_path / "bottle.jpg"
+    img.write_bytes(b"fake-jpeg-content")
+    wine = _wine()
+    await cache.write(wine, str(img), None, [])
+
+    r = await client.get(f"/wines/{wine.wine_id}/image")
+    assert r.status_code == 200
+    assert r.headers["cache-control"] == "public, max-age=86400"
