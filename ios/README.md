@@ -5,6 +5,7 @@ SwiftUI iPhone app that scans restaurant wine lists via the visual-winelist back
 ## Requirements
 
 - Xcode 15+ (for building and deploying to a physical device)
+- An Apple Developer account (free tier works for personal device installation)
 - A running visual-winelist backend on your local network
 - Physical iPhone running iOS 16+ (camera required; simulator has no camera)
 
@@ -21,14 +22,64 @@ SwiftUI iPhone app that scans restaurant wine lists via the visual-winelist back
 
    You can also set the URL via **Settings → Visual Winelist → Backend URL**.
 
-## Building
+## Building in Xcode
 
-```bash
-cd ios
-swift build --sdk $(xcrun --sdk iphonesimulator --show-sdk-path) --triple arm64-apple-ios16.0-simulator
+**Open the Xcode project** (not the Swift package):
+
+```
+File → Open → select ios/VisualWinelistIOS.xcodeproj
 ```
 
-For a physical device, open `ios/` as a Swift package in Xcode (File → Open → select `ios/Package.swift`) and run on your connected iPhone.
+**Configure code signing** (one-time setup):
+
+1. In the Project Navigator, click **VisualWinelistIOS** at the top.
+2. Select the **VisualWinelistIOS** target → **Signing & Capabilities** tab.
+3. Set **Team** to your Apple Developer account.
+4. Xcode will auto-generate a provisioning profile.
+
+**Run on a physical device:**
+
+1. Connect your iPhone via USB and trust the Mac.
+2. Select your iPhone from the destination picker in the Xcode toolbar.
+3. Press **⌘R** to build and run.
+
+On first launch on the device, go to **Settings → General → VPN & Device Management** and trust your developer certificate.
+
+## Project structure
+
+```
+ios/
+├── VisualWinelistIOS.xcodeproj/   ← open this in Xcode
+│   ├── project.pbxproj
+│   └── xcshareddata/xcschemes/
+│       └── VisualWinelistIOS.xcscheme
+└── Sources/VisualWinelistIOS/
+    ├── Info.plist                 ← bundle ID, camera usage description
+    ├── VisualWinelistIOSApp.swift
+    ├── App/
+    ├── Backend/
+    ├── Camera/
+    ├── Design/
+    ├── Models/
+    ├── Resources/
+    │   └── Settings.bundle
+    ├── ViewModels/
+    └── Views/
+```
+
+The Swift source lives entirely under `Sources/VisualWinelistIOS/`. The `.xcodeproj` references those files directly — no code duplication. `Package.swift` remains for `swift build` and CI tooling.
+
+## Build settings of note
+
+| Setting | Value |
+|---|---|
+| Bundle ID | `com.jdmacleod.visual-winelist` |
+| Deployment target | iOS 16.0 |
+| Supported devices | iPhone only |
+| Orientation | Portrait only |
+| Swift version | 5.9 |
+
+To change the bundle ID (required if you have a custom domain), edit `PRODUCT_BUNDLE_IDENTIFIER` in the target's Build Settings.
 
 ## Architecture
 
