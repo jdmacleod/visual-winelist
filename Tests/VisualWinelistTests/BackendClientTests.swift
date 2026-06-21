@@ -179,4 +179,42 @@ final class BackendClientTests: XCTestCase {
             }
         }
     }
+
+    // MARK: - Image fetch
+
+    func testFetchImageReturnsDataOn200() async throws {
+        let imageData = Data([0xFF, 0xD8, 0xFF])
+        MockURLProtocol.handler = { [self] _ in (makeResponse(statusCode: 200), imageData) }
+        let result = try await makeClient().fetchImage(wineId: "wine-abc")
+        XCTAssertEqual(result, imageData)
+    }
+
+    func testFetchImage404ThrowsHttpError() async throws {
+        MockURLProtocol.handler = { [self] _ in (makeResponse(statusCode: 404), nil) }
+        do {
+            _ = try await makeClient().fetchImage(wineId: "wine-abc")
+            XCTFail("Expected error for HTTP 404")
+        } catch let error as BackendError {
+            guard case .httpError(404) = error else {
+                XCTFail("Expected httpError(404), got \(error)")
+                return
+            }
+        }
+    }
+
+    // MARK: - URLError handling
+
+    func testScanConnectionRefusedThrowsUnreachable() async throws {
+        MockURLProtocol.handler = { _ in throw URLError(.cannotConnectToHost) }
+        var caught: Error?
+        do {
+            for try await _ in makeClient().scan(photoData: Data()) {}
+        } catch {
+            caught = error
+        }
+        guard case .unreachable = caught as? BackendError else {
+            XCTFail("Expected BackendError.unreachable, got \(String(describing: caught))")
+            return
+        }
+    }
 }
