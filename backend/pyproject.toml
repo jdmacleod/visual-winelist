@@ -26,7 +26,7 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-addopts = "--cov=backend --cov-report=term-missing"
+addopts = "--cov=backend --cov-report=term-missing --cov-fail-under=80"
 markers = [
     "integration: requires live backend services (Ollama, Brave) — excluded from CI",
 ]

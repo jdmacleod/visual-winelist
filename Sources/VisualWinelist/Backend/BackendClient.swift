@@ -88,6 +88,10 @@ struct BackendClient: Sendable {
                             continuation.yield(event)
                         }
                     }
+                    // Dispatch any pending SSE event if the stream ended without a trailing blank line.
+                    if let event = parser.feed(line: "") {
+                        continuation.yield(event)
+                    }
                     continuation.finish()
 
                 } catch let urlError as URLError

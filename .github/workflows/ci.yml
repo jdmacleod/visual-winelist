@@ -112,17 +112,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check for web project
+        id: web
+        run: |
+          if [ -f web/package.json ]; then
+            echo "present=true" >> $GITHUB_OUTPUT
+          else
+            echo "present=false" >> $GITHUB_OUTPUT
+            echo "No web/package.json — skipping TypeScript tests (T11 not yet built)"
+          fi
+
       - uses: actions/setup-node@v4
+        if: steps.web.outputs.present == 'true'
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: web/package-lock.json
 
       - name: Install dependencies
+        if: steps.web.outputs.present == 'true'
         run: npm ci
         working-directory: web
 
       - name: vitest
+        if: steps.web.outputs.present == 'true'
         run: npx vitest run --coverage
         working-directory: web
 
