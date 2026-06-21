@@ -1,5 +1,7 @@
 import SwiftUI
-import AppKit
+#if os(macOS)
+    import AppKit
+#endif
 
 struct WineBottleCard: View {
     let state: WineState
@@ -25,13 +27,17 @@ struct WineBottleCard: View {
     private var imageLayer: some View {
         switch state {
         case .ready(_, let data):
-            if let image = NSImage(data: data) {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
+            #if os(macOS)
+                if let image = NSImage(data: data) {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    PlaceholderBottle(wine: state.wine)
+                }
+            #else
                 PlaceholderBottle(wine: state.wine)
-            }
+            #endif
         case .extracting, .fetchingImage:
             PlaceholderBottle(wine: state.wine)
                 .overlay {

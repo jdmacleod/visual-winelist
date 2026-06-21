@@ -1,5 +1,7 @@
 import SwiftUI
-import AppKit
+#if os(macOS)
+    import AppKit
+#endif
 
 struct WineDetailView: View {
     let state: WineState
@@ -30,27 +32,35 @@ struct WineDetailView: View {
                 }
             }
             .navigationTitle(wine.name)
-            .navigationSubtitle(wine.vintage ?? "")
+            #if os(macOS)
+                .navigationSubtitle(wine.vintage ?? "")
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
                 }
             }
         }
-        .frame(width: 420, height: 620)
+        #if os(macOS)
+            .frame(width: 420, height: 620)
+        #endif
     }
 
     @ViewBuilder
     private var bottleImage: some View {
         switch state {
         case .ready(_, let data):
-            if let image = NSImage(data: data) {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
+            #if os(macOS)
+                if let image = NSImage(data: data) {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    PlaceholderBottle(wine: wine).frame(height: 300)
+                }
+            #else
                 PlaceholderBottle(wine: wine).frame(height: 300)
-            }
+            #endif
         default:
             PlaceholderBottle(wine: wine).frame(height: 300)
         }
