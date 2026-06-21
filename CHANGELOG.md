@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.2.4.1 (2026-06-21)
+
+### Fixed
+
+- **SSE stream-end without trailing blank line** — `BackendClient.scan()` now calls
+  `parser.feed(line: "")` after flushing the line buffer, dispatching any pending SSE event
+  when the server closes the connection without a trailing `\n\n`. Previously the last wine
+  event could be silently dropped on truncated streams.
+
+### Changed
+
+- **`BackendClient` injectable `URLSession`** — the initializer now accepts an optional
+  `session: URLSession` parameter (default `.shared`), enabling unit tests to inject a
+  `MockURLProtocol`-backed session without a live server.
+- **Coverage thresholds enforced** — vitest now fails if React statement coverage drops below
+  80%; pytest fails if Python line coverage drops below 80%. Current baselines: React 87%,
+  Python 89%.
+- **CI: `web-test` job guard** — the TypeScript test job now skips gracefully when
+  `web/package.json` is absent, matching the existing `web-lint` guard pattern.
+
+### Tests
+
+- React vitest suite: 48 tests (was 34) — added `Pagination` component tests (5) and
+  `App` error-path tests for `searchWines` rejection and `deleteWine` rejection (2).
+- Swift XCTest: 41 tests (was 38) — added `BackendClient` tests for `fetchImage()` 200/404
+  responses and `URLError.cannotConnectToHost` → `BackendError.unreachable` mapping.
+- iOS test target placeholder changed from `XCTAssertTrue(true)` to
+  `XCTSkip("iOS test target placeholder — real tests tracked in T9/T10")`.
+
 ## v0.2.5 (2026-06-21)
 
 ### Added

@@ -89,3 +89,44 @@ tags. Pin both to specific SHA256 digests (or a semver for uv) for reproducible,
 supply-chain-safe builds.
 
 ---
+
+## SSE: multi-line `data:` clobbering in SSEParser.swift
+
+`SSEParser.feed(line:)` reassigns `pendingData` on each `data:` line rather than
+appending. The SSE spec requires multi-line events to concatenate `data:` lines
+with `\n`. Currently the second `data:` line overwrites the first, so multi-event
+payloads produce silently truncated JSON that fails to decode — wines are dropped
+with no error surfaced. Pre-existing bug in `Sources/VisualWinelist/Backend/SSEParser.swift`.
+Fix: change `pendingData = value` to `pendingData = pendingData.isEmpty ? value : pendingData + "\n" + value`.
+
+---
+
+## SSE: JSON decode failures silently drop events in SSEParser.swift
+
+When `JSONDecoder().decode(...)` throws in `SSEParser`, the event is silently
+swallowed — the caller receives `nil` and no error is propagated. This is
+indistinguishable from a ping or keepalive. Fix: return a typed `Result` or a
+dedicated `.parseError(String)` case so callers can surface decode failures
+to the user rather than dropping wines invisibly.
+
+---
+
+## URLError mapping incomplete in BackendClient.swift
+
+`BackendClient.scan()` maps `.cannotConnectToHost`, `.networkConnectionLost`,
+`.cannotFindHost`, and `.timedOut` to `BackendError.unreachable`, but misses
+`.notConnectedToInternet` and `.secureConnectionFailed`. Both are common on
+mobile (airplane mode, expired TLS cert). Fix: add both codes to the `where`
+clause in the `URLError` catch.
+
+---
+
+## Tests: MockURLProtocol static var race condition
+
+`MockURLProtocol.handler` is a static `var` set in `setUp()` and cleared in
+`tearDown()`. If two `XCTestCase` instances were ever run in parallel, handlers
+would bleed across tests. `@unchecked Sendable` on `MockURLProtocol` suppresses
+the Swift concurrency check. Fix: use an actor-isolated registry keyed by
+`ObjectIdentifier(self)` or enable the `SWIFT_TEST_PARALLEL` guard.
+
+---
