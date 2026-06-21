@@ -11,6 +11,8 @@ xcuserdata/
 DerivedData/
 *.dSYM
 *.dSYM.zip
+# Auto-generated workspace directory inside .xcodeproj (not needed for SPM-only projects)
+*.xcodeproj/project.xcworkspace
 
 # pre-commit
 .pre-commit-cache/
