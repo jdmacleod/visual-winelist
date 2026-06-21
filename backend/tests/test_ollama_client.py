@@ -261,6 +261,9 @@ async def test_request_uses_correct_model_and_options():
     assert body["options"]["think"] is False, (
         '"think": false missing — Qwen3-VL will use thinking mode and may produce zero wines'
     )
+    assert body["options"]["num_ctx"] == 8192, (
+        "num_ctx must be set to 8192 to accommodate resized-image visual tokens"
+    )
 
 
 async def test_request_includes_base64_image():

@@ -24,8 +24,10 @@ import base64
 import json
 import logging
 from collections.abc import AsyncIterator
+from io import BytesIO
 
 import httpx
+from PIL import Image
 
 from backend import config
 from backend.models.wine import WineObject
@@ -35,6 +37,43 @@ log = logging.getLogger(__name__)
 
 _MODEL = "qwen3-vl:8b"
 _TIMEOUT = 120.0
+_MAX_IMAGE_DIM = 1024  # longest side in pixels; keeps visual tokens within Qwen3-VL's 4096 ctx
+
+
+def _resize_for_model(image_data: bytes) -> bytes:
+    """Downscale JPEG so longest side ≤ _MAX_IMAGE_DIM before sending to Ollama.
+
+    iPhone 12MP photos (4032×3024) produce ~4200 visual tokens — more than
+    qwen3-vl:8b's default 4096 context window. Resizing to 1024px drops that
+    to ~300-500 tokens with no meaningful loss of text legibility.
+    Returns original bytes unchanged if already within the limit.
+    """
+    try:
+        img = Image.open(BytesIO(image_data))
+    except Exception:
+        log.warning(
+            "_resize_for_model: could not decode image (%d bytes) — sending as-is", len(image_data)
+        )
+        return image_data
+    w, h = img.size
+    if max(w, h) <= _MAX_IMAGE_DIM:
+        return image_data
+    scale = _MAX_IMAGE_DIM / max(w, h)
+    new_w, new_h = int(w * scale), int(h * scale)
+    small = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+    buf = BytesIO()
+    small.save(buf, format="JPEG", quality=85)
+    resized = buf.getvalue()
+    log.info(
+        "_resize_for_model: %dx%d → %dx%d (%d → %d bytes)",
+        w,
+        h,
+        new_w,
+        new_h,
+        len(image_data),
+        len(resized),
+    )
+    return resized
 
 
 def _make_client() -> httpx.AsyncClient:
@@ -53,6 +92,7 @@ async def extract_wines(image_data: bytes) -> AsyncIterator[WineObject]:
     Mirrors OllamaClient.swift:extractWines — same token buffer logic,
     same pre-fill trick, same 120s timeout.
     """
+    image_data = _resize_for_model(image_data)
     magic = " ".join(f"{b:02X}" for b in image_data[:4])
     log.info("extract_wines: %d bytes, magic=%s", len(image_data), magic)
     body = {
@@ -73,7 +113,7 @@ async def extract_wines(image_data: bytes) -> AsyncIterator[WineObject]:
         # "think": False disables Qwen3-VL's thinking mode at the API level
         # (Ollama >= 0.6.x). The assistant pre-fill above is belt-and-suspenders
         # for older Ollama installs that silently ignore this option.
-        "options": {"temperature": 0.1, "think": False},
+        "options": {"temperature": 0.1, "think": False, "num_ctx": 8192},
     }
 
     try:
