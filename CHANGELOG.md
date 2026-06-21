@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.2.3 (2026-06-20)
+
+### Chore
+
+- **SwiftLint** — added SwiftLint v0.63.3 to pre-commit hooks and CI
+  (`swift-ci` job). Config in `.swiftlint.yml`: 120/140 line length,
+  `identifier_name` with excluded `[id, ok, ns]`, `cyclomatic_complexity`
+  warning=15/error=30. Clean baseline: 0 errors, 13 warnings (test short vars
+  and iOS `WineListViewModel` complexity are the known warnings).
+- **swift-format enforcement** — pre-commit hook and CI step now enforce
+  formatting for all Swift under `Sources/`, `Tests/`, `ios/Sources/`,
+  `ios/Tests/`. Uses format+diff pattern (replaces the advisory `lint`
+  subcommand that exits 0 on violations). 10 source files reformatted to
+  match `.swift-format` config.
+
 ## v0.2.2 (2026-06-20)
 
 ### Fixed
