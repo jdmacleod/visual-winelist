@@ -49,6 +49,11 @@ export default function App() {
     setPage(1);
   }, [status, sortOption]);
 
+  // Clear stale action errors when the selected wine changes.
+  useEffect(() => {
+    setActionError(null);
+  }, [selected?.wine_id]);
+
   const fetchWines = useCallback(async () => {
     setLoading(true);
     setFetchError(null);
@@ -78,17 +83,18 @@ export default function App() {
       try {
         const updated = await curate(selected.wine_id, verified);
         const patch = { verified: updated.verified };
-        setResults((prev) =>
-          prev
-            ? {
-                ...prev,
-                results: prev.results.map((w) =>
-                  w.wine_id === updated.wine_id ? { ...w, ...patch } : w,
-                ),
-                verified_total: prev.verified_total + (updated.verified ? 1 : -1),
-              }
-            : null,
-        );
+        setResults((prev) => {
+          if (!prev) return null;
+          const old = prev.results.find((w) => w.wine_id === updated.wine_id);
+          const verifiedDelta = old ? (updated.verified ? 1 : 0) - (old.verified ? 1 : 0) : 0;
+          return {
+            ...prev,
+            results: prev.results.map((w) =>
+              w.wine_id === updated.wine_id ? { ...w, ...patch } : w,
+            ),
+            verified_total: prev.verified_total + verifiedDelta,
+          };
+        });
         setSelected((prev) => (prev ? { ...prev, ...patch } : null));
       } catch (err) {
         setActionError(err instanceof Error ? err.message : 'Action failed');

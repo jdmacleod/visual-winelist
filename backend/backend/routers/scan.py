@@ -65,8 +65,8 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
     extraction_task: asyncio.Task[None] | None = None
 
     t_scan_start = time.perf_counter()
-    t_extraction_end: float = 0.0
-    t_phase1_end: float = 0.0
+    t_extraction_end: float | None = None
+    t_phase1_end: float | None = None
 
     try:
         queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
@@ -182,13 +182,15 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
 
         t_scan_end = time.perf_counter()
 
-        ollama_ms = int((t_extraction_end - t_scan_start) * 1000) if t_extraction_end else None
+        ollama_ms = (
+            int((t_extraction_end - t_scan_start) * 1000) if t_extraction_end is not None else None
+        )
         image_ms = (
             int((t_phase1_end - t_extraction_end) * 1000)
-            if t_extraction_end and t_phase1_end
+            if t_extraction_end is not None and t_phase1_end is not None
             else None
         )
-        sommelier_ms = int((t_scan_end - t_phase1_end) * 1000) if t_phase1_end else None
+        sommelier_ms = int((t_scan_end - t_phase1_end) * 1000) if t_phase1_end is not None else None
         total_ms = int((t_scan_end - t_scan_start) * 1000)
 
         log.info(

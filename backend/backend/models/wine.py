@@ -1,7 +1,7 @@
 import hashlib
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 def _cache_key(producer: str | None, name: str, vintage: str | None) -> str:
@@ -100,6 +100,13 @@ class WinePatch(BaseModel):
     vintage: str | None = None
     variety: str | None = None
     appellation: str | None = None
+
+    @field_validator("name", "producer", "vintage", "variety", "appellation", mode="before")
+    @classmethod
+    def reject_blank(cls, v: object) -> object:
+        if isinstance(v, str) and not v.strip():
+            raise ValueError("must not be blank")
+        return v
 
 
 class SearchResponse(BaseModel):

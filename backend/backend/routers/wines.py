@@ -2,7 +2,7 @@ import asyncio
 import os
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import asc, desc, func, or_, select
 
@@ -25,8 +25,8 @@ _SORT_COLS = {
 @router.get("/wines/search", response_model=SearchResponse)
 async def search_wines(
     q: str = "",
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=200),
     status: Literal["all", "verified", "unverified", "no_image"] = "all",
     sort: Literal["name", "producer", "created_at", "updated_at"] = "created_at",
     order: Literal["asc", "desc"] = "desc",
@@ -135,7 +135,11 @@ async def upload_wine_image(wine_id: str, file: UploadFile) -> dict[str, str]:
 
     await asyncio.to_thread(_write, image_path, data)
 
-    await cache.update_image(wine_id, image_path)
+    if not await cache.update_image(wine_id, image_path):
+        await asyncio.to_thread(
+            lambda: os.unlink(image_path) if os.path.exists(image_path) else None
+        )
+        raise HTTPException(status_code=404, detail="Wine record not found")
     return {"wine_id": wine_id, "image_url": f"/wines/{wine_id}/image"}
 
 
