@@ -10,3 +10,7 @@ extension CGFloat {
 extension Color {
     static let wineRed = Color(red: 0.45, green: 0.1, blue: 0.2)
 }
+
+extension ShapeStyle where Self == Color {
+    static var wineRed: Color { .wineRed }
+}
