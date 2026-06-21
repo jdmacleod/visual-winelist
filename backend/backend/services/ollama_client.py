@@ -2,13 +2,22 @@
 OllamaClient — streams WineObjects from Ollama via /api/chat JSONL.
 Port of OllamaClient.swift.
 
-CRITICAL — assistant pre-fill trick:
-  The request messages array MUST end with {"role": "assistant", "content": "{"}.
-  Without it, Qwen3-VL's thinking mode exhausts its entire generation budget on
-  internal chain-of-thought reasoning and produces zero visible response tokens.
-  This is not an Ollama bug — it is intentional model behavior. The pre-fill forces
-  the model to begin its response mid-JSON-object, bypassing the CoT preamble.
-  See also: test_ollama_prefill_in_request in tests/test_ollama_client.py.
+CRITICAL — Qwen3-VL thinking mode (two-layer defence):
+
+Layer 1 — "think": False in options (primary, Ollama >= 0.6.x):
+  Tells Ollama to disable CoT reasoning at the API level before the model
+  generates anything. The model skips the thinking phase entirely and outputs
+  JSON directly.
+
+Layer 2 — assistant pre-fill {"role": "assistant", "content": "{"} (belt-and-suspenders):
+  Forces the model to treat its response as already started with "{", bypassing
+  the CoT preamble at the prompt level. Required when "think": False is not
+  supported by the installed Ollama version (silently ignored on older builds).
+  See test_ollama_prefill_in_request in tests/test_ollama_client.py.
+
+If both layers fail (very old Ollama + model update), extraction returns zero
+wines. The /health endpoint will still report ollama=true; upgrade Ollama and
+re-pull qwen3-vl:8b to restore extraction.
 """
 
 import base64
@@ -56,7 +65,10 @@ async def extract_wines(image_data: bytes) -> AsyncIterator[WineObject]:
             },
         ],
         "stream": True,
-        "options": {"temperature": 0.1},
+        # "think": False disables Qwen3-VL's thinking mode at the API level
+        # (Ollama >= 0.6.x). The assistant pre-fill above is belt-and-suspenders
+        # for older Ollama installs that silently ignore this option.
+        "options": {"temperature": 0.1, "think": False},
     }
 
     try:

@@ -85,8 +85,11 @@ class WineListViewModel: ObservableObject {
                     handleNotesEvent(payload)
 
                 case .error(let payload):
-                    if payload.code == "OLLAMA_DOWN" {
-                        errorMessage = "Backend Ollama is not running.\n\nRun: ollama serve"
+                    switch payload.code {
+                    case "OLLAMA_DOWN":
+                        errorMessage = "Extraction failed — \(payload.message)\n\nIs Ollama running with qwen3-vl:8b? Run: ollama serve"
+                    default:
+                        errorMessage = "Scan error (\(payload.code)): \(payload.message)"
                     }
 
                 case .complete(let payload):
@@ -99,7 +102,10 @@ class WineListViewModel: ObservableObject {
                 }
             }
 
-            if extractedCount == 0 {
+            // Only show the generic hint if no specific error was already surfaced
+            // from an SSE event: error payload. An OLLAMA_DOWN or similar error
+            // would otherwise be silently overwritten by this message.
+            if extractedCount == 0 && errorMessage == nil {
                 errorMessage = "No wines found — try a flatter angle or better lighting"
             }
 

@@ -255,6 +255,12 @@ async def test_request_uses_correct_model_and_options():
     assert body["model"] == "qwen3-vl:8b"
     assert body["stream"] is True
     assert body["options"]["temperature"] == 0.1
+    # "think": false disables Qwen3-VL thinking mode at the Ollama API level.
+    # Without it, the model may exhaust its token budget on CoT reasoning and
+    # return zero visible JSON tokens. See module docstring for full context.
+    assert body["options"]["think"] is False, (
+        '"think": false missing — Qwen3-VL will use thinking mode and may produce zero wines'
+    )
 
 
 async def test_request_includes_base64_image():
