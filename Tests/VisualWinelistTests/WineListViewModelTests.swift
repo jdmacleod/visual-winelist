@@ -41,7 +41,10 @@ final class WineListViewModelTests: XCTestCase {
     }
 
     private func makeCompleteEvent() -> SSEEvent {
-        .complete(CompleteSSEPayload(wine_count: 1, cache_hits: 0, scan_id: "test"))
+        .complete(
+            CompleteSSEPayload(
+                wine_count: 1, cache_hits: 0, scan_id: "test", ollama_ms: nil, image_ms: nil, sommelier_ms: nil,
+                total_ms: nil))
     }
 
     // MARK: - Reconnect detection
