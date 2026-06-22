@@ -112,6 +112,13 @@ struct ContentView: View {
                     .font(.headline)
                     .foregroundStyle(.white)
                     .animation(.default, value: viewModel.scanMessage)
+                Button("Cancel") {
+                    viewModel.cancelScan()
+                    phase = .camera
+                }
+                .buttonStyle(.bordered)
+                .tint(.white)
+                .padding(.top, 8)
             }
         }
     }
@@ -148,7 +155,6 @@ struct ContentView: View {
                 await viewModel.scan(photoData: photoData)
             } else {
                 await viewModel.appendScan(photoData: photoData)
-                if !viewModel.wines.isEmpty { phase = .grid }
             }
         } catch {
             phase = .error(error.localizedDescription)

@@ -59,6 +59,9 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
         switch http.statusCode {
         case 200:
             completionHandler(.allow)
+        case 415:
+            continuation.finish(throwing: BackendError.invalidImage)
+            completionHandler(.cancel)
         case 503:
             continuation.finish(throwing: BackendError.scannerBusy)
             completionHandler(.cancel)

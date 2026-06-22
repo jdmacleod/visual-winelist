@@ -9,6 +9,7 @@ protocol BackendClientProtocol: Sendable {
 enum BackendError: Error, LocalizedError, Sendable {
     case unreachable(String)
     case scannerBusy
+    case invalidImage
     case httpError(Int)
 
     var errorDescription: String? {
@@ -17,6 +18,8 @@ enum BackendError: Error, LocalizedError, Sendable {
             return "Backend not reachable at \(url).\n\nIs the server running? Try: docker compose up"
         case .scannerBusy:
             return "The scanner is busy — another scan is in progress"
+        case .invalidImage:
+            return "Image format not supported — use JPEG. Try taking a photo directly rather than importing."
         case .httpError(let code):
             return "Backend error (HTTP \(code))"
         }
@@ -67,6 +70,10 @@ struct BackendClient: Sendable {
                     }
                     if http.statusCode == 503 {
                         continuation.finish(throwing: BackendError.scannerBusy)
+                        return
+                    }
+                    if http.statusCode == 415 {
+                        continuation.finish(throwing: BackendError.invalidImage)
                         return
                     }
                     guard http.statusCode == 200 else {

@@ -8,13 +8,13 @@ class WineListViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var selectedWine: WineObject?
     @Published var backendStatus: BackendStatus = .unknown
-    @Published var notesIncomplete: Bool = false
 
     enum BackendStatus {
         case unknown, ok, degraded(String), unreachable
     }
 
     private let backend: any BackendClientProtocol
+    private var scanTask: Task<Void, Never>?
 
     init(backendURL: URL) {
         self.backend = BackendClient(baseURL: backendURL)
@@ -46,37 +46,46 @@ class WineListViewModel: ObservableObject {
 
     func scan(photoData: Data) async {
         wines = []
-        await performScan(photoData: photoData)
+        await runScanTask(photoData: photoData)
     }
 
     func appendScan(photoData: Data) async {
-        await performScan(photoData: photoData)
+        await runScanTask(photoData: photoData)
+    }
+
+    func cancelScan() {
+        scanTask?.cancel()
+        scanTask = nil
+        isScanning = false
+        scanMessage = ""
     }
 
     func clear() {
+        cancelScan()
         wines = []
         selectedWine = nil
         errorMessage = nil
-        notesIncomplete = false
     }
 
     // MARK: - Private
+
+    private func runScanTask(photoData: Data) async {
+        scanTask?.cancel()
+        let task = Task { await performScan(photoData: photoData) }
+        scanTask = task
+        await task.value
+        scanTask = nil
+    }
 
     private func performScan(photoData: Data) async {
         isScanning = true
         scanMessage = "Sending photo to backend…"
         errorMessage = nil
-        notesIncomplete = false
-
-        var receivedComplete = false
-        var userCancelled = false
 
         defer {
             isScanning = false
             scanMessage = ""
-            if !receivedComplete && !userCancelled && !wines.isEmpty {
-                notesIncomplete = true
-            }
+            scanTask = nil
         }
 
         do {
@@ -110,7 +119,6 @@ class WineListViewModel: ObservableObject {
                         }
 
                     case .complete(let payload):
-                        receivedComplete = true
                         let hit = payload.cache_hits
                         scanMessage =
                             "\(payload.wine_count) wine\(payload.wine_count == 1 ? "" : "s")"
@@ -133,9 +141,12 @@ class WineListViewModel: ObservableObject {
             }  // end withThrowingTaskGroup
 
         } catch is CancellationError {
-            userCancelled = true
+            ()  // user cancelled — leave wines as-is, don't show error
         } catch BackendError.scannerBusy {
             errorMessage = "Scanner is busy — another scan is in progress"
+        } catch BackendError.invalidImage {
+            errorMessage =
+                "Image format not supported — use JPEG. Try taking a photo directly rather than importing."
         } catch BackendError.unreachable(let url) {
             errorMessage = "Backend not reachable at \(url)\n\nIs the server running? Try: docker compose up"
         } catch {

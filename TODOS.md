@@ -26,39 +26,6 @@ Share wine card via iOS share sheet / AirDrop.
 
 ---
 
-## P1: Swift Cancel UX — withThrowingTaskGroup image task stall
-
-When the user taps Cancel mid-scan, `cancelScan()` cancels the URLSession (SSE stream
-throws → group body throws → Swift cancels child image tasks). Because `handleImageEvent`
-now re-throws CancellationError, children propagate cleanly. However, the broader cancel
-path still relies on the URLSession cancel → SSE throw chain. Consider wrapping `performScan()`
-in an explicit Swift `Task` stored as a property so that `cancelScan()` can call
-`task.cancel()` directly, ensuring all child tasks are cancelled immediately via structured
-concurrency rather than relying on the URLSession error propagation chain.
-
----
-
-
-## P1: HTTP 415 INVALID_IMAGE not surfaced to user
-
-When the backend rejects a scan with HTTP 415 (non-JPEG magic bytes), both iOS and macOS
-`BackendClient` map it to `BackendError.httpError(415)`, which falls through to the
-generic "Scan failed" error message. Add a dedicated `BackendError.invalidImage` case and
-handle it in both ViewModels to show an actionable message: "Image format not supported —
-use JPEG. Try taking a photo directly rather than importing."
-
----
-
-## UX: Per-wine `notesIncomplete` tracking
-
-`notesIncomplete` is scan-session-scoped: set to `true` when the SSE stream
-closes without `event:complete`. Wines in the cache that never had sommelier
-notes generated (Ollama was unavailable at scan time) also show `tasting_note = nil`
-but would not show the "connection dropped" banner. Consider per-wine incomplete
-tracking so cached wines with no notes show a distinct "notes unavailable" state
-rather than appearing identical to freshly-scanned wines that got notes.
-
----
 
 
 ## Completed
@@ -80,5 +47,8 @@ rather than appearing identical to freshly-scanned wines that got notes.
 - **feature/test-hardening-2** — iOS: `BackendClient.scan()` now forwards `session.configuration` to `IOSScanSession.make(request:configuration:)`; MockURLProtocol can now intercept scan calls in tests
 - **feature/test-hardening-2** — macOS: `MockURLProtocol` static vars + `@unchecked Sendable` replaced with `MacOSMockProtocolRegistry` actor; `loadingTask` tracked and cancelled in `stopLoading()`
 - **feature/test-hardening-2** — iOS+macOS: `URLError.cancelled` in `checkHealth()`, `fetchImage()`, and `scan()` now re-throws `CancellationError()` instead of mapping to `BackendError.unreachable`
+- **feature/ux-improvements** — P1: `BackendError.invalidImage` added; HTTP 415 in iOS `IOSScanSession` + macOS `BackendClient.scan()` now throws it with actionable message
+- **feature/ux-improvements** — P1: macOS `scan()`/`appendScan()` wrap `performScan()` in a stored `Task`; `cancelScan()` cancels via task directly; Cancel button added to scanning view
+- **feature/ux-improvements** — P2: `notesIncomplete` session flag removed; `WineDetailView` shows "Tasting notes unavailable" whenever `!isScanning && wine.tastingNote == nil` (covers both dropped-connection and cached-wine cases)
 - **Closed (already done in v0.2.4.2)** — URLError mapping incomplete in BackendClient.swift (`.notConnectedToInternet` + `.secureConnectionFailed` were already in the macOS scan() catch)
 - **Closed (not worth complexity)** — Performance: Collapse `verified_total` COUNT into main search query (two queries are intentionally different; FILTER clause merge adds complexity for unmeasurable gain at SQLite personal-use scale)

@@ -47,44 +47,44 @@ final class WineListViewModelTests: XCTestCase {
                 total_ms: nil))
     }
 
-    // MARK: - Reconnect detection
+    // MARK: - Per-wine tasting note state
 
-    func testStreamClosesWithoutCompleteSetNotesIncomplete() async {
+    func testWineHasNoTastingNoteWhenNoNotesEventReceived() async {
         let vm = WineListViewModel(backend: MockBackendClient(events: [makeWineEvent()]))
         await vm.scan(photoData: Data())
-        XCTAssertTrue(vm.notesIncomplete, "notesIncomplete should be true when stream closes without event:complete")
+        XCTAssertNil(vm.wines.first?.wine.tastingNote, "wine has no tastingNote when no notes event received")
     }
 
-    func testStreamWithCompleteDoesNotSetNotesIncomplete() async {
+    func testScanCompletesWithIsScanningFalse() async {
         let vm = WineListViewModel(backend: MockBackendClient(events: [makeWineEvent(), makeCompleteEvent()]))
         await vm.scan(photoData: Data())
-        XCTAssertFalse(vm.notesIncomplete, "notesIncomplete should stay false when stream completes cleanly")
+        XCTAssertFalse(vm.isScanning, "isScanning must be false after scan completes")
     }
 
-    func testNoWinesDoesNotSetNotesIncomplete() async {
+    func testNoWinesExtractedSetsErrorMessage() async {
         let vm = WineListViewModel(backend: MockBackendClient(events: []))
         await vm.scan(photoData: Data())
-        XCTAssertFalse(vm.notesIncomplete, "notesIncomplete should stay false when no wines were extracted")
+        XCTAssertNotNil(vm.errorMessage, "errorMessage should be set when no wines were extracted")
     }
 
-    func testStreamThrowsAfterWineEventSetsNotesIncomplete() async {
+    func testStreamThrowsAfterWineEventSetsErrorMessage() async {
         let vm = WineListViewModel(
             backend: MockBackendClient(
                 events: [makeWineEvent()],
                 error: BackendError.unreachable("mock error")
             ))
         await vm.scan(photoData: Data())
-        XCTAssertTrue(
-            vm.notesIncomplete,
-            "notesIncomplete should be true when stream throws after extracting wines")
+        XCTAssertNotNil(vm.errorMessage, "errorMessage should be set when stream throws")
     }
 
-    func testClearResetsNotesIncomplete() async {
+    func testClearResetsState() async {
         let vm = WineListViewModel(backend: MockBackendClient(events: [makeWineEvent()]))
         await vm.scan(photoData: Data())
-        XCTAssertTrue(vm.notesIncomplete)
+        XCTAssertFalse(vm.wines.isEmpty)
         vm.clear()
-        XCTAssertFalse(vm.notesIncomplete, "clear() must reset notesIncomplete")
+        XCTAssertTrue(vm.wines.isEmpty, "clear() must reset wines")
+        XCTAssertNil(vm.errorMessage, "clear() must reset errorMessage")
+        XCTAssertFalse(vm.isScanning, "clear() must leave isScanning false")
     }
 
     // MARK: - Error code routing
@@ -122,9 +122,6 @@ final class WineListViewModelTests: XCTestCase {
     // MARK: - Cancel on dismiss
 
     func testWineListViewModelCancelOnDismiss() async {
-        // AsyncThrowingStream.next() returns nil (stream end) when the consuming Task is
-        // cancelled, so the for-try-await loop exits normally. isScanning must still be
-        // reset to false and notesIncomplete must stay false (no wines were extracted).
         struct SlowClient: BackendClientProtocol {
             func checkHealth() async throws -> HealthResponse { throw BackendError.unreachable("") }
             func scan(photoData: Data) -> AsyncThrowingStream<SSEEvent, Error> {
@@ -139,7 +136,7 @@ final class WineListViewModelTests: XCTestCase {
         }
 
         let vm = WineListViewModel(backend: SlowClient())
-        let scanTask = Task { await vm.scan(photoData: Data()) }
+        let outerTask = Task { await vm.scan(photoData: Data()) }
 
         // Poll until isScanning=true (up to 100ms) so we don't race against task startup.
         for _ in 0..<20 {
@@ -148,10 +145,10 @@ final class WineListViewModelTests: XCTestCase {
         }
         XCTAssertTrue(vm.isScanning, "scan should be in-progress before cancel")
 
-        scanTask.cancel()
-        await scanTask.value
+        // Cancel via ViewModel so the stored scanTask is cancelled, then await completion.
+        vm.cancelScan()
+        await outerTask.value
 
-        XCTAssertFalse(vm.isScanning, "isScanning must reset to false after task cancellation")
-        XCTAssertFalse(vm.notesIncomplete, "notesIncomplete must stay false when no wines were extracted")
+        XCTAssertFalse(vm.isScanning, "isScanning must reset to false after cancelScan()")
     }
 }
