@@ -246,7 +246,12 @@ final class IOSTestSuite: XCTestCase {
         // holdLoading=true makes startLoading() return without delivering data.
         // Cancelling the task triggers NSURLErrorCancelled → IOSScanSession maps
         // this to continuation.finish() (a clean end, not an error throw).
+        //
+        // onStartLoading must be set before IOSScanSession.make() so it is in
+        // place when URLSession dispatches startLoading() on its background queue.
+        let started = expectation(description: "URLSession startLoading called")
         MockURLProtocol.holdLoading = true
+        MockURLProtocol.onStartLoading = { started.fulfill() }
 
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
@@ -263,8 +268,6 @@ final class IOSTestSuite: XCTestCase {
             }
         }
 
-        let started = expectation(description: "URLSession startLoading called")
-        MockURLProtocol.onStartLoading = { started.fulfill() }
         await fulfillment(of: [started], timeout: 2.0)
         session.cancel()
         await consumeTask.value
