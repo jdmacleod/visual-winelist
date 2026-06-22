@@ -12,7 +12,7 @@ struct WineBottleCard: View {
                 uncertaintyBadge
             }
         }
-        .aspectRatio(3 / 4, contentMode: .fit)
+        .aspectRatio(3 / 5, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: .cornerRadiusCard))
         .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
     }
@@ -21,12 +21,13 @@ struct WineBottleCard: View {
     private var imageLayer: some View {
         switch state {
         case .ready(_, let data):
-            if let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
+            ZStack {
                 PlaceholderBottle(wine: state.wine)
+                if let image = UIImage(data: data) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                }
             }
         case .extracting, .fetchingImage:
             PlaceholderBottle(wine: state.wine)

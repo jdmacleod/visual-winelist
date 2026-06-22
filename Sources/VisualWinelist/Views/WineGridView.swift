@@ -4,7 +4,7 @@ struct WineGridView: View {
     @ObservedObject var viewModel: WineListViewModel
     let onScanMore: () -> Void
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 4)
 
     var body: some View {
         VStack(spacing: 0) {

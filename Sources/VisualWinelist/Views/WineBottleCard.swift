@@ -18,7 +18,7 @@ struct WineBottleCard: View {
             }
         }
         .buttonStyle(.plain)
-        .aspectRatio(3 / 4, contentMode: .fit)
+        .aspectRatio(3 / 5, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
     }
@@ -27,17 +27,16 @@ struct WineBottleCard: View {
     private var imageLayer: some View {
         switch state {
         case .ready(_, let data):
-            #if os(macOS)
-                if let image = NSImage(data: data) {
-                    Image(nsImage: image)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    PlaceholderBottle(wine: state.wine)
-                }
-            #else
+            ZStack {
                 PlaceholderBottle(wine: state.wine)
-            #endif
+                #if os(macOS)
+                    if let image = NSImage(data: data) {
+                        Image(nsImage: image)
+                            .resizable()
+                            .scaledToFit()
+                    }
+                #endif
+            }
         case .extracting, .fetchingImage:
             PlaceholderBottle(wine: state.wine)
                 .overlay { ShimmerOverlay() }
