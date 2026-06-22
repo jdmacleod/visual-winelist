@@ -6,6 +6,8 @@ import Foundation
 /// gives an explicit URLSessionDataTask reference for clean cancellation when
 /// the user dismisses the scan view (T10). Delegate callbacks arrive on a private
 /// serial queue owned by the URLSession, so lineBuffer and parser are single-threaded.
+private let sseLineBufferMaxBytes = sseLineBufferMaxBytes
+
 final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private let continuation: AsyncThrowingStream<SSEEvent, Error>.Continuation
     private var lineBuffer = Data()
@@ -75,14 +77,14 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
             if let newlineIndex = data[offset...].firstIndex(of: UInt8(ascii: "\n")) {
                 lineBuffer.append(contentsOf: data[offset..<newlineIndex])
                 offset = data.index(after: newlineIndex)
-                if lineBuffer.count > 1_048_576 { lineBuffer = Data(); continue }
+                if lineBuffer.count > sseLineBufferMaxBytes { lineBuffer = Data(); continue }
                 var line = String(decoding: lineBuffer, as: UTF8.self)
                 if line.hasSuffix("\r") { line.removeLast() }
                 if let event = parser.feed(line: line) { continuation.yield(event) }
                 lineBuffer = Data()
             } else {
                 lineBuffer.append(contentsOf: data[offset...])
-                if lineBuffer.count > 1_048_576 { lineBuffer = Data() }
+                if lineBuffer.count > sseLineBufferMaxBytes { lineBuffer = Data() }
                 break
             }
         }

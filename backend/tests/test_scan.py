@@ -102,6 +102,16 @@ async def test_scan_jpeg_wrong_magic_bytes_rejected(client):
     assert r.json()["detail"]["code"] == "INVALID_IMAGE"
 
 
+async def test_scan_empty_body_rejected(client):
+    """Zero-byte upload with image/jpeg content type must be rejected with 415 INVALID_IMAGE."""
+    r = await client.post(
+        "/scan",
+        files={"image": ("list.jpg", b"", "image/jpeg")},
+    )
+    assert r.status_code == 415
+    assert r.json()["detail"]["code"] == "INVALID_IMAGE"
+
+
 async def test_scan_oversized(client):
     big = make_jpeg(26 * 1024 * 1024)
     r = await client.post(

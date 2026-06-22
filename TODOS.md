@@ -26,6 +26,69 @@ Share wine card via iOS share sheet / AirDrop.
 
 ---
 
+## P1: Swift Cancel UX — withThrowingTaskGroup image task stall
+
+When the user taps Cancel mid-scan, `cancelScan()` cancels the URLSession (SSE stream
+throws → group body throws → Swift cancels child image tasks). Because `handleImageEvent`
+now re-throws CancellationError, children propagate cleanly. However, the broader cancel
+path still relies on the URLSession cancel → SSE throw chain. Consider wrapping `performScan()`
+in an explicit Swift `Task` stored as a property so that `cancelScan()` can call
+`task.cancel()` directly, ensuring all child tasks are cancelled immediately via structured
+concurrency rather than relying on the URLSession error propagation chain.
+
+---
+
+## P1: iOS BackendClient.scan() ignores injected URLSession
+
+`ios/Sources/VisualWinelistIOS/Backend/BackendClient.swift:scan()` creates a new
+URLSession via `IOSScanSession.make(request:)` (no `configuration:` arg passed), so the
+`session` property injected via `init(baseURL:session:)` is bypassed for scan calls. This
+means WineListViewModelTests cannot intercept scan network calls through MockURLProtocol.
+Fix: forward `session.configuration` to `IOSScanSession.make(request:configuration:)`.
+
+---
+
+## P1: MockURLProtocol.startLoading() unstructured Task — test teardown race
+
+macOS `Tests/VisualWinelistTests/MockURLProtocol.swift`: `startLoading()` spawns an
+unstructured `Task { }` that captures `self` and calls into the URLProtocolClient. If the
+URLSession task is cancelled before the Task executes (e.g., test tearDown runs first),
+the Task continues on a detached context calling into a potentially-invalidated client.
+Fix: track the spawned Task as an instance variable and cancel it in `stopLoading()`.
+
+---
+
+## P1: URLError.cancelled masked as BackendError.unreachable
+
+The broad `catch is URLError` in `BackendClient.checkHealth()` and `fetchImage()` (both
+iOS and macOS) remaps `URLError.cancelled` to `BackendError.unreachable`. When Swift
+cancels a Task awaiting URLSession, it throws `URLError.cancelled` — this gets silently
+converted to an "unreachable" error rather than propagating as a cancellation signal.
+Fix: narrow to `catch let e as URLError where e.code != .cancelled { throw BackendError.unreachable(...) }`
+before the broad URLError catch, and re-throw `CancellationError()` for `.cancelled`.
+
+---
+
+## P1: macOS MockURLProtocol @unchecked Sendable still present
+
+`Tests/VisualWinelistTests/BackendClientTests.swift`: `MockURLProtocol` uses static vars
+(`handler`, `holdLoading`, etc.) and suppresses Swift concurrency checking via
+`@unchecked Sendable`. The iOS suite was refactored to `actor MockProtocolRegistry` in
+this hardening branch, but the macOS suite was not. Apply the same actor-isolated
+registry pattern to the macOS test suite for consistency and correctness.
+
+---
+
+## P1: HTTP 415 INVALID_IMAGE not surfaced to user
+
+When the backend rejects a scan with HTTP 415 (non-JPEG magic bytes), both iOS and macOS
+`BackendClient` map it to `BackendError.httpError(415)`, which falls through to the
+generic "Scan failed" error message. Add a dedicated `BackendError.invalidImage` case and
+handle it in both ViewModels to show an actionable message: "Image format not supported —
+use JPEG. Try taking a photo directly rather than importing."
+
+---
+
 ## UX: Per-wine `notesIncomplete` tracking
 
 `notesIncomplete` is scan-session-scoped: set to `true` when the SSE stream

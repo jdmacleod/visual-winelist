@@ -23,6 +23,8 @@ enum BackendError: Error, LocalizedError, Sendable {
     }
 }
 
+private let sseLineBufferMaxBytes = 1_048_576
+
 struct BackendClient: Sendable {
     let baseURL: URL
     let session: URLSession
@@ -84,7 +86,7 @@ struct BackendClient: Sendable {
                             }
                         } else if byte != UInt8(ascii: "\r") {
                             lineBuffer.append(byte)
-                            if lineBuffer.count > 1_048_576 { lineBuffer = Data() }
+                            if lineBuffer.count > sseLineBufferMaxBytes { lineBuffer = Data() }
                         }
                     }
                     if !lineBuffer.isEmpty {

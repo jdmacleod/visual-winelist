@@ -158,6 +158,8 @@ class WineListViewModel: ObservableObject {
             if let currentIdx = wines.firstIndex(where: { $0.wine.wineId == payload.wine_id }) {
                 wines[currentIdx] = .ready(wines[currentIdx].wine, imageData)
             }
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             if let currentIdx = wines.firstIndex(where: { $0.wine.wineId == payload.wine_id }) {
                 wines[currentIdx] = .placeholder(wines[currentIdx].wine)

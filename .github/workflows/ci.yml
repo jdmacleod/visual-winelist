@@ -221,11 +221,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Pin to a specific SHA for supply-chain safety (look up via:
+      # SHA pinned to v2.3.9 for supply-chain safety (re-pin on each new release via:
       #   gh api repos/gitleaks/gitleaks-action/git/refs/tags/v2.3.9 | jq -r '.object.sha')
-      # On public repos: add GITLEAKS_LICENSE to repository secrets so enforcement
-      # works on fork PRs where the forked GITHUB_TOKEN lacks write permissions.
-      - uses: gitleaks/gitleaks-action@v2
+      # TODO(public-repo): uncomment GITLEAKS_LICENSE to enforce on fork PRs when this
+      # repo is public (forked GITHUB_TOKEN lacks write permissions without the license).
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
