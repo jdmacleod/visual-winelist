@@ -30,11 +30,7 @@ struct WineBottleCard: View {
             }
         case .extracting, .fetchingImage:
             PlaceholderBottle(wine: state.wine)
-                .overlay {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                        .tint(.white)
-                }
+                .overlay { ShimmerOverlay() }
         case .placeholder:
             PlaceholderBottle(wine: state.wine)
         }
@@ -72,6 +68,28 @@ struct WineBottleCard: View {
             .background(.orange, in: Circle())
             .padding(6)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+    }
+}
+
+private struct ShimmerOverlay: View {
+    @State private var phase: Double = -0.4
+
+    var body: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: phase - 0.25),
+                .init(color: .white.opacity(0.35), location: phase),
+                .init(color: .clear, location: phase + 0.25),
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .blendMode(.overlay)
+        .onAppear {
+            withAnimation(.linear(duration: 1.4).repeatForever(autoreverses: false)) {
+                phase = 1.4
+            }
+        }
     }
 }
 
