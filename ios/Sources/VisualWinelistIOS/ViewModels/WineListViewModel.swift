@@ -109,7 +109,7 @@ class WineListViewModel: ObservableObject {
                         scanMessage = "\(wines.count) wine\(wines.count == 1 ? "" : "s") found…"
 
                     case .image(let payload):
-                        group.addTask { await self.handleImageEvent(payload) }
+                        group.addTask { try await self.handleImageEvent(payload) }
 
                     case .notes(let payload):
                         handleNotesEvent(payload)
@@ -165,7 +165,7 @@ class WineListViewModel: ObservableObject {
         }
     }
 
-    private func handleImageEvent(_ payload: ImageSSEPayload) async {
+    private func handleImageEvent(_ payload: ImageSSEPayload) async throws {
         guard let idx = wines.firstIndex(where: { $0.wine.wineId == payload.wine_id }) else { return }
 
         if payload.placeholder {
