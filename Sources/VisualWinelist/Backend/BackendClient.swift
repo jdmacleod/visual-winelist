@@ -44,6 +44,8 @@ struct BackendClient: Sendable {
                 throw BackendError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
             }
             return try JSONDecoder().decode(HealthResponse.self, from: data)
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            throw CancellationError()
         } catch is URLError {
             throw BackendError.unreachable(baseURL.absoluteString)
         }
@@ -101,6 +103,8 @@ struct BackendClient: Sendable {
                     }
                     continuation.finish()
 
+                } catch let urlError as URLError where urlError.code == .cancelled {
+                    continuation.finish(throwing: CancellationError())
                 } catch is URLError {
                     continuation.finish(throwing: BackendError.unreachable(baseURL.absoluteString))
                 } catch {
@@ -125,6 +129,8 @@ struct BackendClient: Sendable {
                 throw BackendError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
             }
             return data
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            throw CancellationError()
         } catch is URLError {
             throw BackendError.unreachable(baseURL.absoluteString)
         }
