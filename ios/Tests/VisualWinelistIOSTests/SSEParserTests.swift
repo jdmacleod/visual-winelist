@@ -86,6 +86,35 @@ final class IOSTestSuite: XCTestCase {
         XCTAssertEqual(wine.name, "Margaux")
     }
 
+    // MARK: - SSEParser: malformed JSON → parseError
+
+    func testSSEParserMalformedJsonReturnsParseError() {
+        var parser = SSEParser()
+        _ = parser.feed(line: "event: wine")
+        _ = parser.feed(line: "data: not valid json {{")
+        let result = parser.feed(line: "")
+        guard case .parseError(let desc) = result else {
+            XCTFail("malformed JSON should return .parseError, got \(String(describing: result))")
+            return
+        }
+        XCTAssertTrue(desc.hasPrefix("wine:"), "parseError description should include event type; got: \(desc)")
+    }
+
+    // MARK: - NotesSSEPayload: absent pairings key defaults to []
+
+    func testNotesPayloadDefaultsPairingsWhenKeyAbsent() {
+        var parser = SSEParser()
+        let json = #"{"wine_id":"abc","tasting_note":"Rich."}"#
+        _ = parser.feed(line: "event: notes")
+        _ = parser.feed(line: "data: \(json)")
+        let result = parser.feed(line: "")
+        guard case .notes(let payload) = result else {
+            XCTFail("expected .notes, got \(String(describing: result))")
+            return
+        }
+        XCTAssertEqual(payload.pairings, [], "absent pairings key should default to empty array")
+    }
+
     // MARK: - IOSScanSession: receives wine event via MockURLProtocol
 
     func testIOSScanSessionReceivesWineEvent() async throws {
