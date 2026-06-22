@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.2.4.2 (2026-06-21)
+
+### Fixed
+
+- **iOS wine names with accented characters** — Wines like "Château" were silently dropped when URLSession split the SSE payload mid-character across delivery chunks. The line buffer now accumulates raw bytes before UTF-8 decoding, so multibyte characters survive any delivery boundary.
+- **Scanner lock not released on client disconnect** — Cancelling a scan on iOS or macOS left the server's SCANNER_BUSY lock held for up to 5 minutes because the underlying URLSession connection stayed open after the consumer exited. Cancelling the stream now propagates immediately to the URLSession, releasing the lock promptly.
+- **JPEG spoofing via Content-Type header** — The image upload endpoint accepted any file declared as `image/jpeg` without inspecting content. It now verifies the JPEG SOI magic bytes (`\xff\xd8`), rejecting non-JPEG files regardless of Content-Type.
+- **Corrupted SSE bytes misinterpreted as event boundary** — An invalid UTF-8 byte in a server response fell back to an empty string, which SSEParser treats as the event-dispatch signal. Wine events could be silently split into two malformed events. The decoder now substitutes U+FFFD for invalid sequences, preserving parser state.
+
 ## v0.2.4.1 (2026-06-21)
 
 ### Fixed

@@ -20,6 +20,9 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     /// Called at the start of startLoading(), before holdLoading check.
     /// Use to synchronize tests that need to know when the URLSession task has started.
     static var onStartLoading: (() -> Void)?
+    /// When non-nil, deliver these chunks as separate didLoad calls instead of one.
+    /// The handler is still called for the HTTP response object; its data is ignored.
+    static var chunks: [Data]?
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -33,7 +36,13 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
         }
         let (response, data) = handler(request)
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: data)
+        if let chunks = MockURLProtocol.chunks {
+            for chunk in chunks {
+                client?.urlProtocol(self, didLoad: chunk)
+            }
+        } else {
+            client?.urlProtocol(self, didLoad: data)
+        }
         client?.urlProtocolDidFinishLoading(self)
     }
 
@@ -48,6 +57,7 @@ final class IOSTestSuite: XCTestCase {
         MockURLProtocol.handler = nil
         MockURLProtocol.holdLoading = false
         MockURLProtocol.onStartLoading = nil
+        MockURLProtocol.chunks = nil
         super.tearDown()
     }
 
@@ -179,13 +189,69 @@ final class IOSTestSuite: XCTestCase {
             StartupValidator.backendURL(), "invalid URL format should return nil (no scheme)")
     }
 
+    // MARK: - IOSScanSession: multibyte UTF-8 character split across delivery boundaries
+
+    func testIOSScanSessionMultibyteCharacterAcrossChunkBoundary() async throws {
+        // "Château" contains 'â' (U+00E2), which UTF-8 encodes as 0xC3 0xA2.
+        // Splitting the payload between those two bytes triggers the bug in the
+        // old String-based lineBuffer: String(data:encoding:) returns nil for an
+        // incomplete multibyte sequence, silently dropping the entire chunk.
+        // The Data-based buffer accumulates raw bytes before decoding, so it
+        // reassembles the character correctly regardless of delivery boundaries.
+        let sseText = "event: wine\ndata: {\"name\":\"Ch\u{00e2}teau\",\"confidence\":0.9}\n\n"
+        let allBytes = Data(sseText.utf8)
+
+        // Locate â (0xC3 0xA2) and split after the first byte (0xC3).
+        var splitIndex: Int?
+        for i in allBytes.indices.dropLast() {
+            let j = allBytes.index(after: i)
+            if allBytes[i] == 0xC3 && allBytes[j] == 0xA2 {
+                splitIndex = j
+                break
+            }
+        }
+        guard let split = splitIndex else {
+            XCTFail("â bytes not found in test payload")
+            return
+        }
+
+        let baseURL = URL(string: "http://localhost:8000")!
+        MockURLProtocol.handler = { _ in
+            let response = HTTPURLResponse(
+                url: baseURL, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())  // data ignored; chunks drives delivery
+        }
+        MockURLProtocol.chunks = [Data(allBytes[..<split]), Data(allBytes[split...])]
+
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let request = URLRequest(url: baseURL.appendingPathComponent("scan"))
+        let (stream, _) = IOSScanSession.make(request: request, configuration: config)
+
+        var events: [SSEEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        guard let first = events.first, case .wine(let wine) = first else {
+            XCTFail("multibyte split: expected .wine event, got: \(events)")
+            return
+        }
+        XCTAssertEqual(wine.name, "Ch\u{00e2}teau", "â must survive URLSession chunk boundary split")
+    }
+
     // MARK: - IOSScanSession: cancel stops stream cleanly
 
     func testIOSScanSessionCancelStopsStream() async {
         // holdLoading=true makes startLoading() return without delivering data.
         // Cancelling the task triggers NSURLErrorCancelled → IOSScanSession maps
         // this to continuation.finish() (a clean end, not an error throw).
+        //
+        // onStartLoading must be set before IOSScanSession.make() so it is in
+        // place when URLSession dispatches startLoading() on its background queue.
+        let started = expectation(description: "URLSession startLoading called")
         MockURLProtocol.holdLoading = true
+        MockURLProtocol.onStartLoading = { started.fulfill() }
 
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
@@ -202,8 +268,6 @@ final class IOSTestSuite: XCTestCase {
             }
         }
 
-        let started = expectation(description: "URLSession startLoading called")
-        MockURLProtocol.onStartLoading = { started.fulfill() }
         await fulfillment(of: [started], timeout: 2.0)
         session.cancel()
         await consumeTask.value

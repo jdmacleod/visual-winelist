@@ -8,7 +8,7 @@ import Foundation
 /// serial queue owned by the URLSession, so lineBuffer and parser are single-threaded.
 final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private let continuation: AsyncThrowingStream<SSEEvent, Error>.Continuation
-    private var lineBuffer = ""
+    private var lineBuffer = Data()
     private var parser = SSEParser()
     private(set) var dataTask: URLSessionDataTask?
 
@@ -66,13 +66,17 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        guard let chunk = String(data: data, encoding: .utf8) else { return }
-        lineBuffer += chunk
-        while let newlineRange = lineBuffer.range(of: "\n") {
-            let rawLine = String(lineBuffer[lineBuffer.startIndex..<newlineRange.lowerBound])
-            lineBuffer = String(lineBuffer[newlineRange.upperBound...])
-            // Strip trailing \r to handle CRLF line endings from proxies, matching macOS BackendClient.
-            let line = rawLine.hasSuffix("\r") ? String(rawLine.dropLast()) : rawLine
+        lineBuffer.append(data)
+        // Split on 0x0A (newline byte) so multibyte UTF-8 characters that span
+        // URLSession delivery boundaries are never dropped. The old String-based
+        // approach called String(data:encoding:) on each delivery chunk, which
+        // returns nil when a multibyte sequence is split, silently losing the chunk.
+        while let newlineIndex = lineBuffer.firstIndex(of: UInt8(ascii: "\n")) {
+            let lineData = Data(lineBuffer[lineBuffer.startIndex..<newlineIndex])
+            lineBuffer = Data(lineBuffer[lineBuffer.index(after: newlineIndex)...])
+            var line = String(decoding: lineData, as: UTF8.self)
+            // Strip trailing \r to handle CRLF line endings from proxies.
+            if line.hasSuffix("\r") { line.removeLast() }
             if let event = parser.feed(line: line) {
                 continuation.yield(event)
             }
@@ -90,11 +94,12 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
         } else {
             // Flush any remaining bytes (stream ended without a trailing newline).
             if !lineBuffer.isEmpty {
-                let line = lineBuffer.hasSuffix("\r") ? String(lineBuffer.dropLast()) : lineBuffer
+                var line = String(decoding: lineBuffer, as: UTF8.self)
+                if line.hasSuffix("\r") { line.removeLast() }
                 if let event = parser.feed(line: line) {
                     continuation.yield(event)
                 }
-                lineBuffer = ""
+                lineBuffer = Data()
             }
             // Flush any pending SSE event if the stream ended without a trailing blank line.
             if let event = parser.feed(line: "") {

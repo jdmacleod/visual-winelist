@@ -7,11 +7,19 @@ import XCTest
 private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     // FIXME: static var is not parallel-test-safe — see TODOS.md
     static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data?))?
+    /// When true, startLoading() returns without delivering data (simulates a hanging server).
+    static var holdLoading = false
+    /// Called at the start of startLoading(), before any data delivery.
+    static var onStartLoading: (() -> Void)?
+    /// Called when the URLSession task is cancelled (via stopLoading).
+    static var onStopLoading: (() -> Void)?
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
+        MockURLProtocol.onStartLoading?()
+        if MockURLProtocol.holdLoading { return }
         guard let handler = MockURLProtocol.handler else {
             client?.urlProtocol(self, didFailWithError: URLError(.unknown))
             return
@@ -28,7 +36,9 @@ private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
         }
     }
 
-    override func stopLoading() {}
+    override func stopLoading() {
+        MockURLProtocol.onStopLoading?()
+    }
 }
 
 // MARK: - Tests
@@ -46,6 +56,9 @@ final class BackendClientTests: XCTestCase {
 
     override func tearDown() {
         MockURLProtocol.handler = nil
+        MockURLProtocol.holdLoading = false
+        MockURLProtocol.onStartLoading = nil
+        MockURLProtocol.onStopLoading = nil
         session = nil
         super.tearDown()
     }
@@ -201,6 +214,32 @@ final class BackendClientTests: XCTestCase {
                 return
             }
         }
+    }
+
+    // MARK: - Cancellation propagation
+
+    func testScanCancellationCancelsURLSessionTask() async {
+        // Verify that cancelling the stream consumer also cancels the underlying
+        // URLSession task. Without continuation.onTermination, the inner Task keeps
+        // the URLSession connection open after the consumer exits, holding the
+        // SCANNER_BUSY lock on the server for up to 300 seconds.
+        let loadingStarted = expectation(description: "URLSession startLoading called")
+        let taskCancelled = expectation(description: "URLSession stopLoading called after consumer cancel")
+
+        MockURLProtocol.holdLoading = true
+        MockURLProtocol.onStartLoading = { loadingStarted.fulfill() }
+        MockURLProtocol.onStopLoading = { taskCancelled.fulfill() }
+
+        let streamTask = Task {
+            do {
+                for try await _ in makeClient().scan(photoData: Data()) {}
+            } catch {}
+        }
+
+        await fulfillment(of: [loadingStarted], timeout: 2.0)
+        streamTask.cancel()
+        await fulfillment(of: [taskCancelled], timeout: 2.0)
+        await streamTask.value
     }
 
     // MARK: - URLError handling

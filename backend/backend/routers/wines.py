@@ -124,6 +124,8 @@ async def upload_wine_image(wine_id: str, file: UploadFile) -> dict[str, str]:
     data = await file.read(max_bytes + 1)
     if len(data) > max_bytes:
         raise HTTPException(status_code=413, detail="Image must be under 10 MB")
+    if not data.startswith(b"\xff\xd8"):
+        raise HTTPException(status_code=400, detail="JPEG image required")
 
     image_path = os.path.join(config.IMAGE_CACHE_DIR, f"{wine_id}.jpg")
     cache_dir = os.path.realpath(config.IMAGE_CACHE_DIR)
