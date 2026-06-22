@@ -3,6 +3,7 @@ import Foundation
 enum BackendError: Error, LocalizedError, Sendable {
     case unreachable(String)
     case scannerBusy
+    case invalidImage
     case httpError(Int)
 
     var errorDescription: String? {
@@ -11,6 +12,8 @@ enum BackendError: Error, LocalizedError, Sendable {
             return "Backend not reachable at \(url).\n\nCheck that you're on the same WiFi network as the server."
         case .scannerBusy:
             return "The scanner is busy — another scan is in progress"
+        case .invalidImage:
+            return "Image format not supported — use JPEG. Try taking a photo directly rather than importing."
         case .httpError(let code):
             return "Backend error (HTTP \(code))"
         }
