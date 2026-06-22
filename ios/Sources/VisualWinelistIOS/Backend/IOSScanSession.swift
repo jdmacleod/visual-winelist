@@ -88,6 +88,18 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
                 continuation.finish(throwing: error)
             }
         } else {
+            // Flush any remaining bytes (stream ended without a trailing newline).
+            if !lineBuffer.isEmpty {
+                let line = lineBuffer.hasSuffix("\r") ? String(lineBuffer.dropLast()) : lineBuffer
+                if let event = parser.feed(line: line) {
+                    continuation.yield(event)
+                }
+                lineBuffer = ""
+            }
+            // Flush any pending SSE event if the stream ended without a trailing blank line.
+            if let event = parser.feed(line: "") {
+                continuation.yield(event)
+            }
             continuation.finish()
         }
     }

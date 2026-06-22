@@ -127,3 +127,45 @@ with `self.session`, matching the macOS pattern.
 `SortOption` union type and wire it to the curator UI filter bar.
 
 ---
+
+## Backend: `_scanning` global is process-local (single-worker constraint)
+
+`_scanning` in `scan.py` is a module-level bool. Each uvicorn worker process has its
+own copy, so `--workers N > 1` allows simultaneous scans against a single Ollama
+instance. Fix: either document the single-worker constraint prominently and add a
+startup assertion, or replace the in-process bool with a cross-process advisory lock
+(e.g. filesystem lock or Redis SETNX).
+
+---
+
+## Swift: `imageTasks` array grows unboundedly within a scan
+
+Both macOS and iOS `WineListViewModel.imageTasks` append a `Task` per wine image event
+but never prune completed entries. For a 100-wine scan the array holds 100 completed
+`Task` references until `clear()` or `cancelScan()`. Fix: remove completed tasks from
+the array in `handleImageEvent` after the closure finishes (e.g. `imageTasks.removeAll
+{ $0.isCancelled }` at the top of each image event handler).
+
+---
+
+## CI: Swift coverage gate fails silently on `llvm-cov` error
+
+The CI step that measures Swift coverage uses `xcrun llvm-cov report … || echo
+"::warning::…"`. If `llvm-cov` fails for any reason (wrong binary, mismatched LLVM
+version), the step exits 0, `TOTAL` stays empty, and the coverage threshold check is
+skipped with no build failure. Fix: treat a missing or unparseable `llvm-cov` output
+as a gate failure rather than a warning when `PROFDATA` and `XCTEST` are present.
+
+---
+
+## Backend: `BackendClient.scan()` inner Task not cancelled on consumer cancel
+
+`BackendClient.scan()` creates an unstructured `Task { }` inside the
+`AsyncThrowingStream` closure. When the `for-try-await` consumer is cancelled, the
+inner `Task` keeps the `URLSession` connection open until the server closes it (up to
+the configured `timeoutInterval`). A rapid scan→cancel→scan sequence can hit the 503
+`SCANNER_BUSY` gate. Fix: use `withTaskCancellationHandler` to cancel the inner task
+when the stream consumer is cancelled, or switch to structured concurrency so the inner
+task inherits the consumer's cancellation.
+
+---

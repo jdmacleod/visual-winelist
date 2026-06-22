@@ -135,7 +135,7 @@ class WineListViewModel: ObservableObject {
                     break
 
                 case .parseError:
-                    break
+                    print("[SSE] parse error — malformed event from backend")
                 }
             }
 

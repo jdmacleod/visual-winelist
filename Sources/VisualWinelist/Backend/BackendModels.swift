@@ -22,7 +22,7 @@ struct NotesSSEPayload: Decodable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         wine_id = try c.decode(String.self, forKey: .wine_id)
         tasting_note = try c.decodeIfPresent(String.self, forKey: .tasting_note)
-        pairings = (try? c.decodeIfPresent([String].self, forKey: .pairings)) ?? []
+        pairings = try c.decodeIfPresent([String].self, forKey: .pairings) ?? []
     }
 }
 
