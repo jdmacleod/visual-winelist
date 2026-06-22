@@ -69,8 +69,10 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
         guard let chunk = String(data: data, encoding: .utf8) else { return }
         lineBuffer += chunk
         while let newlineRange = lineBuffer.range(of: "\n") {
-            let line = String(lineBuffer[lineBuffer.startIndex..<newlineRange.lowerBound])
+            let rawLine = String(lineBuffer[lineBuffer.startIndex..<newlineRange.lowerBound])
             lineBuffer = String(lineBuffer[newlineRange.upperBound...])
+            // Strip trailing \r to handle CRLF line endings from proxies, matching macOS BackendClient.
+            let line = rawLine.hasSuffix("\r") ? String(rawLine.dropLast()) : rawLine
             if let event = parser.feed(line: line) {
                 continuation.yield(event)
             }

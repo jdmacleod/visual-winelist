@@ -15,6 +15,7 @@ class WineListViewModel: ObservableObject {
     }
 
     private let backend: any BackendClientProtocol
+    private var imageTasks: [Task<Void, Never>] = []
 
     init(backendURL: URL) {
         self.backend = BackendClient(baseURL: backendURL)
@@ -54,6 +55,8 @@ class WineListViewModel: ObservableObject {
     }
 
     func clear() {
+        imageTasks.forEach { $0.cancel() }
+        imageTasks = []
         wines = []
         selectedWine = nil
         errorMessage = nil
@@ -91,8 +94,7 @@ class WineListViewModel: ObservableObject {
                     scanMessage = "\(wines.count) wine\(wines.count == 1 ? "" : "s") found…"
 
                 case .image(let payload):
-                    // Fire-and-forget: don't block the SSE loop while fetching image bytes.
-                    Task { await self.handleImageEvent(payload) }
+                    imageTasks.append(Task { await self.handleImageEvent(payload) })
 
                 case .notes(let payload):
                     handleNotesEvent(payload)

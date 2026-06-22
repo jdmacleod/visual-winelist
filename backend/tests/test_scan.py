@@ -145,6 +145,9 @@ async def test_scan_lock_released_on_generator_close():
     assert not scan_mod._scanning, "pre-condition: lock must start False"
 
     with patch("backend.routers.scan.ollama_client.extract_wines", _no_wines):
+        # Simulate the scan() handler: it sets _scanning = True synchronously
+        # before handing the generator to StreamingResponse (TOCTOU fix).
+        scan_mod._scanning = True
         gen = _scan_sse(make_jpeg(), "test-disconnect")
         # Generator runs Phase 1+2, yields the complete event, then suspends.
         # At this suspend point the finally block has NOT run — _scanning is True.

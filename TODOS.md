@@ -90,27 +90,6 @@ supply-chain-safe builds.
 
 ---
 
-## SSE: multi-line `data:` clobbering in SSEParser.swift
-
-`SSEParser.feed(line:)` reassigns `pendingData` on each `data:` line rather than
-appending. The SSE spec requires multi-line events to concatenate `data:` lines
-with `\n`. Currently the second `data:` line overwrites the first, so multi-event
-payloads produce silently truncated JSON that fails to decode — wines are dropped
-with no error surfaced. Pre-existing bug in `Sources/VisualWinelist/Backend/SSEParser.swift`.
-Fix: change `pendingData = value` to `pendingData = pendingData.isEmpty ? value : pendingData + "\n" + value`.
-
----
-
-## SSE: JSON decode failures silently drop events in SSEParser.swift
-
-When `JSONDecoder().decode(...)` throws in `SSEParser`, the event is silently
-swallowed — the caller receives `nil` and no error is propagated. This is
-indistinguishable from a ping or keepalive. Fix: return a typed `Result` or a
-dedicated `.parseError(String)` case so callers can surface decode failures
-to the user rather than dropping wines invisibly.
-
----
-
 ## URLError mapping incomplete in BackendClient.swift
 
 `BackendClient.scan()` maps `.cannotConnectToHost`, `.networkConnectionLost`,
@@ -128,5 +107,23 @@ clause in the `URLError` catch.
 would bleed across tests. `@unchecked Sendable` on `MockURLProtocol` suppresses
 the Swift concurrency check. Fix: use an actor-isolated registry keyed by
 `ObjectIdentifier(self)` or enable the `SWIFT_TEST_PARALLEL` guard.
+
+---
+
+## iOS: BackendClient health/image not session-injectable
+
+`ios/Sources/VisualWinelistIOS/Backend/BackendClient.swift` uses `URLSession.shared`
+for `checkHealth()` and `fetchImage(wineId:)`. Only `scan()` is testable via
+`IOSScanSession.make(configuration:)`. Fix: add `let session: URLSession = .shared`
+to the iOS `BackendClient` struct and replace the `URLSession.shared` call sites
+with `self.session`, matching the macOS pattern.
+
+---
+
+## Web: sort=verified not in TypeScript SortOption type
+
+`backend/backend/routers/scan.py` accepts `sort=verified` but `web/src/types/wine.ts`
+`SortOption` type only covers the other sort options. Add `"verified"` to the
+`SortOption` union type and wire it to the curator UI filter bar.
 
 ---

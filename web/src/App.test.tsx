@@ -7,8 +7,6 @@ vi.mock('./api/client', () => ({
   searchWines: vi.fn(),
   curate: vi.fn(),
   deleteWine: vi.fn(),
-  patchWine: vi.fn(),
-  uploadWineImage: vi.fn(),
   absoluteImageUrl: (url: string) => url,
 }));
 

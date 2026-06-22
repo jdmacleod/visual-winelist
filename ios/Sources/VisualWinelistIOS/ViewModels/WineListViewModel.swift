@@ -15,8 +15,8 @@ class WineListViewModel: ObservableObject {
     }
 
     private let backend: BackendClient
-    // T10: stored so cancel() can be called when the scan view dismisses
     private var activeScanSession: IOSScanSession?
+    private var imageTasks: [Task<Void, Never>] = []
 
     init(backendURL: URL) {
         self.backend = BackendClient(baseURL: backendURL)
@@ -53,6 +53,8 @@ class WineListViewModel: ObservableObject {
 
     /// Cancel an in-progress scan. Call from onDisappear to prevent resource leaks (T10).
     func cancelScan() {
+        imageTasks.forEach { $0.cancel() }
+        imageTasks = []
         activeScanSession?.cancel()
         activeScanSession = nil
         isScanning = false
@@ -105,7 +107,7 @@ class WineListViewModel: ObservableObject {
                     scanMessage = "\(wines.count) wine\(wines.count == 1 ? "" : "s") found…"
 
                 case .image(let payload):
-                    Task { await self.handleImageEvent(payload) }
+                    imageTasks.append(Task { await self.handleImageEvent(payload) })
 
                 case .notes(let payload):
                     handleNotesEvent(payload)
