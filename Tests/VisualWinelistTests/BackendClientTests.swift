@@ -2,42 +2,89 @@ import XCTest
 
 @testable import VisualWinelist
 
+// MARK: - MockProtocolSnapshot
+
+private struct MacOSMockProtocolSnapshot {
+    let handler: ((URLRequest) throws -> (HTTPURLResponse, Data?))?
+    let holdLoading: Bool
+    let onStartLoading: (() -> Void)?
+    let onStopLoading: (() -> Void)?
+}
+
+// MARK: - MockProtocolRegistry
+
+/// Actor-isolated registry for MockURLProtocol state. Replaces static vars + @unchecked Sendable.
+/// Each test configures state via async set* methods; tearDown calls reset().
+private actor MacOSMockProtocolRegistry {
+    static let shared = MacOSMockProtocolRegistry()
+
+    var handler: ((URLRequest) throws -> (HTTPURLResponse, Data?))?
+    var holdLoading = false
+    var onStartLoading: (() -> Void)?
+    var onStopLoading: (() -> Void)?
+
+    func setHandler(_ h: ((URLRequest) throws -> (HTTPURLResponse, Data?))?) { handler = h }
+    func setHoldLoading(_ v: Bool) { holdLoading = v }
+    func setOnStartLoading(_ v: (() -> Void)?) { onStartLoading = v }
+    func setOnStopLoading(_ v: (() -> Void)?) { onStopLoading = v }
+
+    func reset() {
+        handler = nil
+        holdLoading = false
+        onStartLoading = nil
+        onStopLoading = nil
+    }
+
+    func snapshot() -> MacOSMockProtocolSnapshot {
+        MacOSMockProtocolSnapshot(
+            handler: handler,
+            holdLoading: holdLoading,
+            onStartLoading: onStartLoading,
+            onStopLoading: onStopLoading
+        )
+    }
+
+    func fireOnStopLoading() {
+        onStopLoading?()
+    }
+}
+
 // MARK: - URLProtocol stub
 
-private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
-    // FIXME: static var is not parallel-test-safe — see TODOS.md
-    static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data?))?
-    /// When true, startLoading() returns without delivering data (simulates a hanging server).
-    static var holdLoading = false
-    /// Called at the start of startLoading(), before any data delivery.
-    static var onStartLoading: (() -> Void)?
-    /// Called when the URLSession task is cancelled (via stopLoading).
-    static var onStopLoading: (() -> Void)?
+private final class MockURLProtocol: URLProtocol {
+    /// Tracked so stopLoading() can cancel the Task before it calls into a
+    /// potentially-invalidated URLProtocolClient (test teardown race fix).
+    private var loadingTask: Task<Void, Never>?
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
-        MockURLProtocol.onStartLoading?()
-        if MockURLProtocol.holdLoading { return }
-        guard let handler = MockURLProtocol.handler else {
-            client?.urlProtocol(self, didFailWithError: URLError(.unknown))
-            return
-        }
-        do {
-            let (response, data) = try handler(request)
-            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            if let data = data {
-                client?.urlProtocol(self, didLoad: data)
+        loadingTask = Task { [weak self] in
+            guard let self else { return }
+            let state = await MacOSMockProtocolRegistry.shared.snapshot()
+            state.onStartLoading?()
+            guard !Task.isCancelled, !state.holdLoading else { return }
+            guard let handler = state.handler else {
+                self.client?.urlProtocol(self, didFailWithError: URLError(.unknown))
+                return
             }
-            client?.urlProtocolDidFinishLoading(self)
-        } catch {
-            client?.urlProtocol(self, didFailWithError: error)
+            guard !Task.isCancelled else { return }
+            do {
+                let (response, data) = try handler(self.request)
+                self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                if let data { self.client?.urlProtocol(self, didLoad: data) }
+                self.client?.urlProtocolDidFinishLoading(self)
+            } catch {
+                self.client?.urlProtocol(self, didFailWithError: error)
+            }
         }
     }
 
     override func stopLoading() {
-        MockURLProtocol.onStopLoading?()
+        loadingTask?.cancel()
+        loadingTask = nil
+        Task { await MacOSMockProtocolRegistry.shared.fireOnStopLoading() }
     }
 }
 
@@ -54,13 +101,10 @@ final class BackendClientTests: XCTestCase {
         session = URLSession(configuration: config)
     }
 
-    override func tearDown() {
-        MockURLProtocol.handler = nil
-        MockURLProtocol.holdLoading = false
-        MockURLProtocol.onStartLoading = nil
-        MockURLProtocol.onStopLoading = nil
+    override func tearDown() async throws {
+        await MacOSMockProtocolRegistry.shared.reset()
         session = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     private func makeClient() -> BackendClient {
@@ -74,7 +118,7 @@ final class BackendClientTests: XCTestCase {
     // MARK: - HTTP error handling
 
     func testScan503ThrowsScannerBusy() async throws {
-        MockURLProtocol.handler = { [self] _ in (makeResponse(statusCode: 503), nil) }
+        await MacOSMockProtocolRegistry.shared.setHandler { [self] _ in (makeResponse(statusCode: 503), nil) }
         var caught: Error?
         do {
             for try await _ in makeClient().scan(photoData: Data()) {}
@@ -88,7 +132,7 @@ final class BackendClientTests: XCTestCase {
     }
 
     func testScan403ThrowsHttpError() async throws {
-        MockURLProtocol.handler = { [self] _ in (makeResponse(statusCode: 403), nil) }
+        await MacOSMockProtocolRegistry.shared.setHandler { [self] _ in (makeResponse(statusCode: 403), nil) }
         var caught: Error?
         do {
             for try await _ in makeClient().scan(photoData: Data()) {}
@@ -105,7 +149,7 @@ final class BackendClientTests: XCTestCase {
 
     func testScanCompleteEventParsedFromStream() async throws {
         let sse = "event: complete\ndata: {\"wine_count\":2,\"cache_hits\":1,\"scan_id\":\"abc\"}\n\n"
-        MockURLProtocol.handler = { [self] _ in
+        await MacOSMockProtocolRegistry.shared.setHandler { [self] _ in
             (makeResponse(statusCode: 200), sse.data(using: .utf8))
         }
         var events: [SSEEvent] = []
@@ -124,9 +168,8 @@ final class BackendClientTests: XCTestCase {
 
     func testScanCRLFLineEndingsStrippedCorrectly() async throws {
         // Windows-style CRLF line endings must produce the same events as LF-only.
-        // The byte-iteration loop strips \r before splitting on \n.
         let sse = "event: complete\r\ndata: {\"wine_count\":1,\"cache_hits\":0,\"scan_id\":\"x\"}\r\n\r\n"
-        MockURLProtocol.handler = { [self] _ in
+        await MacOSMockProtocolRegistry.shared.setHandler { [self] _ in
             (makeResponse(statusCode: 200), sse.data(using: .utf8))
         }
         var events: [SSEEvent] = []
@@ -143,7 +186,7 @@ final class BackendClientTests: XCTestCase {
 
     func testScanPingEventYielded() async throws {
         let sse = ": ping\n\n"
-        MockURLProtocol.handler = { [self] _ in
+        await MacOSMockProtocolRegistry.shared.setHandler { [self] _ in
             (makeResponse(statusCode: 200), sse.data(using: .utf8))
         }
         var events: [SSEEvent] = []
@@ -158,7 +201,7 @@ final class BackendClientTests: XCTestCase {
     }
 
     func testScanEmptyStreamFinishesWithoutError() async {
-        MockURLProtocol.handler = { [self] _ in (makeResponse(statusCode: 200), Data()) }
+        await MacOSMockProtocolRegistry.shared.setHandler { [self] _ in (makeResponse(statusCode: 200), Data()) }
         var events: [SSEEvent] = []
         do {
             for try await event in makeClient().scan(photoData: Data()) {
@@ -174,7 +217,7 @@ final class BackendClientTests: XCTestCase {
 
     func testCheckHealthDecodesOKResponse() async throws {
         let json = "{\"status\":\"ok\",\"ollama\":true,\"brave_key\":true}".data(using: .utf8)!
-        MockURLProtocol.handler = { [self] _ in (makeResponse(statusCode: 200), json) }
+        await MacOSMockProtocolRegistry.shared.setHandler { [self] _ in (makeResponse(statusCode: 200), json) }
         let health = try await makeClient().checkHealth()
         XCTAssertEqual(health.status, "ok")
         XCTAssertTrue(health.ollama)
@@ -182,7 +225,7 @@ final class BackendClientTests: XCTestCase {
     }
 
     func testCheckHealth503ThrowsHttpError() async throws {
-        MockURLProtocol.handler = { [self] _ in (makeResponse(statusCode: 503), nil) }
+        await MacOSMockProtocolRegistry.shared.setHandler { [self] _ in (makeResponse(statusCode: 503), nil) }
         do {
             _ = try await makeClient().checkHealth()
             XCTFail("Expected error for HTTP 503")
@@ -198,13 +241,13 @@ final class BackendClientTests: XCTestCase {
 
     func testFetchImageReturnsDataOn200() async throws {
         let imageData = Data([0xFF, 0xD8, 0xFF])
-        MockURLProtocol.handler = { [self] _ in (makeResponse(statusCode: 200), imageData) }
+        await MacOSMockProtocolRegistry.shared.setHandler { [self] _ in (makeResponse(statusCode: 200), imageData) }
         let result = try await makeClient().fetchImage(wineId: "wine-abc")
         XCTAssertEqual(result, imageData)
     }
 
     func testFetchImage404ThrowsHttpError() async throws {
-        MockURLProtocol.handler = { [self] _ in (makeResponse(statusCode: 404), nil) }
+        await MacOSMockProtocolRegistry.shared.setHandler { [self] _ in (makeResponse(statusCode: 404), nil) }
         do {
             _ = try await makeClient().fetchImage(wineId: "wine-abc")
             XCTFail("Expected error for HTTP 404")
@@ -226,9 +269,9 @@ final class BackendClientTests: XCTestCase {
         let loadingStarted = expectation(description: "URLSession startLoading called")
         let taskCancelled = expectation(description: "URLSession stopLoading called after consumer cancel")
 
-        MockURLProtocol.holdLoading = true
-        MockURLProtocol.onStartLoading = { loadingStarted.fulfill() }
-        MockURLProtocol.onStopLoading = { taskCancelled.fulfill() }
+        await MacOSMockProtocolRegistry.shared.setHoldLoading(true)
+        await MacOSMockProtocolRegistry.shared.setOnStartLoading { loadingStarted.fulfill() }
+        await MacOSMockProtocolRegistry.shared.setOnStopLoading { taskCancelled.fulfill() }
 
         let streamTask = Task {
             do {
@@ -245,7 +288,7 @@ final class BackendClientTests: XCTestCase {
     // MARK: - URLError handling
 
     func testScanConnectionRefusedThrowsUnreachable() async throws {
-        MockURLProtocol.handler = { _ in throw URLError(.cannotConnectToHost) }
+        await MacOSMockProtocolRegistry.shared.setHandler { _ in throw URLError(.cannotConnectToHost) }
         var caught: Error?
         do {
             for try await _ in makeClient().scan(photoData: Data()) {}
@@ -258,9 +301,8 @@ final class BackendClientTests: XCTestCase {
         }
     }
 
-    // checkHealth() URLError → BackendError.unreachable
     func testCheckHealthURLErrorThrowsUnreachable() async {
-        MockURLProtocol.handler = { _ in throw URLError(.notConnectedToInternet) }
+        await MacOSMockProtocolRegistry.shared.setHandler { _ in throw URLError(.notConnectedToInternet) }
         do {
             _ = try await makeClient().checkHealth()
             XCTFail("Expected BackendError.unreachable")
@@ -275,7 +317,7 @@ final class BackendClientTests: XCTestCase {
     }
 
     func testCheckHealthSecureConnectionFailedThrowsUnreachable() async {
-        MockURLProtocol.handler = { _ in throw URLError(.secureConnectionFailed) }
+        await MacOSMockProtocolRegistry.shared.setHandler { _ in throw URLError(.secureConnectionFailed) }
         do {
             _ = try await makeClient().checkHealth()
             XCTFail("Expected BackendError.unreachable")
@@ -289,9 +331,8 @@ final class BackendClientTests: XCTestCase {
         }
     }
 
-    // fetchImage() URLError → BackendError.unreachable
     func testFetchImageURLErrorThrowsUnreachable() async {
-        MockURLProtocol.handler = { _ in throw URLError(.timedOut) }
+        await MacOSMockProtocolRegistry.shared.setHandler { _ in throw URLError(.timedOut) }
         do {
             _ = try await makeClient().fetchImage(wineId: "wine-abc")
             XCTFail("Expected BackendError.unreachable")
@@ -305,22 +346,58 @@ final class BackendClientTests: XCTestCase {
         }
     }
 
+    // URLError.cancelled must propagate as CancellationError, not BackendError.unreachable,
+    // so ViewModel cancel paths work correctly when a Task is cancelled mid-await.
+    func testCheckHealthCancelledRethrowsCancellationError() async {
+        await MacOSMockProtocolRegistry.shared.setHandler { _ in throw URLError(.cancelled) }
+        do {
+            _ = try await makeClient().checkHealth()
+            XCTFail("Expected CancellationError when URLError.cancelled is thrown")
+        } catch is CancellationError {
+            // pass
+        } catch {
+            XCTFail("Expected CancellationError, got \(error)")
+        }
+    }
+
+    func testFetchImageCancelledRethrowsCancellationError() async {
+        await MacOSMockProtocolRegistry.shared.setHandler { _ in throw URLError(.cancelled) }
+        do {
+            _ = try await makeClient().fetchImage(wineId: "wine-abc")
+            XCTFail("Expected CancellationError when URLError.cancelled is thrown")
+        } catch is CancellationError {
+            // pass
+        } catch {
+            XCTFail("Expected CancellationError, got \(error)")
+        }
+    }
+
+    func testScanCancelledRethrowsCancellationError() async {
+        await MacOSMockProtocolRegistry.shared.setHandler { _ in throw URLError(.cancelled) }
+        var caught: Error?
+        do {
+            for try await _ in makeClient().scan(photoData: Data()) {}
+        } catch {
+            caught = error
+        }
+        XCTAssertTrue(
+            caught is CancellationError,
+            "Expected CancellationError when URLError.cancelled is thrown in scan(), got \(String(describing: caught))"
+        )
+    }
+
     // lineBuffer 1MB cap: a line longer than 1,048,576 bytes must be silently
-    // discarded rather than growing the buffer unboundedly. The cap resets the
-    // buffer, so the oversized line produces no SSE event.
+    // discarded rather than growing the buffer unboundedly.
     func testScanLineBufferCapDiscardsOversizedLine() async throws {
-        // Build a single SSE "line" that is > 1 MB (no newline in the garbage),
-        // followed by a valid complete event separated by a real newline.
         let garbage = Data(repeating: UInt8(ascii: "x"), count: 1_048_577)
         let valid = Data("event: complete\ndata: {\"wine_count\":1,\"cache_hits\":0,\"scan_id\":\"z\"}\n\n".utf8)
         let payload = garbage + Data([UInt8(ascii: "\n")]) + valid
 
-        MockURLProtocol.handler = { [self] _ in (makeResponse(statusCode: 200), payload) }
+        await MacOSMockProtocolRegistry.shared.setHandler { [self] _ in (makeResponse(statusCode: 200), payload) }
         var events: [SSEEvent] = []
         for try await event in makeClient().scan(photoData: Data()) {
             events.append(event)
         }
-        // The garbage "line" is discarded; only the complete event survives.
         XCTAssertEqual(events.count, 1, "oversized line must be dropped; only the complete event should survive")
         guard case .complete = events[0] else {
             XCTFail("Expected .complete event after lineBuffer cap reset, got \(events[0])")
