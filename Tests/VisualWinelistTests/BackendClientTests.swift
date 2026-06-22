@@ -274,6 +274,21 @@ final class BackendClientTests: XCTestCase {
         }
     }
 
+    func testCheckHealthSecureConnectionFailedThrowsUnreachable() async {
+        MockURLProtocol.handler = { _ in throw URLError(.secureConnectionFailed) }
+        do {
+            _ = try await makeClient().checkHealth()
+            XCTFail("Expected BackendError.unreachable")
+        } catch let error as BackendError {
+            guard case .unreachable = error else {
+                XCTFail("Expected .unreachable, got \(error)")
+                return
+            }
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
     // fetchImage() URLError → BackendError.unreachable
     func testFetchImageURLErrorThrowsUnreachable() async {
         MockURLProtocol.handler = { _ in throw URLError(.timedOut) }

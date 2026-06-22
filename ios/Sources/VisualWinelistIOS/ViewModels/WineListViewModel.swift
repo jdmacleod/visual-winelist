@@ -21,6 +21,10 @@ class WineListViewModel: ObservableObject {
         self.backend = BackendClient(baseURL: backendURL)
     }
 
+    init(backend: BackendClient) {
+        self.backend = backend
+    }
+
     // MARK: - Health
 
     func checkHealth() async {

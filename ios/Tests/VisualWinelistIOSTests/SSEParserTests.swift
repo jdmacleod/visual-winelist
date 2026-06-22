@@ -364,6 +364,22 @@ final class IOSTestSuite: XCTestCase {
         XCTAssertEqual(data, imageData)
     }
 
+    func testIOSFetchImageURLError() async {
+        let baseURL = URL(string: "http://localhost:8000")!
+        await MockProtocolRegistry.shared.setErrorToThrow(URLError(.timedOut))
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let client = BackendClient(baseURL: baseURL, session: URLSession(configuration: config))
+        do {
+            _ = try await client.fetchImage(wineId: "abc")
+            XCTFail("expected BackendError.unreachable")
+        } catch BackendError.unreachable {
+            // pass
+        } catch {
+            XCTFail("expected BackendError.unreachable, got \(error)")
+        }
+    }
+
     func testIOSFetchImage404() async {
         let baseURL = URL(string: "http://localhost:8000")!
         await MockProtocolRegistry.shared.setHandler { _ in

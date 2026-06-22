@@ -206,3 +206,10 @@ test('selecting "Verified First" sort calls searchWines with sort=verified', asy
     expect(last[4]).toBe('verified');
   });
 });
+
+test('default sort is not verified on fresh render', () => {
+  vi.mocked(searchWines).mockResolvedValue(makeResponse([]));
+  render(<App />);
+  const select = screen.getByRole('combobox', { name: /sort/i }) as HTMLSelectElement;
+  expect(select.value).not.toBe('verified');
+});

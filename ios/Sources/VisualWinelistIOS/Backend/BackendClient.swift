@@ -36,14 +36,7 @@ struct BackendClient: Sendable {
                 throw BackendError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
             }
             return try JSONDecoder().decode(HealthResponse.self, from: data)
-        } catch let urlError as URLError
-            where urlError.code == .cannotConnectToHost
-            || urlError.code == .networkConnectionLost
-            || urlError.code == .cannotFindHost
-            || urlError.code == .timedOut
-            || urlError.code == .notConnectedToInternet
-            || urlError.code == .secureConnectionFailed
-        {
+        } catch is URLError {
             throw BackendError.unreachable(baseURL.absoluteString)
         }
     }
@@ -71,14 +64,7 @@ struct BackendClient: Sendable {
                 throw BackendError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
             }
             return data
-        } catch let urlError as URLError
-            where urlError.code == .cannotConnectToHost
-            || urlError.code == .networkConnectionLost
-            || urlError.code == .cannotFindHost
-            || urlError.code == .timedOut
-            || urlError.code == .notConnectedToInternet
-            || urlError.code == .secureConnectionFailed
-        {
+        } catch is URLError {
             throw BackendError.unreachable(baseURL.absoluteString)
         }
     }
