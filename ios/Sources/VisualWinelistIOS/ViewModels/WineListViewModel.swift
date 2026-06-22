@@ -8,7 +8,6 @@ class WineListViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var selectedWine: WineObject?
     @Published var backendStatus: BackendStatus = .unknown
-    @Published var notesIncomplete: Bool = false
 
     enum BackendStatus {
         case unknown, ok, degraded(String), unreachable
@@ -67,27 +66,18 @@ class WineListViewModel: ObservableObject {
         wines = []
         selectedWine = nil
         errorMessage = nil
-        notesIncomplete = false
     }
 
     // MARK: - Private
 
     private func performScan(photoData: Data) async {
         isScanning = true
-        notesIncomplete = false
         scanMessage = "Sending photo to backend…"
         errorMessage = nil
 
-        var receivedComplete = false
         var userCancelled = false
 
         defer {
-            // If the stream closed without event:complete and the user didn't cancel,
-            // the connection likely dropped mid-Phase 2 (notes). Mark so WineDetailView
-            // can show an indicator on wines that are still missing tasting notes.
-            if !receivedComplete && !userCancelled && !wines.isEmpty {
-                notesIncomplete = true
-            }
             isScanning = false
             scanMessage = ""
             activeScanSession = nil
@@ -127,7 +117,6 @@ class WineListViewModel: ObservableObject {
                         }
 
                     case .complete(let payload):
-                        receivedComplete = true
                         let hit = payload.cache_hits
                         scanMessage =
                             "\(payload.wine_count) wine\(payload.wine_count == 1 ? "" : "s")"
@@ -153,6 +142,9 @@ class WineListViewModel: ObservableObject {
             userCancelled = true
         } catch BackendError.scannerBusy {
             errorMessage = "Scanner is busy — another scan is in progress"
+        } catch BackendError.invalidImage {
+            errorMessage =
+                "Image format not supported — use JPEG. Try taking a photo directly rather than importing."
         } catch BackendError.unreachable(let url) {
             errorMessage = "Backend not reachable at \(url)\n\nCheck WiFi and try again"
         } catch {
