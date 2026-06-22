@@ -13,8 +13,7 @@ struct WineGridView: View {
                     NavigationLink {
                         WineDetailView(
                             state: state,
-                            isScanning: viewModel.isScanning,
-                            notesIncomplete: viewModel.notesIncomplete
+                            isScanning: viewModel.isScanning
                         )
                     } label: {
                         WineBottleCard(state: state)

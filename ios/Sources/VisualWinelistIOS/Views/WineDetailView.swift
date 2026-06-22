@@ -4,7 +4,6 @@ import UIKit
 struct WineDetailView: View {
     let state: WineState
     var isScanning: Bool = false
-    var notesIncomplete: Bool = false
 
     private var wine: WineObject { state.wine }
 
@@ -22,8 +21,8 @@ struct WineDetailView: View {
                         tastingNoteSection(note)
                     } else if isScanning {
                         notesLoadingSection
-                    } else if notesIncomplete {
-                        notesIncompleteSection
+                    } else {
+                        notesUnavailableSection
                     }
                     if !wine.pairings.isEmpty { pairingsSection(wine.pairings) }
                     if let desc = wine.description { descriptionSection(desc) }
@@ -76,11 +75,11 @@ struct WineDetailView: View {
         }
     }
 
-    private var notesIncompleteSection: some View {
+    private var notesUnavailableSection: some View {
         HStack(spacing: 8) {
-            Image(systemName: "wifi.slash")
+            Image(systemName: "sparkles.slash")
                 .foregroundStyle(.secondary)
-            Text("Tasting notes unavailable — connection dropped mid-scan")
+            Text("Tasting notes unavailable — sommelier was offline when this wine was scanned")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

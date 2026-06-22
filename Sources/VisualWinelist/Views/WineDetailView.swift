@@ -6,7 +6,6 @@ import SwiftUI
 struct WineDetailView: View {
     let state: WineState
     var isScanning: Bool = false
-    var notesIncomplete: Bool = false
     @Environment(\.dismiss) private var dismiss
 
     private var wine: WineObject { state.wine }
@@ -26,8 +25,8 @@ struct WineDetailView: View {
                             tastingNoteSection(note)
                         } else if isScanning {
                             notesLoadingSection
-                        } else if notesIncomplete {
-                            notesIncompleteSection
+                        } else {
+                            notesUnavailableSection
                         }
                         if !wine.pairings.isEmpty { pairingsSection(wine.pairings) }
                         if let description = wine.description { descriptionSection(description) }
@@ -111,20 +110,20 @@ struct WineDetailView: View {
         }
     }
 
-    private var notesIncompleteSection: some View {
+    private var notesUnavailableSection: some View {
         HStack(spacing: 8) {
-            Image(systemName: "wifi.slash")
-                .foregroundStyle(.orange)
+            Image(systemName: "sparkles.slash")
+                .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Tasting notes unavailable")
                     .font(.subheadline.bold())
-                Text("Connection dropped mid-scan")
+                Text("Sommelier was offline when this wine was scanned")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
         .padding(10)
-        .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+        .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private func tastingNoteSection(_ text: String) -> some View {
