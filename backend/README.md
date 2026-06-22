@@ -19,8 +19,10 @@ FastAPI service that handles wine list extraction (Ollama/Qwen3-VL), bottle imag
 cd backend
 cp .env.example .env          # then fill in BRAVE_API_KEY
 uv sync
-uvicorn backend.main:app --reload
+uvicorn backend.main:app --reload --workers 1
 ```
+
+> **Note:** Always run with `--workers 1`. The backend shares a single Ollama session; multiple workers would allow concurrent scans against the same model instance, causing interleaved output.
 
 Or with Docker Compose (from the repo root):
 
@@ -46,9 +48,9 @@ The API is available at `http://localhost:8000`. Check `GET /health`.
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/scan` | Upload a JPEG, receive wines + images via SSE |
+| `POST` | `/scan` | Upload a JPEG, receive wines + images via SSE. Returns HTTP 415 `{"code":"INVALID_IMAGE"}` if the file is not a valid JPEG (magic bytes checked). |
 | `GET` | `/health` | Backend and Ollama status |
-| `GET` | `/wines/search` | Paginated wine search (`?q=&page=&page_size=`) |
+| `GET` | `/wines/search` | Paginated wine search (`?q=&page=&page_size=&sort=&order=&status=`) |
 | `GET` | `/wines/{id}/image` | Serve cached bottle image |
 | `DELETE` | `/wines/{id}` | Remove a wine from the cache |
 | `POST` | `/curate` | Mark a wine as curator-verified |
