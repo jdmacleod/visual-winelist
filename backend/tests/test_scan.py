@@ -91,6 +91,27 @@ async def test_scan_image_jpg_alias_accepted(client):
     assert r.status_code == 200
 
 
+async def test_scan_jpeg_wrong_magic_bytes_rejected(client):
+    """image/jpeg MIME type with non-JPEG content (e.g. PNG) must be rejected with 415."""
+    png_magic = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+    r = await client.post(
+        "/scan",
+        files={"image": ("list.jpg", png_magic, "image/jpeg")},
+    )
+    assert r.status_code == 415
+    assert r.json()["detail"]["code"] == "INVALID_IMAGE"
+
+
+async def test_scan_empty_body_rejected(client):
+    """Zero-byte upload with image/jpeg content type must be rejected with 415 INVALID_IMAGE."""
+    r = await client.post(
+        "/scan",
+        files={"image": ("list.jpg", b"", "image/jpeg")},
+    )
+    assert r.status_code == 415
+    assert r.json()["detail"]["code"] == "INVALID_IMAGE"
+
+
 async def test_scan_oversized(client):
     big = make_jpeg(26 * 1024 * 1024)
     r = await client.post(

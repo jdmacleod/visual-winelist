@@ -18,6 +18,9 @@ log = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Process-local lock: requires --workers 1 in uvicorn CMD (enforced in Dockerfile).
+# With multiple workers each process has its own _scanning copy, allowing simultaneous
+# scans. The Dockerfile CMD pins workers=1 so this is a deployment-level invariant.
 _scanning = False
 
 
@@ -256,6 +259,11 @@ async def scan(image: UploadFile, request: Request) -> StreamingResponse:
     image_data = await image.read()
     magic = " ".join(f"{b:02X}" for b in image_data[:4])
     log.info("/scan: received %d bytes, magic=%s", len(image_data), magic)
+    if image_data[:2] != b"\xff\xd8":
+        raise HTTPException(
+            status_code=415,
+            detail={"code": "INVALID_IMAGE", "message": "JPEG magic bytes required (0xFF 0xD8)"},
+        )
     if len(image_data) > config.MAX_UPLOAD_SIZE:
         raise HTTPException(
             status_code=413,

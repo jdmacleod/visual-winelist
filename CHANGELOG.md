@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.2.5.0 (2026-06-22)
+
+### Fixed
+
+- **Unbounded memory growth during SSE** — The line buffer in both iOS and macOS SSE parsers now caps at 1 MB. Malformed oversized pseudo-lines from the server are discarded rather than accumulated.
+- **Scanner lock not released on structured cancellation** — When Swift's `withThrowingTaskGroup` unwinds the scan loop (e.g., view dismissed), the URLSession `onTermination` handler now propagates the cancel to `IOSScanSession`, releasing the server's SCANNER_BUSY lock promptly.
+- **Image fetch tasks not cancelled on scan abort** — Concurrent image fetches now run inside `withThrowingTaskGroup`. When a scan is cancelled, all in-flight image tasks are cancelled cooperatively. Previously, orphaned image tasks continued running after the scan view was dismissed.
+- **`CancellationError` swallowed in image fetch** — The `handleImageEvent` catch block now re-throws `CancellationError` before the generic error handler, allowing `withThrowingTaskGroup` to propagate cooperative cancellation through child tasks correctly.
+- **iOS SSE lineBuffer cap was zero** — `sseLineBufferMaxBytes` was defined as a self-reference (`= sseLineBufferMaxBytes`), reducing the 1 MB cap to zero and silently discarding all incoming SSE bytes on iOS.
+- **`handleImageEvent` compile error** — The function was declared `async` without `throws`, making `throw CancellationError()` inside it a build-breaking error. Fixed in both iOS and macOS targets.
+
+### Changed
+
+- **`BackendClient` maps `URLError` to `BackendError.unreachable`** in `checkHealth()` and `fetchImage()` (iOS and macOS), so network failures surface a consistent error type to the ViewModel.
+- **Docker base images pinned to SHA256 digests** (`python:3.13-slim` and `ghcr.io/astral-sh/uv`) to guard against supply-chain substitution.
+- **Backend enforces `--workers 1`** in `Dockerfile CMD`; the rationale (single-Ollama concurrency constraint) is documented inline in `scan.py`.
+- **CI coverage gate hardened** — `llvm-cov` failures now exit non-zero; an empty `TOTAL` line is treated as a gate failure rather than a silent pass.
+- **CI adds gitleaks full-history scan** — `gitleaks/gitleaks-action` pinned to SHA (v2.3.9) runs on every push to catch secrets committed anywhere in the repo history.
+- **Web curator adds "Verified first" sort** — the sort dropdown now surfaces curated wines at the top of the search results.
+
+### Added
+
+- **iOS `BackendClient` exposes injectable `URLSession`** for test isolation, enabling `MockURLProtocol` to intercept network calls in unit tests without a live server.
+- **iOS actor-isolated `MockProtocolRegistry`** replaces static `MockURLProtocol` variables, eliminating the `@unchecked Sendable` suppressor and a test teardown race on in-flight request cancellation.
+
 ## v0.2.4.2 (2026-06-21)
 
 ### Fixed

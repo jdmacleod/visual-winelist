@@ -181,3 +181,35 @@ test('actionError clears when selected wine changes', async () => {
   await user.click(screen.getByRole('button', { name: /Wine Two/ }));
   expect(screen.queryByText('Verify failed')).not.toBeInTheDocument();
 });
+
+test('sort select includes "Verified First" option', async () => {
+  vi.mocked(searchWines).mockResolvedValue(makeResponse([]));
+  render(<App />);
+  // The select renders immediately (before search resolves) so no waitFor needed.
+  const select = screen.getByRole('combobox', { name: /sort/i });
+  const options = Array.from((select as HTMLSelectElement).options).map((o) => o.text);
+  expect(options).toContain('Verified First');
+});
+
+test('selecting "Verified First" sort calls searchWines with sort=verified', async () => {
+  const user = userEvent.setup();
+  vi.mocked(searchWines).mockResolvedValue(makeResponse([]));
+  render(<App />);
+
+  const select = screen.getByRole('combobox', { name: /sort/i });
+  await user.selectOptions(select, 'verified');
+
+  await waitFor(() => {
+    const calls = vi.mocked(searchWines).mock.calls;
+    const last = calls.at(-1)!;
+    // searchWines(query, page, pageSize, statusFilter, sortOption)
+    expect(last[4]).toBe('verified');
+  });
+});
+
+test('default sort is not verified on fresh render', () => {
+  vi.mocked(searchWines).mockResolvedValue(makeResponse([]));
+  render(<App />);
+  const select = screen.getByRole('combobox', { name: /sort/i }) as HTMLSelectElement;
+  expect(select.value).not.toBe('verified');
+});

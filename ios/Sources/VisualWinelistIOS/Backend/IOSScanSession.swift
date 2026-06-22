@@ -6,6 +6,8 @@ import Foundation
 /// gives an explicit URLSessionDataTask reference for clean cancellation when
 /// the user dismisses the scan view (T10). Delegate callbacks arrive on a private
 /// serial queue owned by the URLSession, so lineBuffer and parser are single-threaded.
+private let sseLineBufferMaxBytes = 1_048_576
+
 final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private let continuation: AsyncThrowingStream<SSEEvent, Error>.Continuation
     private var lineBuffer = Data()
@@ -31,6 +33,7 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
             let urlSession = URLSession(configuration: configuration, delegate: session, delegateQueue: nil)
             session.dataTask = urlSession.dataTask(with: request)
             session.dataTask?.resume()
+            continuation.onTermination = { [weak session] _ in session?.cancel() }
         }
         return (stream, created)
     }
@@ -66,19 +69,23 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        lineBuffer.append(data)
-        // Split on 0x0A (newline byte) so multibyte UTF-8 characters that span
-        // URLSession delivery boundaries are never dropped. The old String-based
-        // approach called String(data:encoding:) on each delivery chunk, which
-        // returns nil when a multibyte sequence is split, silently losing the chunk.
-        while let newlineIndex = lineBuffer.firstIndex(of: UInt8(ascii: "\n")) {
-            let lineData = Data(lineBuffer[lineBuffer.startIndex..<newlineIndex])
-            lineBuffer = Data(lineBuffer[lineBuffer.index(after: newlineIndex)...])
-            var line = String(decoding: lineData, as: UTF8.self)
-            // Strip trailing \r to handle CRLF line endings from proxies.
-            if line.hasSuffix("\r") { line.removeLast() }
-            if let event = parser.feed(line: line) {
-                continuation.yield(event)
+        // Process delivery chunk segment-by-segment on newline boundaries. The previous
+        // approach (append full chunk, check cap, return early) silently dropped valid SSE
+        // events that arrived after an oversized pseudo-line in the same chunk.
+        var offset = data.startIndex
+        while offset < data.endIndex {
+            if let newlineIndex = data[offset...].firstIndex(of: UInt8(ascii: "\n")) {
+                lineBuffer.append(contentsOf: data[offset..<newlineIndex])
+                offset = data.index(after: newlineIndex)
+                if lineBuffer.count > sseLineBufferMaxBytes { lineBuffer = Data(); continue }
+                var line = String(decoding: lineBuffer, as: UTF8.self)
+                if line.hasSuffix("\r") { line.removeLast() }
+                if let event = parser.feed(line: line) { continuation.yield(event) }
+                lineBuffer = Data()
+            } else {
+                lineBuffer.append(contentsOf: data[offset...])
+                if lineBuffer.count > sseLineBufferMaxBytes { lineBuffer = Data() }
+                break
             }
         }
     }

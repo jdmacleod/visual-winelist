@@ -257,4 +257,74 @@ final class BackendClientTests: XCTestCase {
             return
         }
     }
+
+    // checkHealth() URLError → BackendError.unreachable
+    func testCheckHealthURLErrorThrowsUnreachable() async {
+        MockURLProtocol.handler = { _ in throw URLError(.notConnectedToInternet) }
+        do {
+            _ = try await makeClient().checkHealth()
+            XCTFail("Expected BackendError.unreachable")
+        } catch let error as BackendError {
+            guard case .unreachable = error else {
+                XCTFail("Expected .unreachable, got \(error)")
+                return
+            }
+        } catch {
+            XCTFail("Expected BackendError.unreachable, got \(error)")
+        }
+    }
+
+    func testCheckHealthSecureConnectionFailedThrowsUnreachable() async {
+        MockURLProtocol.handler = { _ in throw URLError(.secureConnectionFailed) }
+        do {
+            _ = try await makeClient().checkHealth()
+            XCTFail("Expected BackendError.unreachable")
+        } catch let error as BackendError {
+            guard case .unreachable = error else {
+                XCTFail("Expected .unreachable, got \(error)")
+                return
+            }
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
+    // fetchImage() URLError → BackendError.unreachable
+    func testFetchImageURLErrorThrowsUnreachable() async {
+        MockURLProtocol.handler = { _ in throw URLError(.timedOut) }
+        do {
+            _ = try await makeClient().fetchImage(wineId: "wine-abc")
+            XCTFail("Expected BackendError.unreachable")
+        } catch let error as BackendError {
+            guard case .unreachable = error else {
+                XCTFail("Expected .unreachable, got \(error)")
+                return
+            }
+        } catch {
+            XCTFail("Expected BackendError.unreachable, got \(error)")
+        }
+    }
+
+    // lineBuffer 1MB cap: a line longer than 1,048,576 bytes must be silently
+    // discarded rather than growing the buffer unboundedly. The cap resets the
+    // buffer, so the oversized line produces no SSE event.
+    func testScanLineBufferCapDiscardsOversizedLine() async throws {
+        // Build a single SSE "line" that is > 1 MB (no newline in the garbage),
+        // followed by a valid complete event separated by a real newline.
+        let garbage = Data(repeating: UInt8(ascii: "x"), count: 1_048_577)
+        let valid = Data("event: complete\ndata: {\"wine_count\":1,\"cache_hits\":0,\"scan_id\":\"z\"}\n\n".utf8)
+        let payload = garbage + Data([UInt8(ascii: "\n")]) + valid
+
+        MockURLProtocol.handler = { [self] _ in (makeResponse(statusCode: 200), payload) }
+        var events: [SSEEvent] = []
+        for try await event in makeClient().scan(photoData: Data()) {
+            events.append(event)
+        }
+        // The garbage "line" is discarded; only the complete event survives.
+        XCTAssertEqual(events.count, 1, "oversized line must be dropped; only the complete event should survive")
+        guard case .complete = events[0] else {
+            XCTFail("Expected .complete event after lineBuffer cap reset, got \(events[0])")
+            return
+        }
+    }
 }
