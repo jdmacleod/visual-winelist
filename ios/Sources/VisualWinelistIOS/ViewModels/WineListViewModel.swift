@@ -75,8 +75,6 @@ class WineListViewModel: ObservableObject {
         scanMessage = "Sending photo to backend…"
         errorMessage = nil
 
-        var userCancelled = false
-
         defer {
             isScanning = false
             scanMessage = ""
@@ -139,7 +137,7 @@ class WineListViewModel: ObservableObject {
             }  // end withThrowingTaskGroup
 
         } catch is CancellationError {
-            userCancelled = true
+            ()  // user cancelled — leave wines as-is, don't show error
         } catch BackendError.scannerBusy {
             errorMessage = "Scanner is busy — another scan is in progress"
         } catch BackendError.invalidImage {
@@ -150,7 +148,7 @@ class WineListViewModel: ObservableObject {
         } catch {
             let ns = error as NSError
             if ns.code == NSURLErrorCancelled {
-                userCancelled = true
+                ()  // URLSession cancel on view dismiss
             } else {
                 errorMessage = "Scan failed — \(error.localizedDescription)"
             }
