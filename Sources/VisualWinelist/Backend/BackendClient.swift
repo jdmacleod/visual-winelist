@@ -48,7 +48,7 @@ struct BackendClient: Sendable {
     /// Stream SSE events from POST /scan. Mirrors OllamaClient.swift's bytes(for:) pattern (D5).
     func scan(photoData: Data) -> AsyncThrowingStream<SSEEvent, Error> {
         AsyncThrowingStream { continuation in
-            Task {
+            let task = Task {
                 do {
                     let request = buildScanRequest(photoData: photoData)
                     let (bytes, response) = try await session.bytes(for: request)
@@ -107,6 +107,7 @@ struct BackendClient: Sendable {
                     continuation.finish(throwing: error)
                 }
             }
+            continuation.onTermination = { _ in task.cancel() }
         }
     }
 

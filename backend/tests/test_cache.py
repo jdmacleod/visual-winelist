@@ -415,6 +415,22 @@ async def test_upload_wine_image_too_large(client, tmp_path, monkeypatch):
     assert r.status_code == 413
 
 
+async def test_upload_wine_image_invalid_magic_bytes(client, tmp_path, monkeypatch):
+    # Content-Type header claims JPEG but the file bytes are not a JPEG.
+    # The magic byte check (\xff\xd8) must catch this regardless of declared type.
+    import backend.config as cfg
+
+    monkeypatch.setattr(cfg, "IMAGE_CACHE_DIR", str(tmp_path))
+    wine = _wine()
+    await cache.write(wine, None, None, [])
+    not_a_jpeg = b"PNG\r\n\x1a\n" + b"\x00" * 100  # PNG-like header, not JPEG
+    r = await client.post(
+        f"/wines/{wine.wine_id}/image",
+        files={"file": ("sneaky.jpg", not_a_jpeg, "image/jpeg")},
+    )
+    assert r.status_code == 400
+
+
 # ---------------------------------------------------------------------------
 # PATCH /wines/{wine_id}
 # ---------------------------------------------------------------------------
