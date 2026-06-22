@@ -25,6 +25,7 @@
 		CAFE00000000000000000210 /* WineDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000110 /* WineDetailView.swift */; };
 		CAFE00000000000000000211 /* WineGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000111 /* WineGridView.swift */; };
 		CAFE00000000000000000212 /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000112 /* Settings.bundle */; };
+		CAFE00000000000000000213 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000113 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -48,6 +49,7 @@
 		CAFE00000000000000000110 /* WineDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WineDetailView.swift; sourceTree = "<group>"; };
 		CAFE00000000000000000111 /* WineGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WineGridView.swift; sourceTree = "<group>"; };
 		CAFE00000000000000000112 /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
+		CAFE00000000000000000113 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -163,6 +165,7 @@
 			isa = PBXGroup;
 			children = (
 				CAFE00000000000000000112 /* Settings.bundle */,
+				CAFE00000000000000000113 /* Assets.xcassets */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -226,6 +229,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CAFE00000000000000000212 /* Settings.bundle in Resources */,
+				CAFE00000000000000000213 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -378,6 +382,7 @@
 		CAFE00000000000000000012 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = WX2USNES7D;
@@ -399,6 +404,7 @@
 		CAFE00000000000000000013 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = WX2USNES7D;
