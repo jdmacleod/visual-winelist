@@ -41,6 +41,9 @@ struct ContentView: View {
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
             }
         }
+        .onChange(of: viewModel.isScanning) { isScanning in
+            UIApplication.shared.isIdleTimerDisabled = isScanning
+        }
     }
 
     // MARK: - Camera view
