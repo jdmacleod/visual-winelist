@@ -73,7 +73,7 @@ struct BackendClient: Sendable {
                     var lineBuffer = Data()
                     for try await byte in bytes {
                         if byte == UInt8(ascii: "\n") {
-                            let line = String(data: lineBuffer, encoding: .utf8) ?? ""
+                            let line = String(decoding: lineBuffer, as: UTF8.self)
                             lineBuffer = Data()
                             if let event = parser.feed(line: line) {
                                 continuation.yield(event)
@@ -83,7 +83,7 @@ struct BackendClient: Sendable {
                         }
                     }
                     if !lineBuffer.isEmpty {
-                        let line = String(data: lineBuffer, encoding: .utf8) ?? ""
+                        let line = String(decoding: lineBuffer, as: UTF8.self)
                         if let event = parser.feed(line: line) {
                             continuation.yield(event)
                         }

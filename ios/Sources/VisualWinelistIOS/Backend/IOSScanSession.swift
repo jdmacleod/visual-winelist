@@ -74,7 +74,7 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
         while let newlineIndex = lineBuffer.firstIndex(of: UInt8(ascii: "\n")) {
             let lineData = Data(lineBuffer[lineBuffer.startIndex..<newlineIndex])
             lineBuffer = Data(lineBuffer[lineBuffer.index(after: newlineIndex)...])
-            var line = String(data: lineData, encoding: .utf8) ?? ""
+            var line = String(decoding: lineData, as: UTF8.self)
             // Strip trailing \r to handle CRLF line endings from proxies.
             if line.hasSuffix("\r") { line.removeLast() }
             if let event = parser.feed(line: line) {
@@ -94,7 +94,7 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
         } else {
             // Flush any remaining bytes (stream ended without a trailing newline).
             if !lineBuffer.isEmpty {
-                var line = String(data: lineBuffer, encoding: .utf8) ?? ""
+                var line = String(decoding: lineBuffer, as: UTF8.self)
                 if line.hasSuffix("\r") { line.removeLast() }
                 if let event = parser.feed(line: line) {
                     continuation.yield(event)
