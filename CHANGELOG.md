@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.2.5.1 (2026-06-22)
+
+### Fixed
+
+- **`scan()` swallowed `CancellationError` on iOS and macOS** — When Swift cancelled a Task awaiting `session.bytes(for:)`, URLSession threw `URLError.cancelled`, which `scan()`'s broad `catch is URLError` mapped to `BackendError.unreachable` rather than re-throwing `CancellationError`. This gap was present despite the same carve-out being correctly applied to `checkHealth()` and `fetchImage()`. Found during pre-landing adversarial review; fix is consistent with the other two methods.
+- **iOS `scan()` ignored injected URLSession configuration** — `BackendClient.scan()` called `IOSScanSession.make(request:)` without forwarding `session.configuration`, silently falling back to the default session. `MockURLProtocol` could never intercept scan requests in unit tests because the injected session was unused. Fixed: `session.configuration` is now forwarded to `IOSScanSession.make(request:configuration:)`.
+
+### Tests
+
+- **macOS `MacOSMockProtocolRegistry` actor** replaces static `MockURLProtocol` variables and `@unchecked Sendable`; each test configures state via `async` setters; `tearDown()` is `async throws` and calls `await reset()`. Eliminates a test teardown race where `stopLoading()` could call into an invalidated `URLProtocolClient` on in-flight request cancellation.
+- **`MockURLProtocol.loadingTask` cancellation** — `startLoading()` stores the spawned `Task<Void, Never>`; `stopLoading()` cancels it before signalling `onStopLoading`, preventing fire-and-forget callbacks from racing against test teardown.
+- **6 new cancellation tests** — 3 macOS (`testCheckHealthCancelledRethrowsCancellationError`, `testFetchImageCancelledRethrowsCancellationError`, `testScanCancelledRethrowsCancellationError`) and 3 iOS (`testIOSCheckHealthCancelledRethrowsCancellationError`, `testIOSFetchImageCancelledRethrowsCancellationError`, `testIOSBackendClientScanForwardsSessionConfiguration`) verify the `URLError.cancelled` → `CancellationError` contract and the session configuration forwarding fix. macOS test suite: 59 → 60 tests.
+
 ## v0.2.5.0 (2026-06-22)
 
 ### Fixed
