@@ -21,3 +21,12 @@ export interface SearchResponse {
 
 export type StatusFilter = 'all' | 'verified' | 'unverified' | 'no_image';
 export type SortOption = 'newest' | 'oldest' | 'name_asc' | 'producer_asc' | 'verified';
+
+export interface ImageCandidate {
+  url: string;
+  thumbnail_url: string;
+  title: string;
+  source_url: string;
+  width: number | null;
+  height: number | null;
+}

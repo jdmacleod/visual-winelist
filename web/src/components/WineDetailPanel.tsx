@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { WineRecord } from '../types/wine';
 import { absoluteImageUrl, uploadWineImage, patchWine } from '../api/client';
+import ImageCandidatePicker from './ImageCandidatePicker';
 
 interface WineDetailPanelProps {
   wine: WineRecord;
@@ -45,6 +46,8 @@ export default function WineDetailPanel({
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [localImageSrc, setLocalImageSrc] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [imageFlash, setImageFlash] = useState(false);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -59,6 +62,8 @@ export default function WineDetailPanel({
     setSaveError(null);
     setLocalImageSrc(null);
     setUploadError(null);
+    setPickerOpen(false);
+    setImageFlash(false);
   }, [wine.wine_id]);
 
   const startEdit = () => {
@@ -101,6 +106,20 @@ export default function WineDetailPanel({
     } finally {
       setSaveLoading(false);
     }
+  };
+
+  const handlePickerSelect = (imageUrl: string) => {
+    const bustedUrl = `${imageUrl}?t=${Date.now()}`;
+    setLocalImageSrc(absoluteImageUrl(bustedUrl));
+    onImageUpdate(wine.wine_id, bustedUrl);
+    setPickerOpen(false);
+    setImageFlash(true);
+    setTimeout(() => setImageFlash(false), 700);
+  };
+
+  const openFilePicker = () => {
+    setPickerOpen(false);
+    fileInputRef.current?.click();
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -179,36 +198,62 @@ export default function WineDetailPanel({
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto">
           {/* Image section */}
-          <div className="aspect-video bg-gradient-to-b from-purple-800 to-purple-950 relative">
-            {imageSrc ? (
-              <img
-                src={imageSrc}
-                alt={wine.name}
-                loading="lazy"
-                decoding="async"
-                className="w-full h-full object-cover"
+          <div
+            className={`aspect-video bg-gradient-to-b from-purple-800 to-purple-950 relative transition-all duration-700 ${imageFlash ? 'ring-2 ring-green-400/60' : ''}`}
+          >
+            {pickerOpen ? (
+              <ImageCandidatePicker
+                wineId={wine.wine_id}
+                onSelect={handlePickerSelect}
+                onCancel={() => setPickerOpen(false)}
+                onSwitchToUpload={openFilePicker}
               />
+            ) : imageSrc ? (
+              <>
+                <img
+                  src={imageSrc}
+                  alt={wine.name}
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-full object-cover"
+                />
+                {!uploadLoading && (
+                  <>
+                    <button
+                      onClick={() => setPickerOpen(true)}
+                      className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2.5 py-1 rounded-md hover:bg-black/80 transition-colors"
+                    >
+                      Find image
+                    </button>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2.5 py-1 rounded-md hover:bg-black/80 transition-colors"
+                    >
+                      Replace
+                    </button>
+                  </>
+                )}
+              </>
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center gap-3">
                 <span className="text-7xl opacity-20">🍷</span>
                 {!uploadLoading && (
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="text-xs text-white/60 hover:text-white/90 border border-white/30 hover:border-white/60 px-3 py-1.5 rounded-md transition-colors"
-                  >
-                    Upload photo
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-xs text-white/60 hover:text-white/90 border border-white/30 hover:border-white/60 px-3 py-1.5 rounded-md transition-colors"
+                    >
+                      Upload photo
+                    </button>
+                    <button
+                      onClick={() => setPickerOpen(true)}
+                      className="text-xs text-white/60 hover:text-white/90 border border-white/30 hover:border-white/60 px-3 py-1.5 rounded-md transition-colors"
+                    >
+                      Find image
+                    </button>
+                  </div>
                 )}
               </div>
-            )}
-
-            {imageSrc && !uploadLoading && (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2.5 py-1 rounded-md hover:bg-black/80 transition-colors"
-              >
-                Replace
-              </button>
             )}
 
             {uploadLoading && (

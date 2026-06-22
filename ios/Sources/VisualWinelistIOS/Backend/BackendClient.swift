@@ -76,6 +76,29 @@ struct BackendClient: Sendable {
         }
     }
 
+    // MARK: - Clear image
+
+    func clearWineImage(wineId: String) async throws {
+        var request = URLRequest(
+            url:
+                baseURL
+                .appendingPathComponent("wines")
+                .appendingPathComponent(wineId)
+                .appendingPathComponent("image")
+        )
+        request.httpMethod = "DELETE"
+        do {
+            let (_, response) = try await session.data(for: request)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                throw BackendError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
+            }
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            throw CancellationError()
+        } catch is URLError {
+            throw BackendError.unreachable(baseURL.absoluteString)
+        }
+    }
+
     // MARK: - Private
 
     private func buildScanRequest(photoData: Data) -> URLRequest {
