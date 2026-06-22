@@ -14,6 +14,10 @@ struct NotesSSEPayload: Decodable, Sendable {
     let tasting_note: String?
     let pairings: [String]
 
+    private enum CodingKeys: String, CodingKey {
+        case wine_id, tasting_note, pairings
+    }
+
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         wine_id = try c.decode(String.self, forKey: .wine_id)
