@@ -36,6 +36,8 @@ struct BackendClient: Sendable {
                 throw BackendError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
             }
             return try JSONDecoder().decode(HealthResponse.self, from: data)
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            throw CancellationError()
         } catch is URLError {
             throw BackendError.unreachable(baseURL.absoluteString)
         }
@@ -47,7 +49,7 @@ struct BackendClient: Sendable {
     /// Call session.cancel() when the view dismisses to release the URLSession task.
     func scan(photoData: Data) -> (stream: AsyncThrowingStream<SSEEvent, Error>, session: IOSScanSession) {
         let request = buildScanRequest(photoData: photoData)
-        return IOSScanSession.make(request: request)
+        return IOSScanSession.make(request: request, configuration: session.configuration)
     }
 
     // MARK: - Image fetch
@@ -64,6 +66,8 @@ struct BackendClient: Sendable {
                 throw BackendError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
             }
             return data
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            throw CancellationError()
         } catch is URLError {
             throw BackendError.unreachable(baseURL.absoluteString)
         }

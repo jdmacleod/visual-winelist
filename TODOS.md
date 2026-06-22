@@ -38,46 +38,6 @@ concurrency rather than relying on the URLSession error propagation chain.
 
 ---
 
-## P1: iOS BackendClient.scan() ignores injected URLSession
-
-`ios/Sources/VisualWinelistIOS/Backend/BackendClient.swift:scan()` creates a new
-URLSession via `IOSScanSession.make(request:)` (no `configuration:` arg passed), so the
-`session` property injected via `init(baseURL:session:)` is bypassed for scan calls. This
-means WineListViewModelTests cannot intercept scan network calls through MockURLProtocol.
-Fix: forward `session.configuration` to `IOSScanSession.make(request:configuration:)`.
-
----
-
-## P1: MockURLProtocol.startLoading() unstructured Task — test teardown race
-
-macOS `Tests/VisualWinelistTests/MockURLProtocol.swift`: `startLoading()` spawns an
-unstructured `Task { }` that captures `self` and calls into the URLProtocolClient. If the
-URLSession task is cancelled before the Task executes (e.g., test tearDown runs first),
-the Task continues on a detached context calling into a potentially-invalidated client.
-Fix: track the spawned Task as an instance variable and cancel it in `stopLoading()`.
-
----
-
-## P1: URLError.cancelled masked as BackendError.unreachable
-
-The broad `catch is URLError` in `BackendClient.checkHealth()` and `fetchImage()` (both
-iOS and macOS) remaps `URLError.cancelled` to `BackendError.unreachable`. When Swift
-cancels a Task awaiting URLSession, it throws `URLError.cancelled` — this gets silently
-converted to an "unreachable" error rather than propagating as a cancellation signal.
-Fix: narrow to `catch let e as URLError where e.code != .cancelled { throw BackendError.unreachable(...) }`
-before the broad URLError catch, and re-throw `CancellationError()` for `.cancelled`.
-
----
-
-## P1: macOS MockURLProtocol @unchecked Sendable still present
-
-`Tests/VisualWinelistTests/BackendClientTests.swift`: `MockURLProtocol` uses static vars
-(`handler`, `holdLoading`, etc.) and suppresses Swift concurrency checking via
-`@unchecked Sendable`. The iOS suite was refactored to `actor MockProtocolRegistry` in
-this hardening branch, but the macOS suite was not. Apply the same actor-isolated
-registry pattern to the macOS test suite for consistency and correctness.
-
----
 
 ## P1: HTTP 415 INVALID_IMAGE not surfaced to user
 
@@ -117,5 +77,8 @@ rather than appearing identical to freshly-scanned wines that got notes.
 - **feature/hardening-fixes** — Backend: `--workers 1` enforced in Dockerfile CMD; single-worker constraint documented in `scan.py`
 - **feature/hardening-fixes** — Backend: `python:3.13-slim` and `ghcr.io/astral-sh/uv:latest` pinned to SHA256 digests
 - **feature/hardening-fixes** — Web: `SortOption` union type updated with `'verified'`; wired to curator sort dropdown; vitest test added
+- **feature/test-hardening-2** — iOS: `BackendClient.scan()` now forwards `session.configuration` to `IOSScanSession.make(request:configuration:)`; MockURLProtocol can now intercept scan calls in tests
+- **feature/test-hardening-2** — macOS: `MockURLProtocol` static vars + `@unchecked Sendable` replaced with `MacOSMockProtocolRegistry` actor; `loadingTask` tracked and cancelled in `stopLoading()`
+- **feature/test-hardening-2** — iOS+macOS: `URLError.cancelled` in `checkHealth()`, `fetchImage()`, and `scan()` now re-throws `CancellationError()` instead of mapping to `BackendError.unreachable`
 - **Closed (already done in v0.2.4.2)** — URLError mapping incomplete in BackendClient.swift (`.notConnectedToInternet` + `.secureConnectionFailed` were already in the macOS scan() catch)
 - **Closed (not worth complexity)** — Performance: Collapse `verified_total` COUNT into main search query (two queries are intentionally different; FILTER clause merge adds complexity for unmeasurable gain at SQLite personal-use scale)
