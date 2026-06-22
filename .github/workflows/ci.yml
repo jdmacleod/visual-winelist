@@ -164,12 +164,16 @@ jobs:
           XCTEST=$(find .build -name '*.xctest' -path '*/debug/*' 2>/dev/null | head -1)
           if [ -n "$PROFDATA" ] && [ -n "$XCTEST" ]; then
             BINARY="$XCTEST/Contents/MacOS/$(basename "$XCTEST" .xctest)"
+            # Exclude Views, Camera, and the app entry point — they require a live UI
+            # context (display, AVCaptureSession) and cannot be covered by unit tests.
             xcrun llvm-cov report "$BINARY" \
               -instr-profile="$PROFDATA" \
-              --ignore-filename-regex='.*Tests.*' 2>/dev/null | tee /tmp/swift-cov.txt || \
+              --ignore-filename-regex='.*Tests.*|.*/Views/.*|.*/Camera/.*|.*VisualWinelistApp.*' \
+              2>/dev/null | tee /tmp/swift-cov.txt || \
               echo "::warning::llvm-cov report failed — coverage threshold check may be inaccurate"
-            TOTAL=$(awk '/TOTAL/{print $NF}' /tmp/swift-cov.txt 2>/dev/null | tr -d '%' | head -1)
-            echo "Swift coverage: ${TOTAL:-unknown}%"
+            # Extract line coverage (last XX.XX% in the TOTAL row; branch column shows '-').
+            TOTAL=$(grep '^TOTAL' /tmp/swift-cov.txt | grep -oE '[0-9]+\.[0-9]+%' | tail -1 | tr -d '%')
+            echo "Swift coverage: ${TOTAL:--}%"
             if [ -n "$TOTAL" ]; then
               SWIFT_COV_MIN=70
               python3 -c "import sys; cov=float('$TOTAL'); sys.exit(0 if cov >= $SWIFT_COV_MIN else 1)" || \
