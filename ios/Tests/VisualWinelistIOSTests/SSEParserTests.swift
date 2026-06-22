@@ -416,6 +416,71 @@ final class IOSTestSuite: XCTestCase {
         }
     }
 
+    // MARK: - iOS BackendClient: scan() forwards injected session configuration
+
+    func testIOSBackendClientScanForwardsSessionConfiguration() async throws {
+        // Verify that BackendClient.scan() passes session.configuration to IOSScanSession.make().
+        // Before the fix, IOSScanSession.make(request:) used .default config, so MockURLProtocol
+        // could not intercept scan requests even when an injectable session was provided.
+        let baseURL = URL(string: "http://localhost:8000")!
+        let sseText = "event: wine\ndata: {\"name\":\"Forwarded Session Wine\",\"confidence\":0.9}\n\n"
+        await MockProtocolRegistry.shared.setHandler { _ in
+            let response = HTTPURLResponse(url: baseURL, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(sseText.utf8))
+        }
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let client = BackendClient(baseURL: baseURL, session: URLSession(configuration: config))
+
+        let (stream, _) = client.scan(photoData: Data())
+        var events: [SSEEvent] = []
+        do {
+            for try await event in stream { events.append(event) }
+        } catch {}
+
+        guard let first = events.first, case .wine(let wine) = first else {
+            XCTFail(
+                "scan() must route through injected session; MockURLProtocol received no request — got \(events)"
+            )
+            return
+        }
+        XCTAssertEqual(wine.name, "Forwarded Session Wine")
+    }
+
+    // MARK: - iOS BackendClient: URLError.cancelled re-thrown as CancellationError
+
+    func testIOSCheckHealthCancelledRethrowsCancellationError() async {
+        let baseURL = URL(string: "http://localhost:8000")!
+        await MockProtocolRegistry.shared.setErrorToThrow(URLError(.cancelled))
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let client = BackendClient(baseURL: baseURL, session: URLSession(configuration: config))
+        do {
+            _ = try await client.checkHealth()
+            XCTFail("Expected CancellationError when URLError.cancelled is thrown")
+        } catch is CancellationError {
+            // pass — cancellation propagates correctly
+        } catch {
+            XCTFail("Expected CancellationError, got \(error)")
+        }
+    }
+
+    func testIOSFetchImageCancelledRethrowsCancellationError() async {
+        let baseURL = URL(string: "http://localhost:8000")!
+        await MockProtocolRegistry.shared.setErrorToThrow(URLError(.cancelled))
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let client = BackendClient(baseURL: baseURL, session: URLSession(configuration: config))
+        do {
+            _ = try await client.fetchImage(wineId: "abc")
+            XCTFail("Expected CancellationError when URLError.cancelled is thrown")
+        } catch is CancellationError {
+            // pass — cancellation propagates correctly
+        } catch {
+            XCTFail("Expected CancellationError, got \(error)")
+        }
+    }
+
     func testIOSFetchImage404() async {
         let baseURL = URL(string: "http://localhost:8000")!
         await MockProtocolRegistry.shared.setHandler { _ in
