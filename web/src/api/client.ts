@@ -19,6 +19,7 @@ const SORT_PARAMS: Record<SortOption, { sort: string; order: string }> = {
   oldest: { sort: 'created_at', order: 'asc' },
   name_asc: { sort: 'name', order: 'asc' },
   producer_asc: { sort: 'producer', order: 'asc' },
+  verified: { sort: 'verified', order: 'desc' },
 };
 
 export async function searchWines(

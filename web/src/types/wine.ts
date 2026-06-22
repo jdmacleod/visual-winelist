@@ -20,4 +20,4 @@ export interface SearchResponse {
 }
 
 export type StatusFilter = 'all' | 'verified' | 'unverified' | 'no_image';
-export type SortOption = 'newest' | 'oldest' | 'name_asc' | 'producer_asc';
+export type SortOption = 'newest' | 'oldest' | 'name_asc' | 'producer_asc' | 'verified';

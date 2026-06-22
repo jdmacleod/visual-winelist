@@ -31,6 +31,7 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
             let urlSession = URLSession(configuration: configuration, delegate: session, delegateQueue: nil)
             session.dataTask = urlSession.dataTask(with: request)
             session.dataTask?.resume()
+            continuation.onTermination = { [weak session] _ in session?.cancel() }
         }
         return (stream, created)
     }
@@ -67,6 +68,7 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         lineBuffer.append(data)
+        if lineBuffer.count > 1_048_576 { lineBuffer = Data(); return }
         // Split on 0x0A (newline byte) so multibyte UTF-8 characters that span
         // URLSession delivery boundaries are never dropped. The old String-based
         // approach called String(data:encoding:) on each delivery chunk, which

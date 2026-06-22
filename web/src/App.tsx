@@ -20,6 +20,7 @@ const SORT_LABELS: Record<SortOption, string> = {
   oldest: 'Oldest',
   name_asc: 'Name A→Z',
   producer_asc: 'Producer A→Z',
+  verified: 'Verified First',
 };
 
 export default function App() {

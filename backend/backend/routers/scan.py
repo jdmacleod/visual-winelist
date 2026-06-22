@@ -18,6 +18,9 @@ log = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Process-local lock: requires --workers 1 in uvicorn CMD (enforced in Dockerfile).
+# With multiple workers each process has its own _scanning copy, allowing simultaneous
+# scans. The Dockerfile CMD pins workers=1 so this is a deployment-level invariant.
 _scanning = False
 
 

@@ -16,7 +16,6 @@ class WineListViewModel: ObservableObject {
 
     private let backend: BackendClient
     private var activeScanSession: IOSScanSession?
-    private var imageTasks: [Task<Void, Never>] = []
 
     init(backendURL: URL) {
         self.backend = BackendClient(baseURL: backendURL)
@@ -53,8 +52,6 @@ class WineListViewModel: ObservableObject {
 
     /// Cancel an in-progress scan. Call from onDisappear to prevent resource leaks (T10).
     func cancelScan() {
-        imageTasks.forEach { $0.cancel() }
-        imageTasks = []
         activeScanSession?.cancel()
         activeScanSession = nil
         isScanning = false
@@ -98,54 +95,58 @@ class WineListViewModel: ObservableObject {
         do {
             var extractedCount = 0
 
-            for try await event in stream {
-                switch event {
-                case .wine(let wine):
-                    guard !wines.contains(where: { $0.wine == wine }) else { continue }
-                    extractedCount += 1
-                    wines.append(.extracting(wine))
-                    scanMessage = "\(wines.count) wine\(wines.count == 1 ? "" : "s") found…"
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                for try await event in stream {
+                    switch event {
+                    case .wine(let wine):
+                        guard !wines.contains(where: { $0.wine == wine }) else { continue }
+                        extractedCount += 1
+                        wines.append(.extracting(wine))
+                        scanMessage = "\(wines.count) wine\(wines.count == 1 ? "" : "s") found…"
 
-                case .image(let payload):
-                    imageTasks.append(Task { await self.handleImageEvent(payload) })
+                    case .image(let payload):
+                        group.addTask { await self.handleImageEvent(payload) }
 
-                case .notes(let payload):
-                    handleNotesEvent(payload)
+                    case .notes(let payload):
+                        handleNotesEvent(payload)
 
-                case .error(let payload):
-                    switch payload.code {
-                    case "OLLAMA_DOWN":
-                        errorMessage =
-                            "Extraction failed — \(payload.message)\n\nIs Ollama running with qwen3-vl:8b? Run: ollama serve"
-                    case "OLLAMA_TIMEOUT":
-                        errorMessage =
-                            "Ollama timed out — the wine list may be too long, or the model is busy. Try a shorter section."
-                    default:
-                        errorMessage = "Scan error (\(payload.code)): \(payload.message)"
+                    case .error(let payload):
+                        switch payload.code {
+                        case "OLLAMA_DOWN":
+                            errorMessage =
+                                "Extraction failed — \(payload.message)\n\nIs Ollama running with qwen3-vl:8b? Run: ollama serve"
+                        case "OLLAMA_TIMEOUT":
+                            errorMessage =
+                                "Ollama timed out — the wine list may be too long, or the model is busy. Try a shorter section."
+                        default:
+                            errorMessage = "Scan error (\(payload.code)): \(payload.message)"
+                        }
+
+                    case .complete(let payload):
+                        receivedComplete = true
+                        let hit = payload.cache_hits
+                        scanMessage =
+                            "\(payload.wine_count) wine\(payload.wine_count == 1 ? "" : "s")"
+                            + (hit > 0 ? " · \(hit) from cache" : "")
+
+                    case .ping:
+                        break
+
+                    case .parseError:
+                        print("[SSE] parse error — malformed event from backend")
                     }
-
-                case .complete(let payload):
-                    receivedComplete = true
-                    let hit = payload.cache_hits
-                    scanMessage =
-                        "\(payload.wine_count) wine\(payload.wine_count == 1 ? "" : "s")"
-                        + (hit > 0 ? " · \(hit) from cache" : "")
-
-                case .ping:
-                    break
-
-                case .parseError:
-                    print("[SSE] parse error — malformed event from backend")
                 }
-            }
 
-            // Only show the generic hint if no specific error was already surfaced
-            // from an SSE event: error payload. An OLLAMA_DOWN or similar error
-            // would otherwise be silently overwritten by this message.
-            if extractedCount == 0 && errorMessage == nil {
-                errorMessage = "No wines found — try a flatter angle or better lighting"
-            }
+                // Only show the generic hint if no specific error was already surfaced
+                // from an SSE event: error payload. An OLLAMA_DOWN or similar error
+                // would otherwise be silently overwritten by this message.
+                if extractedCount == 0 && errorMessage == nil {
+                    errorMessage = "No wines found — try a flatter angle or better lighting"
+                }
+            }  // end withThrowingTaskGroup
 
+        } catch is CancellationError {
+            userCancelled = true
         } catch BackendError.scannerBusy {
             errorMessage = "Scanner is busy — another scan is in progress"
         } catch BackendError.unreachable(let url) {
@@ -154,9 +155,9 @@ class WineListViewModel: ObservableObject {
             let ns = error as NSError
             if ns.code == NSURLErrorCancelled {
                 userCancelled = true
-                return
+            } else {
+                errorMessage = "Scan failed — \(error.localizedDescription)"
             }
-            errorMessage = "Scan failed — \(error.localizedDescription)"
         }
     }
 

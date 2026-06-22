@@ -8,42 +8,83 @@ import XCTest
 
 @testable import VisualWinelistIOS
 
+// MARK: - MockProtocolRegistry
+
+/// Actor-isolated registry for MockURLProtocol state. Using an actor eliminates
+/// the @unchecked Sendable suppressor that was required when static vars were used.
+/// Tests set state via async setX methods; startLoading() reads via snapshot().
+struct MockProtocolSnapshot {
+    let handler: ((URLRequest) -> (HTTPURLResponse, Data))?
+    let holdLoading: Bool
+    let onStartLoading: (() -> Void)?
+    let chunks: [Data]?
+    let errorToThrow: Error?
+}
+
+actor MockProtocolRegistry {
+    static let shared = MockProtocolRegistry()
+
+    var handler: ((URLRequest) -> (HTTPURLResponse, Data))?
+    var holdLoading = false
+    var onStartLoading: (() -> Void)?
+    var chunks: [Data]?
+    var errorToThrow: Error?
+
+    func setHandler(_ newHandler: @escaping (URLRequest) -> (HTTPURLResponse, Data)) { handler = newHandler }
+    func setHoldLoading(_ enabled: Bool) { holdLoading = enabled }
+    func setOnStartLoading(_ block: (() -> Void)?) { onStartLoading = block }
+    func setChunks(_ data: [Data]?) { chunks = data }
+    func setErrorToThrow(_ error: Error?) { errorToThrow = error }
+
+    func reset() {
+        handler = nil
+        holdLoading = false
+        onStartLoading = nil
+        chunks = nil
+        errorToThrow = nil
+    }
+
+    func snapshot() -> MockProtocolSnapshot {
+        MockProtocolSnapshot(
+            handler: handler,
+            holdLoading: holdLoading,
+            onStartLoading: onStartLoading,
+            chunks: chunks,
+            errorToThrow: errorToThrow
+        )
+    }
+}
+
 // MARK: - MockURLProtocol
 
-final class MockURLProtocol: URLProtocol, @unchecked Sendable {
-    // FIXME: static vars are not parallel-test-safe — see TODOS.md
-    static var handler: ((URLRequest) -> (HTTPURLResponse, Data))?
-    /// When true, startLoading() returns immediately without delivering any data.
-    /// URLSession still calls didCompleteWithError(NSURLErrorCancelled) when the
-    /// task is cancelled, which IOSScanSession converts to a clean stream finish.
-    static var holdLoading = false
-    /// Called at the start of startLoading(), before holdLoading check.
-    /// Use to synchronize tests that need to know when the URLSession task has started.
-    static var onStartLoading: (() -> Void)?
-    /// When non-nil, deliver these chunks as separate didLoad calls instead of one.
-    /// The handler is still called for the HTTP response object; its data is ignored.
-    static var chunks: [Data]?
-
+final class MockURLProtocol: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
-        MockURLProtocol.onStartLoading?()
-        if MockURLProtocol.holdLoading { return }
-        guard let handler = MockURLProtocol.handler else {
-            client?.urlProtocol(self, didFailWithError: URLError(.unknown))
-            return
-        }
-        let (response, data) = handler(request)
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        if let chunks = MockURLProtocol.chunks {
-            for chunk in chunks {
-                client?.urlProtocol(self, didLoad: chunk)
+        Task {
+            let state = await MockProtocolRegistry.shared.snapshot()
+            state.onStartLoading?()
+            if let error = state.errorToThrow {
+                client?.urlProtocol(self, didFailWithError: error)
+                return
             }
-        } else {
-            client?.urlProtocol(self, didLoad: data)
+            guard !state.holdLoading else { return }
+            guard let handler = state.handler else {
+                client?.urlProtocol(self, didFailWithError: URLError(.unknown))
+                return
+            }
+            let (response, data) = handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            if let chunks = state.chunks {
+                for chunk in chunks {
+                    client?.urlProtocol(self, didLoad: chunk)
+                }
+            } else {
+                client?.urlProtocol(self, didLoad: data)
+            }
+            client?.urlProtocolDidFinishLoading(self)
         }
-        client?.urlProtocolDidFinishLoading(self)
     }
 
     override func stopLoading() {}
@@ -53,12 +94,9 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
 
 final class IOSTestSuite: XCTestCase {
 
-    override func tearDown() {
-        MockURLProtocol.handler = nil
-        MockURLProtocol.holdLoading = false
-        MockURLProtocol.onStartLoading = nil
-        MockURLProtocol.chunks = nil
-        super.tearDown()
+    override func tearDown() async throws {
+        await MockProtocolRegistry.shared.reset()
+        try await super.tearDown()
     }
 
     // MARK: - SSEParser: basic wine event
@@ -132,7 +170,7 @@ final class IOSTestSuite: XCTestCase {
         let sseText = "event: wine\ndata: {\"name\":\"Test Wine\",\"confidence\":0.9}\n\n"
         let sseData = Data(sseText.utf8)
 
-        MockURLProtocol.handler = { _ in
+        await MockProtocolRegistry.shared.setHandler { _ in
             let response = HTTPURLResponse(
                 url: baseURL,
                 statusCode: 200,
@@ -216,12 +254,13 @@ final class IOSTestSuite: XCTestCase {
         }
 
         let baseURL = URL(string: "http://localhost:8000")!
-        MockURLProtocol.handler = { _ in
+        await MockProtocolRegistry.shared.setHandler { _ in
             let response = HTTPURLResponse(
                 url: baseURL, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, Data())  // data ignored; chunks drives delivery
         }
-        MockURLProtocol.chunks = [Data(allBytes[..<split]), Data(allBytes[split...])]
+        await MockProtocolRegistry.shared.setChunks(
+            [Data(allBytes[..<split]), Data(allBytes[split...])])
 
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
@@ -250,8 +289,8 @@ final class IOSTestSuite: XCTestCase {
         // onStartLoading must be set before IOSScanSession.make() so it is in
         // place when URLSession dispatches startLoading() on its background queue.
         let started = expectation(description: "URLSession startLoading called")
-        MockURLProtocol.holdLoading = true
-        MockURLProtocol.onStartLoading = { started.fulfill() }
+        await MockProtocolRegistry.shared.setHoldLoading(true)
+        await MockProtocolRegistry.shared.setOnStartLoading { started.fulfill() }
 
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
@@ -273,5 +312,75 @@ final class IOSTestSuite: XCTestCase {
         await consumeTask.value
 
         XCTAssertEqual(events.count, 0, "cancelled session should yield no events")
+    }
+
+    // MARK: - iOS BackendClient: checkHealth with injectable session
+
+    func testIOSCheckHealth200() async throws {
+        let baseURL = URL(string: "http://localhost:8000")!
+        let healthJSON = Data(#"{"status":"ok","ollama":true,"brave_key":true}"#.utf8)
+        await MockProtocolRegistry.shared.setHandler { _ in
+            let response = HTTPURLResponse(
+                url: baseURL, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, healthJSON)
+        }
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let client = BackendClient(baseURL: baseURL, session: URLSession(configuration: config))
+        let health = try await client.checkHealth()
+        XCTAssertTrue(health.isOK)
+    }
+
+    func testIOSCheckHealthURLError() async {
+        let baseURL = URL(string: "http://localhost:8000")!
+        await MockProtocolRegistry.shared.setErrorToThrow(URLError(.notConnectedToInternet))
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let client = BackendClient(baseURL: baseURL, session: URLSession(configuration: config))
+        do {
+            _ = try await client.checkHealth()
+            XCTFail("expected BackendError.unreachable")
+        } catch BackendError.unreachable {
+            // pass
+        } catch {
+            XCTFail("expected BackendError.unreachable, got \(error)")
+        }
+    }
+
+    // MARK: - iOS BackendClient: fetchImage with injectable session
+
+    func testIOSFetchImage200() async throws {
+        let baseURL = URL(string: "http://localhost:8000")!
+        let imageData = Data([0xFF, 0xD8, 0xFF, 0xE0])
+        await MockProtocolRegistry.shared.setHandler { _ in
+            let response = HTTPURLResponse(
+                url: baseURL, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, imageData)
+        }
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let client = BackendClient(baseURL: baseURL, session: URLSession(configuration: config))
+        let data = try await client.fetchImage(wineId: "abc")
+        XCTAssertEqual(data, imageData)
+    }
+
+    func testIOSFetchImage404() async {
+        let baseURL = URL(string: "http://localhost:8000")!
+        await MockProtocolRegistry.shared.setHandler { _ in
+            let response = HTTPURLResponse(
+                url: baseURL, statusCode: 404, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let client = BackendClient(baseURL: baseURL, session: URLSession(configuration: config))
+        do {
+            _ = try await client.fetchImage(wineId: "abc")
+            XCTFail("expected BackendError.httpError(404)")
+        } catch BackendError.httpError(let code) {
+            XCTAssertEqual(code, 404)
+        } catch {
+            XCTFail("expected BackendError.httpError(404), got \(error)")
+        }
     }
 }

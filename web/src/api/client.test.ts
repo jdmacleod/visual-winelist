@@ -124,3 +124,12 @@ test('uploadWineImage throws on non-ok response', async () => {
   const file = new File([new ArrayBuffer(1024)], 'bottle.jpg', { type: 'image/jpeg' });
   await expect(uploadWineImage('abc', file)).rejects.toThrow('Upload failed: 400');
 });
+
+test('searchWines sends sort=verified when sortOption is verified', async () => {
+  const body = { results: [], total: 0, page: 1, page_size: 20, verified_total: 0 };
+  mockFetch.mockResolvedValueOnce(makeOkResponse(body));
+  await searchWines('', 1, 20, 'all', 'verified');
+  const calledUrl = mockFetch.mock.calls[0][0] as string;
+  expect(calledUrl).toContain('sort=verified');
+  expect(calledUrl).toContain('order=desc');
+});

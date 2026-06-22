@@ -166,19 +166,24 @@ jobs:
             BINARY="$XCTEST/Contents/MacOS/$(basename "$XCTEST" .xctest)"
             # Exclude Views, Camera, and the app entry point — they require a live UI
             # context (display, AVCaptureSession) and cannot be covered by unit tests.
-            xcrun llvm-cov report "$BINARY" \
+            if ! xcrun llvm-cov report "$BINARY" \
               -instr-profile="$PROFDATA" \
               --ignore-filename-regex='.*Tests.*|.*/Views/.*|.*/Camera/.*|.*VisualWinelistApp.*' \
-              2>/dev/null | tee /tmp/swift-cov.txt || \
-              echo "::warning::llvm-cov report failed — coverage threshold check may be inaccurate"
+              2>/dev/null > /tmp/swift-cov.txt; then
+              echo "llvm-cov report failed — binary or profdata mismatch; coverage gate cannot run"
+              exit 1
+            fi
+            cat /tmp/swift-cov.txt
             # Extract line coverage (last XX.XX% in the TOTAL row; branch column shows '-').
             TOTAL=$(grep '^TOTAL' /tmp/swift-cov.txt | grep -oE '[0-9]+\.[0-9]+%' | tail -1 | tr -d '%')
             echo "Swift coverage: ${TOTAL:--}%"
-            if [ -n "$TOTAL" ]; then
-              SWIFT_COV_MIN=70
-              python3 -c "import sys; cov=float('$TOTAL'); sys.exit(0 if cov >= $SWIFT_COV_MIN else 1)" || \
-                { echo "Swift coverage ${TOTAL}% is below the ${SWIFT_COV_MIN}% minimum"; exit 1; }
+            if [ -z "$TOTAL" ]; then
+              echo "Could not parse coverage percentage from llvm-cov output"
+              exit 1
             fi
+            SWIFT_COV_MIN=70
+            python3 -c "import sys; cov=float('$TOTAL'); sys.exit(0 if cov >= $SWIFT_COV_MIN else 1)" || \
+              { echo "Swift coverage ${TOTAL}% is below the ${SWIFT_COV_MIN}% minimum"; exit 1; }
           else
             echo "::warning::Swift coverage data not found — threshold check skipped (build may have produced no profdata)"
           fi
@@ -203,3 +208,19 @@ jobs:
             brew install swiftlint
           fi
           swiftlint lint --config .swiftlint.yml Sources Tests ios/Sources ios/Tests
+
+  # ---------------------------------------------------------------------------
+  # Security — gitleaks secret scan (full history on every push/PR)
+  # ---------------------------------------------------------------------------
+  gitleaks:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

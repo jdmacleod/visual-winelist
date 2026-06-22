@@ -36,11 +36,22 @@ struct BackendClient: Sendable {
 
     func checkHealth() async throws -> HealthResponse {
         let url = baseURL.appendingPathComponent("health")
-        let (data, response) = try await session.data(from: url)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-            throw BackendError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
+        do {
+            let (data, response) = try await session.data(from: url)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                throw BackendError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
+            }
+            return try JSONDecoder().decode(HealthResponse.self, from: data)
+        } catch let urlError as URLError
+            where urlError.code == .cannotConnectToHost
+            || urlError.code == .networkConnectionLost
+            || urlError.code == .cannotFindHost
+            || urlError.code == .timedOut
+            || urlError.code == .notConnectedToInternet
+            || urlError.code == .secureConnectionFailed
+        {
+            throw BackendError.unreachable(baseURL.absoluteString)
         }
-        return try JSONDecoder().decode(HealthResponse.self, from: data)
     }
 
     // MARK: - Scan
@@ -80,6 +91,7 @@ struct BackendClient: Sendable {
                             }
                         } else if byte != UInt8(ascii: "\r") {
                             lineBuffer.append(byte)
+                            if lineBuffer.count > 1_048_576 { lineBuffer = Data() }
                         }
                     }
                     if !lineBuffer.isEmpty {
@@ -119,11 +131,22 @@ struct BackendClient: Sendable {
             .appendingPathComponent("wines")
             .appendingPathComponent(wineId)
             .appendingPathComponent("image")
-        let (data, response) = try await session.data(from: url)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-            throw BackendError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
+        do {
+            let (data, response) = try await session.data(from: url)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                throw BackendError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
+            }
+            return data
+        } catch let urlError as URLError
+            where urlError.code == .cannotConnectToHost
+            || urlError.code == .networkConnectionLost
+            || urlError.code == .cannotFindHost
+            || urlError.code == .timedOut
+            || urlError.code == .notConnectedToInternet
+            || urlError.code == .secureConnectionFailed
+        {
+            throw BackendError.unreachable(baseURL.absoluteString)
         }
-        return data
     }
 
     // MARK: - Private
