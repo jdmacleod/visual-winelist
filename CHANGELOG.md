@@ -1,5 +1,59 @@
 # Changelog
 
+## v0.2.4.1 (2026-06-21)
+
+### Fixed
+
+- **TOCTOU race in scanner lock** — `POST /scan` previously claimed `_scanning = True`
+  inside the `_scan_sse` async generator body, which FastAPI only begins iterating after
+  returning `StreamingResponse`. Two concurrent requests could both pass the `if _scanning:`
+  guard before either set the flag. Lock is now claimed synchronously in the HTTP handler
+  before returning `StreamingResponse` with no `await` in between.
+- **Orphaned image fetch tasks on client disconnect** — `asyncio.ensure_future()` calls in
+  `_scan_sse` were not stored, leaving background Brave fetch tasks running untracked when
+  the client dropped the connection. Tasks are now tracked and cancelled in the `finally`
+  block alongside `extraction_task`.
+- **iOS SSE CRLF line endings** — `IOSScanSession` split on `\n` but did not strip trailing
+  `\r`, causing CRLF-terminated lines from HTTP proxies to be fed to `SSEParser` with a
+  trailing carriage-return, silently failing to parse event types. macOS `BackendClient`
+  already handled CRLF; iOS is now in parity.
+- **iOS SSE stream-end without trailing blank line** — `IOSScanSession.didCompleteWithError`
+  now flushes any remaining bytes in `lineBuffer` and calls `parser.feed(line: "")` before
+  finishing the continuation, dispatching the final pending SSE event when the server closes
+  without a trailing `\n\n`. macOS `BackendClient.scan()` already had this flush; iOS is now
+  in parity.
+- **`NotesSSEPayload.pairings` silences type errors** — both macOS and iOS decoded `pairings`
+  with `try? c.decodeIfPresent(...)`, silently returning `[]` on any type mismatch (e.g.
+  server sends a string instead of an array). Changed to `try c.decodeIfPresent` so type
+  errors propagate to `.parseError` rather than producing silent empty pairings.
+- **macOS SSE stream-end flush** — `BackendClient.scan()` calls `parser.feed(line: "")`
+  after the byte loop, dispatching any pending SSE event when the server closes without a
+  trailing `\n\n`.
+
+### Changed
+
+- **`BackendClient` injectable `URLSession`** — the initializer now accepts an optional
+  `session: URLSession` parameter (default `.shared`), enabling unit tests to inject a
+  `MockURLProtocol`-backed session without a live server.
+- **`.parseError` events logged** — both macOS and iOS `WineListViewModel` now print
+  `[SSE] parse error` instead of silently discarding parse failures, making systematic
+  backend regressions observable in console output.
+- **Coverage thresholds enforced** — vitest now fails if React statement coverage drops below
+  80%; pytest fails if Python line coverage drops below 80%. Current baselines: React 87%,
+  Python 89%.
+- **CI: `web-test` job guard** — the TypeScript test job now skips gracefully when
+  `web/package.json` is absent, matching the existing `web-lint` guard pattern.
+
+### Tests
+
+- Python test suite: 110 tests — 8 new tests covering the TOCTOU scanner-lock race, lock
+  release on `GeneratorExit`, and image-task cancellation in `_scan_sse`.
+- Swift XCTest: 52 tests — added `BackendClient` CRLF, `fetchImage` 200/404, and `URLError`
+  mapping tests; iOS `IOSScanSession` cancel-stops-stream and invalid-URL tests;
+  `NotesSSEPayload` absent-pairings and `.parseError` passthrough coverage.
+- React vitest suite: 48 tests — added `Pagination` component tests (5) and `App` error-path
+  tests for `searchWines` rejection and `deleteWine` rejection (2).
+
 ## v0.2.5 (2026-06-21)
 
 ### Added

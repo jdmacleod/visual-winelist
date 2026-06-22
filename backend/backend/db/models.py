@@ -21,7 +21,7 @@ class WineCacheRecord(Base):
     image_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     tasting_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     _pairings: Mapped[str | None] = mapped_column("pairings", Text, nullable=True)
-    verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    verified: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

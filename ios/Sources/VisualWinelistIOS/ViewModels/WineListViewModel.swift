@@ -15,8 +15,8 @@ class WineListViewModel: ObservableObject {
     }
 
     private let backend: BackendClient
-    // T10: stored so cancel() can be called when the scan view dismisses
     private var activeScanSession: IOSScanSession?
+    private var imageTasks: [Task<Void, Never>] = []
 
     init(backendURL: URL) {
         self.backend = BackendClient(baseURL: backendURL)
@@ -53,6 +53,8 @@ class WineListViewModel: ObservableObject {
 
     /// Cancel an in-progress scan. Call from onDisappear to prevent resource leaks (T10).
     func cancelScan() {
+        imageTasks.forEach { $0.cancel() }
+        imageTasks = []
         activeScanSession?.cancel()
         activeScanSession = nil
         isScanning = false
@@ -105,7 +107,7 @@ class WineListViewModel: ObservableObject {
                     scanMessage = "\(wines.count) wine\(wines.count == 1 ? "" : "s") found…"
 
                 case .image(let payload):
-                    Task { await self.handleImageEvent(payload) }
+                    imageTasks.append(Task { await self.handleImageEvent(payload) })
 
                 case .notes(let payload):
                     handleNotesEvent(payload)
@@ -115,6 +117,9 @@ class WineListViewModel: ObservableObject {
                     case "OLLAMA_DOWN":
                         errorMessage =
                             "Extraction failed — \(payload.message)\n\nIs Ollama running with qwen3-vl:8b? Run: ollama serve"
+                    case "OLLAMA_TIMEOUT":
+                        errorMessage =
+                            "Ollama timed out — the wine list may be too long, or the model is busy. Try a shorter section."
                     default:
                         errorMessage = "Scan error (\(payload.code)): \(payload.message)"
                     }
@@ -128,6 +133,9 @@ class WineListViewModel: ObservableObject {
 
                 case .ping:
                     break
+
+                case .parseError:
+                    print("[SSE] parse error — malformed event from backend")
                 }
             }
 

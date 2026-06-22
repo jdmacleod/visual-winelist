@@ -17,15 +17,18 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
     }
 
     /// Create a stream + a session handle. Keep the session to call cancel() later.
+    /// The `configuration` parameter defaults to `.default`; pass a custom one in tests
+    /// to inject MockURLProtocol without a live network connection.
     static func make(
-        request: URLRequest
+        request: URLRequest,
+        configuration: URLSessionConfiguration = .default
     ) -> (stream: AsyncThrowingStream<SSEEvent, Error>, session: IOSScanSession) {
         var created: IOSScanSession!
         let stream = AsyncThrowingStream<SSEEvent, Error> { continuation in
             let session = IOSScanSession(continuation: continuation)
             created = session
             // delegateQueue: nil → URLSession creates its own serial queue
-            let urlSession = URLSession(configuration: .default, delegate: session, delegateQueue: nil)
+            let urlSession = URLSession(configuration: configuration, delegate: session, delegateQueue: nil)
             session.dataTask = urlSession.dataTask(with: request)
             session.dataTask?.resume()
         }
@@ -66,8 +69,10 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
         guard let chunk = String(data: data, encoding: .utf8) else { return }
         lineBuffer += chunk
         while let newlineRange = lineBuffer.range(of: "\n") {
-            let line = String(lineBuffer[lineBuffer.startIndex..<newlineRange.lowerBound])
+            let rawLine = String(lineBuffer[lineBuffer.startIndex..<newlineRange.lowerBound])
             lineBuffer = String(lineBuffer[newlineRange.upperBound...])
+            // Strip trailing \r to handle CRLF line endings from proxies, matching macOS BackendClient.
+            let line = rawLine.hasSuffix("\r") ? String(rawLine.dropLast()) : rawLine
             if let event = parser.feed(line: line) {
                 continuation.yield(event)
             }
@@ -83,6 +88,18 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
                 continuation.finish(throwing: error)
             }
         } else {
+            // Flush any remaining bytes (stream ended without a trailing newline).
+            if !lineBuffer.isEmpty {
+                let line = lineBuffer.hasSuffix("\r") ? String(lineBuffer.dropLast()) : lineBuffer
+                if let event = parser.feed(line: line) {
+                    continuation.yield(event)
+                }
+                lineBuffer = ""
+            }
+            // Flush any pending SSE event if the stream ended without a trailing blank line.
+            if let event = parser.feed(line: "") {
+                continuation.yield(event)
+            }
             continuation.finish()
         }
     }

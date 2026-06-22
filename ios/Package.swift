@@ -14,6 +14,15 @@ let package = Package(
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency")
             ]
-        )
+        ),
+        // UIKit-dependent code prevents linking VisualWinelistIOS on macOS.
+        // Real tests run via: xcodebuild test -package-path ios
+        //   -destination "platform=iOS Simulator,name=iPhone 16"
+        // CI wiring comes in a follow-up (T12).
+        .testTarget(
+            name: "VisualWinelistIOSTests",
+            dependencies: ["VisualWinelistIOS"],
+            path: "Tests/VisualWinelistIOSTests"
+        ),
     ]
 )

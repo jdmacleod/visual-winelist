@@ -86,4 +86,72 @@ final class WineListViewModelTests: XCTestCase {
         vm.clear()
         XCTAssertFalse(vm.notesIncomplete, "clear() must reset notesIncomplete")
     }
+
+    // MARK: - Error code routing
+
+    private func makeErrorEvent(code: String, message: String = "test message") -> SSEEvent {
+        .error(ErrorSSEPayload(code: code, wine_index: nil, message: message))
+    }
+
+    func testOllamaDownSetsActionableErrorMessage() async {
+        let vm = WineListViewModel(backend: MockBackendClient(events: [makeErrorEvent(code: "OLLAMA_DOWN")]))
+        await vm.scan(photoData: Data())
+        XCTAssertNotNil(vm.errorMessage)
+        XCTAssertTrue(vm.errorMessage?.contains("ollama serve") == true, "OLLAMA_DOWN message must include run hint")
+    }
+
+    func testOllamaTimeoutSetsActionableErrorMessage() async {
+        let vm = WineListViewModel(backend: MockBackendClient(events: [makeErrorEvent(code: "OLLAMA_TIMEOUT")]))
+        await vm.scan(photoData: Data())
+        XCTAssertNotNil(vm.errorMessage)
+        XCTAssertTrue(
+            vm.errorMessage?.contains("timed out") == true,
+            "OLLAMA_TIMEOUT message must describe the timeout condition")
+    }
+
+    func testUnknownErrorCodeSetsGenericErrorMessage() async {
+        let vm = WineListViewModel(
+            backend: MockBackendClient(events: [makeErrorEvent(code: "PARSE_ERROR", message: "bad json")]))
+        await vm.scan(photoData: Data())
+        XCTAssertNotNil(vm.errorMessage)
+        XCTAssertTrue(
+            vm.errorMessage?.contains("PARSE_ERROR") == true,
+            "Unknown error code must be included in the generic fallback message")
+    }
+
+    // MARK: - Cancel on dismiss
+
+    func testWineListViewModelCancelOnDismiss() async {
+        // AsyncThrowingStream.next() returns nil (stream end) when the consuming Task is
+        // cancelled, so the for-try-await loop exits normally. isScanning must still be
+        // reset to false and notesIncomplete must stay false (no wines were extracted).
+        struct SlowClient: BackendClientProtocol {
+            func checkHealth() async throws -> HealthResponse { throw BackendError.unreachable("") }
+            func scan(photoData: Data) -> AsyncThrowingStream<SSEEvent, Error> {
+                AsyncThrowingStream { continuation in
+                    Task {
+                        try? await Task.sleep(nanoseconds: 60_000_000_000)
+                        continuation.finish()
+                    }
+                }
+            }
+            func fetchImage(wineId: String) async throws -> Data { Data() }
+        }
+
+        let vm = WineListViewModel(backend: SlowClient())
+        let scanTask = Task { await vm.scan(photoData: Data()) }
+
+        // Poll until isScanning=true (up to 100ms) so we don't race against task startup.
+        for _ in 0..<20 {
+            if vm.isScanning { break }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+        XCTAssertTrue(vm.isScanning, "scan should be in-progress before cancel")
+
+        scanTask.cancel()
+        await scanTask.value
+
+        XCTAssertFalse(vm.isScanning, "isScanning must reset to false after task cancellation")
+        XCTAssertFalse(vm.notesIncomplete, "notesIncomplete must stay false when no wines were extracted")
+    }
 }

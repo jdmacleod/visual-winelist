@@ -154,12 +154,16 @@ final class SSEParserTests: XCTestCase {
         XCTAssertNil(result, "default 'message' event type is unknown and should return nil")
     }
 
-    func testMalformedJsonReturnsNil() {
+    func testMalformedJsonReturnsParseError() {
         var parser = SSEParser()
         _ = parser.feed(line: "event: wine")
         _ = parser.feed(line: "data: not valid json {{")
         let result = parser.feed(line: "")
-        XCTAssertNil(result, "malformed JSON should return nil rather than crash")
+        guard case .parseError(let desc) = result else {
+            XCTFail("malformed JSON should return .parseError, got \(String(describing: result))")
+            return
+        }
+        XCTAssertTrue(desc.hasPrefix("wine:"), "parseError description should include event type; got: \(desc)")
     }
 
     func testMultipleEventsSequential() {
@@ -178,5 +182,38 @@ final class SSEParserTests: XCTestCase {
         let second = parser.feed(line: "")
         guard case .complete(let c) = second else { XCTFail("expected second event to be .complete"); return }
         XCTAssertEqual(c.wine_count, 1)
+    }
+
+    func testSSEParserChunkedPartialLine() {
+        // SSE spec allows data: and event: fields in any order within a block.
+        // Verify the parser accumulates them correctly regardless of order.
+        var parser = SSEParser()
+        XCTAssertNil(parser.feed(line: #"data: {"name":"Margaux","confidence":0.9}"#))
+        XCTAssertNil(parser.feed(line: "event: wine"))
+        let result = parser.feed(line: "")
+        guard case .wine(let wine) = result else {
+            XCTFail(
+                "expected .wine when data: precedes event: in the same SSE block; got \(String(describing: result))")
+            return
+        }
+        XCTAssertEqual(wine.name, "Margaux")
+    }
+
+    func testSSEParserMultilineData() {
+        // SSE spec §9.2.6: multiple data: fields are concatenated with U+000A (LF).
+        // The clobbering bug (data = value instead of data += "\n" + value) would
+        // leave only the second fragment, causing JSON decode to fail → returns nil.
+        var parser = SSEParser()
+        XCTAssertNil(parser.feed(line: "event: wine"))
+        XCTAssertNil(parser.feed(line: #"data: {"name":"Margaux","#))
+        XCTAssertNil(parser.feed(line: #"data: "confidence":0.9}"#))
+        let result = parser.feed(line: "")
+        guard case .wine(let wine) = result else {
+            XCTFail(
+                "multi-line data: fields must concatenate with \\n per SSE spec; got \(String(describing: result))"
+            )
+            return
+        }
+        XCTAssertEqual(wine.name, "Margaux")
     }
 }

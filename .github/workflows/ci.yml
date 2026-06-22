@@ -57,7 +57,7 @@ jobs:
         run: uv sync --extra dev
 
       - name: pytest
-        run: uv run pytest -m "not integration"
+        run: uv run pytest -m "not integration" --cov-fail-under=80
 
   # ---------------------------------------------------------------------------
   # TypeScript — lint (prettier + ESLint)
@@ -103,6 +103,43 @@ jobs:
         working-directory: web
 
   # ---------------------------------------------------------------------------
+  # TypeScript — tests (vitest + coverage)
+  # ---------------------------------------------------------------------------
+  web-test:
+    name: TypeScript tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for web project
+        id: web
+        run: |
+          if [ -f web/package.json ]; then
+            echo "present=true" >> $GITHUB_OUTPUT
+          else
+            echo "present=false" >> $GITHUB_OUTPUT
+            echo "No web/package.json — skipping TypeScript tests"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.web.outputs.present == 'true'
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        if: steps.web.outputs.present == 'true'
+        run: npm ci
+        working-directory: web
+
+      - name: vitest
+        if: steps.web.outputs.present == 'true'
+        run: npx vitest run --coverage
+        working-directory: web
+
+  # ---------------------------------------------------------------------------
   # Swift — build, test, swift-format lint
   # ---------------------------------------------------------------------------
   swift-ci:
@@ -119,7 +156,32 @@ jobs:
         run: swift build
 
       - name: Test
-        run: swift test
+        run: swift test --enable-code-coverage
+
+      - name: Swift coverage gate (≥70%)
+        run: |
+          PROFDATA=$(find .build -name 'default.profdata' 2>/dev/null | head -1)
+          XCTEST=$(find .build -name '*.xctest' -path '*/debug/*' 2>/dev/null | head -1)
+          if [ -n "$PROFDATA" ] && [ -n "$XCTEST" ]; then
+            BINARY="$XCTEST/Contents/MacOS/$(basename "$XCTEST" .xctest)"
+            # Exclude Views, Camera, and the app entry point — they require a live UI
+            # context (display, AVCaptureSession) and cannot be covered by unit tests.
+            xcrun llvm-cov report "$BINARY" \
+              -instr-profile="$PROFDATA" \
+              --ignore-filename-regex='.*Tests.*|.*/Views/.*|.*/Camera/.*|.*VisualWinelistApp.*' \
+              2>/dev/null | tee /tmp/swift-cov.txt || \
+              echo "::warning::llvm-cov report failed — coverage threshold check may be inaccurate"
+            # Extract line coverage (last XX.XX% in the TOTAL row; branch column shows '-').
+            TOTAL=$(grep '^TOTAL' /tmp/swift-cov.txt | grep -oE '[0-9]+\.[0-9]+%' | tail -1 | tr -d '%')
+            echo "Swift coverage: ${TOTAL:--}%"
+            if [ -n "$TOTAL" ]; then
+              SWIFT_COV_MIN=70
+              python3 -c "import sys; cov=float('$TOTAL'); sys.exit(0 if cov >= $SWIFT_COV_MIN else 1)" || \
+                { echo "Swift coverage ${TOTAL}% is below the ${SWIFT_COV_MIN}% minimum"; exit 1; }
+            fi
+          else
+            echo "::warning::Swift coverage data not found — threshold check skipped (build may have produced no profdata)"
+          fi
 
       - name: Format check (swift-format)
         # swift format lint exits 0 even with warnings — use format+diff instead.

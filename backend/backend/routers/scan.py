@@ -61,8 +61,8 @@ async def _fetch_image_to_queue(
 
 async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
     global _scanning
-    _scanning = True
     extraction_task: asyncio.Task[None] | None = None
+    image_tasks: list[asyncio.Task[None]] = []
 
     t_scan_start = time.perf_counter()
     t_extraction_end: float | None = None
@@ -81,6 +81,17 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
                 async for wine in ollama_client.extract_wines(image_data):
                     await queue.put(("wine", wine))
                     wine_index += 1
+            except TimeoutError as exc:
+                await queue.put(
+                    (
+                        "error",
+                        ErrorEvent(
+                            code="OLLAMA_TIMEOUT",
+                            wine_index=wine_index,
+                            message=str(exc),
+                        ),
+                    )
+                )
             except Exception as exc:
                 await queue.put(
                     (
@@ -128,7 +139,9 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
                         wines.append(wine)
                         yield _sse("wine", wine.model_dump_with_id())
                         pending_images += 1
-                        asyncio.ensure_future(_fetch_image_to_queue(wine, queue, scan_id))
+                        image_tasks.append(
+                            asyncio.ensure_future(_fetch_image_to_queue(wine, queue, scan_id))
+                        )
 
                 elif event_type == "image":
                     img_event: ImageEvent = data
@@ -224,10 +237,14 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
         _scanning = False
         if extraction_task is not None and not extraction_task.done():
             extraction_task.cancel()
+        for _task in image_tasks:
+            if not _task.done():
+                _task.cancel()
 
 
 @router.post("/scan")
 async def scan(image: UploadFile, request: Request) -> StreamingResponse:
+    global _scanning
     log.info("/scan: content_type=%s", image.content_type)
     if image.content_type not in ("image/jpeg", "image/jpg"):
         log.warning("/scan: rejected content_type=%s", image.content_type)
@@ -253,6 +270,11 @@ async def scan(image: UploadFile, request: Request) -> StreamingResponse:
             status_code=503,
             detail={"code": "SCANNER_BUSY", "queue_position": 1},
         )
+    # Claim the lock synchronously — no await between here and StreamingResponse creation,
+    # so the asyncio event loop cannot service a second request in between. _scan_sse
+    # resets _scanning = False in its finally block (covers both clean exit and
+    # GeneratorExit on client disconnect).
+    _scanning = True
 
     scan_id = uuid.uuid4().hex[:8]
     return StreamingResponse(

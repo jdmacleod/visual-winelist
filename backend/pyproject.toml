@@ -16,6 +16,7 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
     "httpx>=0.28",
 ]
 
@@ -25,6 +26,7 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+addopts = "--cov=backend --cov-report=term-missing"
 markers = [
     "integration: requires live backend services (Ollama, Brave) — excluded from CI",
 ]

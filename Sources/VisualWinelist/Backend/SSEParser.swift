@@ -7,6 +7,7 @@ enum SSEEvent: Sendable {
     case error(ErrorSSEPayload)
     case complete(CompleteSSEPayload)
     case ping
+    case parseError(String)
 }
 
 /// Stateful line-by-line SSE parser.
@@ -33,7 +34,8 @@ struct SSEParser {
             return nil
         }
         if line.hasPrefix("data: ") {
-            data = String(line.dropFirst(6))
+            let value = String(line.dropFirst(6))
+            data = data.isEmpty ? value : data + "\n" + value
             return nil
         }
         return nil
@@ -42,19 +44,17 @@ struct SSEParser {
     private func dispatch() -> SSEEvent? {
         guard !data.isEmpty, let jsonData = data.data(using: .utf8) else { return nil }
         let decoder = JSONDecoder()
-        switch eventType {
-        case "wine":
-            return (try? decoder.decode(WineObject.self, from: jsonData)).map { .wine($0) }
-        case "image":
-            return (try? decoder.decode(ImageSSEPayload.self, from: jsonData)).map { .image($0) }
-        case "notes":
-            return (try? decoder.decode(NotesSSEPayload.self, from: jsonData)).map { .notes($0) }
-        case "error":
-            return (try? decoder.decode(ErrorSSEPayload.self, from: jsonData)).map { .error($0) }
-        case "complete":
-            return (try? decoder.decode(CompleteSSEPayload.self, from: jsonData)).map { .complete($0) }
-        default:
-            return nil
+        do {
+            switch eventType {
+            case "wine": return .wine(try decoder.decode(WineObject.self, from: jsonData))
+            case "image": return .image(try decoder.decode(ImageSSEPayload.self, from: jsonData))
+            case "notes": return .notes(try decoder.decode(NotesSSEPayload.self, from: jsonData))
+            case "error": return .error(try decoder.decode(ErrorSSEPayload.self, from: jsonData))
+            case "complete": return .complete(try decoder.decode(CompleteSSEPayload.self, from: jsonData))
+            default: return nil
+            }
+        } catch {
+            return .parseError("\(eventType): \(error)")
         }
     }
 }

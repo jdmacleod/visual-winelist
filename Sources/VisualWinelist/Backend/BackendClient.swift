@@ -25,12 +25,18 @@ enum BackendError: Error, LocalizedError, Sendable {
 
 struct BackendClient: Sendable {
     let baseURL: URL
+    let session: URLSession
+
+    init(baseURL: URL, session: URLSession = .shared) {
+        self.baseURL = baseURL
+        self.session = session
+    }
 
     // MARK: - Health
 
     func checkHealth() async throws -> HealthResponse {
         let url = baseURL.appendingPathComponent("health")
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await session.data(from: url)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             throw BackendError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
         }
@@ -45,7 +51,7 @@ struct BackendClient: Sendable {
             Task {
                 do {
                     let request = buildScanRequest(photoData: photoData)
-                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
+                    let (bytes, response) = try await session.bytes(for: request)
 
                     guard let http = response as? HTTPURLResponse else {
                         continuation.finish(throwing: BackendError.unreachable(baseURL.absoluteString))
@@ -82,6 +88,10 @@ struct BackendClient: Sendable {
                             continuation.yield(event)
                         }
                     }
+                    // Dispatch any pending SSE event if the stream ended without a trailing blank line.
+                    if let event = parser.feed(line: "") {
+                        continuation.yield(event)
+                    }
                     continuation.finish()
 
                 } catch let urlError as URLError
@@ -89,6 +99,8 @@ struct BackendClient: Sendable {
                     || urlError.code == .networkConnectionLost
                     || urlError.code == .cannotFindHost
                     || urlError.code == .timedOut
+                    || urlError.code == .notConnectedToInternet
+                    || urlError.code == .secureConnectionFailed
                 {
                     continuation.finish(throwing: BackendError.unreachable(baseURL.absoluteString))
                 } catch {
@@ -106,7 +118,7 @@ struct BackendClient: Sendable {
             .appendingPathComponent("wines")
             .appendingPathComponent(wineId)
             .appendingPathComponent("image")
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await session.data(from: url)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             throw BackendError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
         }
