@@ -99,6 +99,9 @@ private struct ShimmerOverlay: View {
                 phase = 1.4
             }
         }
+        .onDisappear {
+            phase = -0.4
+        }
     }
 }
 

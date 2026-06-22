@@ -146,8 +146,7 @@ class WineListViewModel: ObservableObject {
         } catch BackendError.unreachable(let url) {
             errorMessage = "Backend not reachable at \(url)\n\nCheck WiFi and try again"
         } catch {
-            let ns = error as NSError
-            if ns.code == NSURLErrorCancelled {
+            if let urlErr = error as? URLError, urlErr.code == .cancelled {
                 ()  // URLSession cancel on view dismiss
             } else {
                 errorMessage = "Scan failed — \(error.localizedDescription)"

@@ -44,6 +44,9 @@ struct ContentView: View {
         .onChange(of: viewModel.isScanning) { isScanning in
             UIApplication.shared.isIdleTimerDisabled = isScanning
         }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
+        }
     }
 
     // MARK: - Camera view
@@ -203,7 +206,7 @@ struct ContentView: View {
                 await viewModel.scan(photoData: photoData)
             } else {
                 await viewModel.appendScan(photoData: photoData)
-                if !viewModel.wines.isEmpty { phase = .grid }
+                if !viewModel.wines.isEmpty && viewModel.errorMessage == nil { phase = .grid }
             }
         } catch {
             phase = .error(error.localizedDescription)
