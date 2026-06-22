@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.2.6.0 (2026-06-22)
+
+### Added
+
+- **iOS shimmer animation on loading cards** — wine cards now show a sweeping shimmer highlight while the bottle image is being fetched, matching the macOS loading experience.
+- **iOS app icon** — the iOS app now has a custom wine/grapes icon (1024×1024) instead of a generic placeholder.
+- **Screen-sleep prevention during scan** — the iPhone display no longer dims or auto-locks while a scan is in progress; the idle timer resets as soon as scanning finishes or the app is backgrounded.
+
+### Changed
+
+- **Fixed-width 2-column iOS grid** — wine cards are sized by dividing the screen width into two equal columns via GeometryReader, eliminating card-width jitter from flexible grid sizing.
+- **Bottle-proportioned card aspect ratio** — wine cards use a 3:5 portrait aspect ratio on both iOS and macOS, with `scaledToFit` display so the full bottle height is visible without cropping.
+
+### Fixed
+
+- **"Try again" after a failed append scan returned to the wine grid** — tapping "Try again" from an error clears `errorMessage`, which was triggering a navigation observer to push to the grid (because wines existed) instead of returning to the camera. The observer now only reacts to error-set transitions, not error-clear ones.
+- **Zero-width cards on zero-size GeometryReader first pass** — added a `max(1, ...)` floor to the iOS grid's card-width calculation, preventing negative `GridItem(.fixed(...))` sizes on the layout's initial pass.
+- **Idle timer stuck enabled on backgrounding mid-scan** — `.onDisappear` on `ContentView` now unconditionally resets `isIdleTimerDisabled = false`, so the screen cannot stay permanently awake if the app exits the view while scanning.
+- **Shimmer animation linger after card leaves viewport** — `.onDisappear { phase = -0.4 }` was added to both iOS and macOS `ShimmerOverlay`, resetting the animation target when the card scrolls out of view.
+- **Append scan phase guard on error** — if a wine scan returned an error while wines existed, starting a subsequent scan's `performScan` cleared `errorMessage`, which falsely triggered a transition to `.grid` before new wines arrived. Phase now only transitions to `.grid` after a successful scan completion.
+- **`URLError.cancelled` type-narrowing** — the NSURLErrorCancelled catch block previously matched any `NSError` with code -999, including errors from unrelated domains. Replaced with a typed `as? URLError, urlErr.code == .cancelled` check.
+
 ## v0.2.5.1 (2026-06-22)
 
 ### Fixed

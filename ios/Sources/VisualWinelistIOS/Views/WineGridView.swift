@@ -4,38 +4,52 @@ struct WineGridView: View {
     @ObservedObject var viewModel: WineListViewModel
     let onScanMore: () -> Void
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 2)
+    private let columnCount = 2
+    private let gridSpacing: CGFloat = 12
+    private let gridPadding: CGFloat = 16
 
     var body: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(viewModel.wines) { state in
-                    NavigationLink {
-                        WineDetailView(
-                            state: state,
-                            isScanning: viewModel.isScanning
-                        )
-                    } label: {
-                        WineBottleCard(state: state)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(cardLabel(for: state))
-                }
-            }
-            .padding(16)
+        GeometryReader { proxy in
+            let cardWidth = max(
+                1,
+                (proxy.size.width
+                    - gridPadding * 2
+                    - gridSpacing * CGFloat(columnCount - 1)) / CGFloat(columnCount))
+            let columns = Array(
+                repeating: GridItem(.fixed(cardWidth), spacing: gridSpacing),
+                count: columnCount
+            )
 
-            if viewModel.isScanning {
-                HStack(spacing: 8) {
-                    ProgressView().scaleEffect(0.7)
-                    Text(viewModel.scanMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: gridSpacing) {
+                    ForEach(viewModel.wines) { state in
+                        NavigationLink {
+                            WineDetailView(
+                                state: state,
+                                isScanning: viewModel.isScanning
+                            )
+                        } label: {
+                            WineBottleCard(state: state)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(cardLabel(for: state))
+                    }
                 }
-                .padding(.bottom, 16)
+                .padding(gridPadding)
+
+                if viewModel.isScanning {
+                    HStack(spacing: 8) {
+                        ProgressView().scaleEffect(0.7)
+                        Text(viewModel.scanMessage)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.bottom, 16)
+                }
             }
-        }
-        .safeAreaInset(edge: .bottom) {
-            scanMoreBar
+            .safeAreaInset(edge: .bottom) {
+                scanMoreBar
+            }
         }
     }
 

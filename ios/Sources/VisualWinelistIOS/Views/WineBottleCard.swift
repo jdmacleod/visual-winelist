@@ -12,7 +12,7 @@ struct WineBottleCard: View {
                 uncertaintyBadge
             }
         }
-        .aspectRatio(3 / 4, contentMode: .fit)
+        .aspectRatio(3 / 5, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: .cornerRadiusCard))
         .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
     }
@@ -21,20 +21,17 @@ struct WineBottleCard: View {
     private var imageLayer: some View {
         switch state {
         case .ready(_, let data):
-            if let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
+            ZStack {
                 PlaceholderBottle(wine: state.wine)
+                if let image = UIImage(data: data) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                }
             }
         case .extracting, .fetchingImage:
             PlaceholderBottle(wine: state.wine)
-                .overlay {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                        .tint(.white)
-                }
+                .overlay { ShimmerOverlay() }
         case .placeholder:
             PlaceholderBottle(wine: state.wine)
         }
@@ -72,6 +69,31 @@ struct WineBottleCard: View {
             .background(.orange, in: Circle())
             .padding(6)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+    }
+}
+
+private struct ShimmerOverlay: View {
+    @State private var phase: Double = -0.4
+
+    var body: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: phase - 0.25),
+                .init(color: .white.opacity(0.35), location: phase),
+                .init(color: .clear, location: phase + 0.25),
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .blendMode(.overlay)
+        .onAppear {
+            withAnimation(.linear(duration: 1.4).repeatForever(autoreverses: false)) {
+                phase = 1.4
+            }
+        }
+        .onDisappear {
+            phase = -0.4
+        }
     }
 }
 

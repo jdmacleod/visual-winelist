@@ -33,13 +33,19 @@ struct ContentView: View {
             if let err { phase = .error(err.localizedDescription) }
         }
         .onChange(of: viewModel.errorMessage) { msg in
-            if let msg { phase = .error(msg) } else if !viewModel.wines.isEmpty { phase = .grid }
+            if let msg { phase = .error(msg) }
         }
         .onChange(of: viewModel.wines.count) { count in
             if count > 0, case .scanning = phase {
                 phase = .grid
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
             }
+        }
+        .onChange(of: viewModel.isScanning) { isScanning in
+            UIApplication.shared.isIdleTimerDisabled = isScanning
+        }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
         }
     }
 
@@ -200,7 +206,7 @@ struct ContentView: View {
                 await viewModel.scan(photoData: photoData)
             } else {
                 await viewModel.appendScan(photoData: photoData)
-                if !viewModel.wines.isEmpty { phase = .grid }
+                if !viewModel.wines.isEmpty && viewModel.errorMessage == nil { phase = .grid }
             }
         } catch {
             phase = .error(error.localizedDescription)
