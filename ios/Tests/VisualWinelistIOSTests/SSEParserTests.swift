@@ -314,6 +314,42 @@ final class IOSTestSuite: XCTestCase {
         XCTAssertEqual(events.count, 0, "cancelled session should yield no events")
     }
 
+    // MARK: - IOSScanSession: 1MB lineBuffer cap mid-chunk
+
+    func testIOSScanSessionLineBufferCapMidChunkDiscardsOversizedLine() async throws {
+        // Deliver a single Data chunk containing: 1MB+ garbage (no newline) + newline + valid SSE.
+        // The new segment-by-segment logic must discard the oversized pseudo-line and still
+        // yield the valid complete event that follows in the same delivery chunk.
+        let garbage = Data(repeating: UInt8(ascii: "x"), count: 1_048_577)
+        let valid = Data("event: complete\ndata: {\"wine_count\":1,\"cache_hits\":0,\"scan_id\":\"y\"}\n\n".utf8)
+        let payload = garbage + Data([UInt8(ascii: "\n")]) + valid
+
+        let baseURL = URL(string: "http://localhost:8000")!
+        await MockProtocolRegistry.shared.setHandler { _ in
+            let response = HTTPURLResponse(
+                url: baseURL, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())  // data ignored; chunks drives delivery
+        }
+        await MockProtocolRegistry.shared.setChunks([payload])  // single chunk with both garbage and valid SSE
+
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let request = URLRequest(url: baseURL.appendingPathComponent("scan"))
+        let (stream, _) = IOSScanSession.make(request: request, configuration: config)
+
+        var events: [SSEEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 1, "oversized line in same chunk must be dropped; only complete event survives")
+        guard case .complete(let payload) = events.first else {
+            XCTFail("Expected .complete event after mid-chunk lineBuffer cap reset, got: \(events)")
+            return
+        }
+        XCTAssertEqual(payload.wine_count, 1)
+    }
+
     // MARK: - iOS BackendClient: checkHealth with injectable session
 
     func testIOSCheckHealth200() async throws {
