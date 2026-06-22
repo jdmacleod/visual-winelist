@@ -10,10 +10,11 @@ struct WineGridView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let cardWidth =
+            let cardWidth = max(
+                1,
                 (proxy.size.width
                     - gridPadding * 2
-                    - gridSpacing * CGFloat(columnCount - 1)) / CGFloat(columnCount)
+                    - gridSpacing * CGFloat(columnCount - 1)) / CGFloat(columnCount))
             let columns = Array(
                 repeating: GridItem(.fixed(cardWidth), spacing: gridSpacing),
                 count: columnCount
