@@ -44,23 +44,6 @@ pseudo-lines and continues.
 
 ---
 
-## SSE: iOS UTF-8 chunk boundary issue in IOSScanSession.swift
-
-`didReceive data:` decodes the full `Data` chunk to `String` before line
-splitting. If a URLSession delivery boundary falls mid-multibyte character (e.g.
-an accented wine name), the entire chunk is silently dropped — potentially
-several complete SSE events. Fix: accumulate raw `Data` in `lineBuffer` and
-decode per-line after splitting on `0x0A`, matching `BackendClient.swift`.
-
----
-
-## Security: JPEG magic-byte validation on image upload
-
-`POST /wines/{id}/image` rejects non-JPEG `Content-Type` headers but does not
-validate actual file magic bytes. A client can send any binary with
-`Content-Type: image/jpeg`. Fix: check `data[:2] == b'\xff\xd8'` before writing.
-
----
 
 ## Performance: Collapse verified_total COUNT into main search query
 
@@ -102,10 +85,11 @@ clause in the `URLError` catch.
 
 ## Tests: MockURLProtocol static var race condition
 
-`MockURLProtocol.handler` is a static `var` set in `setUp()` and cleared in
-`tearDown()`. If two `XCTestCase` instances were ever run in parallel, handlers
-would bleed across tests. `@unchecked Sendable` on `MockURLProtocol` suppresses
-the Swift concurrency check. Fix: use an actor-isolated registry keyed by
+`MockURLProtocol.handler`, `holdLoading`, `onStartLoading`, `onStopLoading` (macOS),
+and `chunks`, `onStartLoading` (iOS) are static `var`s set in `setUp()` and cleared
+in `tearDown()`. If two `XCTestCase` instances were ever run in parallel, state would
+bleed across tests. `@unchecked Sendable` on `MockURLProtocol` suppresses the Swift
+concurrency check. Fix: use an actor-isolated registry keyed by
 `ObjectIdentifier(self)` or enable the `SWIFT_TEST_PARALLEL` guard.
 
 ---
@@ -158,14 +142,20 @@ as a gate failure rather than a warning when `PROFDATA` and `XCTEST` are present
 
 ---
 
-## Backend: `BackendClient.scan()` inner Task not cancelled on consumer cancel
+## iOS: IOSScanSession URLSession leak on stream `break`
 
-`BackendClient.scan()` creates an unstructured `Task { }` inside the
-`AsyncThrowingStream` closure. When the `for-try-await` consumer is cancelled, the
-inner `Task` keeps the `URLSession` connection open until the server closes it (up to
-the configured `timeoutInterval`). A rapid scan→cancel→scan sequence can hit the 503
-`SCANNER_BUSY` gate. Fix: use `withTaskCancellationHandler` to cancel the inner task
-when the stream consumer is cancelled, or switch to structured concurrency so the inner
-task inherits the consumer's cancellation.
+`IOSScanSession` requires callers to hold a reference and call `session.cancel()` to
+stop the URLSession. If the stream consumer exits via `break` without cancellation,
+the URLSession task keeps running and the server's SCANNER_BUSY lock is held until
+the 300-second timeout. The iOS WineListViewModel currently calls `session.cancel()`
+on view dismiss, but the design relies on discipline rather than enforcement.
+Fix: wire `continuation.onTermination` in `IOSScanSession.make()` to cancel the
+underlying URLSessionDataTask automatically, matching the BackendClient.swift pattern.
 
 ---
+
+## Completed
+
+- **v0.2.4.2** — SSE: iOS UTF-8 chunk boundary fix (`IOSScanSession.swift` → `Data`-based `lineBuffer`)
+- **v0.2.4.2** — Security: JPEG magic-byte validation on image upload (`data.startswith(b"\xff\xd8")`)
+- **v0.2.4.2** — Backend: `BackendClient.scan()` inner Task cancellation (`continuation.onTermination`)
