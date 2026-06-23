@@ -140,7 +140,7 @@ test('searchWines sends sort=verified when sortOption is verified', async () => 
 // fetchImageCandidates (new in this PR)
 // ---------------------------------------------------------------------------
 
-test('fetchImageCandidates returns candidates array', async () => {
+test('fetchImageCandidates returns candidates and query', async () => {
   const candidates = [
     {
       url: 'https://cdn.example.com/img.jpg',
@@ -151,13 +151,23 @@ test('fetchImageCandidates returns candidates array', async () => {
       height: 600,
     },
   ];
-  mockFetch.mockResolvedValueOnce(makeOkResponse({ candidates }));
+  mockFetch.mockResolvedValueOnce(
+    makeOkResponse({ candidates, query: 'Château Margaux 2018 wine bottle' }),
+  );
   const result = await fetchImageCandidates('wine-abc');
-  expect(result).toEqual(candidates);
+  expect(result.candidates).toEqual(candidates);
+  expect(result.query).toBeTruthy();
   expect(mockFetch).toHaveBeenCalledWith(
     expect.stringContaining('/wines/wine-abc/image-candidates'),
     undefined,
   );
+});
+
+test('fetchImageCandidates appends q param when provided', async () => {
+  mockFetch.mockResolvedValueOnce(makeOkResponse({ candidates: [], query: 'custom search' }));
+  const result = await fetchImageCandidates('wine-abc', 'custom search');
+  expect(result.query).toBe('custom search');
+  expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('q=custom%20search'), undefined);
 });
 
 test('fetchImageCandidates throws on non-ok response', async () => {

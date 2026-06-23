@@ -22,6 +22,10 @@ function makeCandidate(overrides: Partial<ImageCandidate> = {}): ImageCandidate 
   };
 }
 
+function mockResolved(candidates: ImageCandidate[], query = 'Château Margaux 2018 wine bottle') {
+  vi.mocked(fetchImageCandidates).mockResolvedValue({ candidates, query });
+}
+
 const defaultProps = {
   wineId: 'test-wine-id',
   onSelect: vi.fn(),
@@ -34,21 +38,27 @@ beforeEach(() => {
 });
 
 test('shows searching spinner while loading', () => {
-  // Never resolve — stays in searching phase
   vi.mocked(fetchImageCandidates).mockReturnValue(new Promise(() => {}));
   render(<ImageCandidatePicker {...defaultProps} />);
-  expect(screen.getByText('Searching Brave...')).toBeInTheDocument();
+  expect(screen.getByText('Searching Brave…')).toBeInTheDocument();
 });
 
 test('shows candidates after successful fetch', async () => {
-  vi.mocked(fetchImageCandidates).mockResolvedValue([makeCandidate()]);
+  mockResolved([makeCandidate()]);
   render(<ImageCandidatePicker {...defaultProps} />);
   await waitFor(() => {
-    expect(screen.getByText('Candidates from web')).toBeInTheDocument();
+    const img = document.querySelector('img[src="https://cdn.example.com/thumb.jpg"]');
+    expect(img).not.toBeNull();
   });
-  // The img has alt="" so it has role "presentation" — query by src attribute instead
-  const img = document.querySelector('img[src="https://cdn.example.com/thumb.jpg"]');
-  expect(img).not.toBeNull();
+});
+
+test('populates query input from response', async () => {
+  mockResolved([makeCandidate()], 'Château Margaux 2018 wine bottle');
+  render(<ImageCandidatePicker {...defaultProps} />);
+  await waitFor(() => {
+    const input = screen.getByPlaceholderText('Search query…') as HTMLInputElement;
+    expect(input.value).toBe('Château Margaux 2018 wine bottle');
+  });
 });
 
 test('shows error state when fetchImageCandidates rejects', async () => {
@@ -62,7 +72,7 @@ test('shows error state when fetchImageCandidates rejects', async () => {
 test('retry button in error state triggers a new fetch', async () => {
   vi.mocked(fetchImageCandidates)
     .mockRejectedValueOnce(new Error('Network error'))
-    .mockResolvedValueOnce([makeCandidate()]);
+    .mockResolvedValueOnce({ candidates: [makeCandidate()], query: 'test query' });
 
   render(<ImageCandidatePicker {...defaultProps} />);
   await waitFor(() => {
@@ -73,13 +83,14 @@ test('retry button in error state triggers a new fetch', async () => {
   await user.click(screen.getByRole('button', { name: /try again/i }));
 
   await waitFor(() => {
-    expect(screen.getByText('Candidates from web')).toBeInTheDocument();
+    const img = document.querySelector('img[src="https://cdn.example.com/thumb.jpg"]');
+    expect(img).not.toBeNull();
   });
   expect(vi.mocked(fetchImageCandidates)).toHaveBeenCalledTimes(2);
 });
 
 test('shows empty state when no candidates returned', async () => {
-  vi.mocked(fetchImageCandidates).mockResolvedValue([]);
+  mockResolved([]);
   render(<ImageCandidatePicker {...defaultProps} />);
   await waitFor(() => {
     expect(screen.getByText('No candidates found')).toBeInTheDocument();
@@ -87,7 +98,7 @@ test('shows empty state when no candidates returned', async () => {
 });
 
 test('onSwitchToUpload called when upload link clicked in empty state', async () => {
-  vi.mocked(fetchImageCandidates).mockResolvedValue([]);
+  mockResolved([]);
   render(<ImageCandidatePicker {...defaultProps} />);
   await waitFor(() => screen.getByText(/upload a photo instead/i));
 
@@ -97,7 +108,7 @@ test('onSwitchToUpload called when upload link clicked in empty state', async ()
 });
 
 test('onCancel called when Cancel button clicked', async () => {
-  vi.mocked(fetchImageCandidates).mockResolvedValue([makeCandidate()]);
+  mockResolved([makeCandidate()]);
   render(<ImageCandidatePicker {...defaultProps} />);
   await waitFor(() => screen.getByRole('button', { name: /cancel/i }));
 
@@ -108,7 +119,7 @@ test('onCancel called when Cancel button clicked', async () => {
 
 test('selecting a candidate calls setImageFromUrl and onSelect', async () => {
   const candidate = makeCandidate();
-  vi.mocked(fetchImageCandidates).mockResolvedValue([candidate]);
+  mockResolved([candidate]);
   vi.mocked(setImageFromUrl).mockResolvedValue({
     wine_id: 'test-wine-id',
     image_url: '/wines/test-wine-id/image',
@@ -128,7 +139,7 @@ test('selecting a candidate calls setImageFromUrl and onSelect', async () => {
 
 test('shows image_expired error message on 404/expired error', async () => {
   const candidate = makeCandidate();
-  vi.mocked(fetchImageCandidates).mockResolvedValue([candidate]);
+  mockResolved([candidate]);
   vi.mocked(setImageFromUrl).mockRejectedValue(new Error('image_expired'));
 
   render(<ImageCandidatePicker {...defaultProps} />);
@@ -144,7 +155,7 @@ test('shows image_expired error message on 404/expired error', async () => {
 
 test('shows generic upload error on non-expired failure', async () => {
   const candidate = makeCandidate();
-  vi.mocked(fetchImageCandidates).mockResolvedValue([candidate]);
+  mockResolved([candidate]);
   vi.mocked(setImageFromUrl).mockRejectedValue(new Error('Upload failed: 500'));
 
   render(<ImageCandidatePicker {...defaultProps} />);
@@ -159,19 +170,39 @@ test('shows generic upload error on non-expired failure', async () => {
 });
 
 test('displays vintage extracted from title', async () => {
-  vi.mocked(fetchImageCandidates).mockResolvedValue([
-    makeCandidate({ title: 'Opus One 2019 - Wine.com' }),
-  ]);
+  mockResolved([makeCandidate({ title: 'Opus One 2019 - Wine.com' })]);
   render(<ImageCandidatePicker {...defaultProps} />);
   await waitFor(() => screen.getByText('2019'));
   expect(screen.getByText('2019')).toBeInTheDocument();
 });
 
 test('displays source domain', async () => {
-  vi.mocked(fetchImageCandidates).mockResolvedValue([
-    makeCandidate({ source_url: 'https://www.vivino.com/wines/123' }),
-  ]);
+  mockResolved([makeCandidate({ source_url: 'https://www.vivino.com/wines/123' })]);
   render(<ImageCandidatePicker {...defaultProps} />);
   await waitFor(() => screen.getByText('www.vivino.com'));
   expect(screen.getByText('www.vivino.com')).toBeInTheDocument();
+});
+
+test('search button triggers re-fetch with custom query', async () => {
+  mockResolved([makeCandidate()]);
+  vi.mocked(fetchImageCandidates).mockResolvedValue({ candidates: [], query: 'my custom query' });
+
+  render(<ImageCandidatePicker {...defaultProps} />);
+  await waitFor(() => {
+    expect(vi.mocked(fetchImageCandidates)).toHaveBeenCalledTimes(1);
+  });
+
+  const input = screen.getByPlaceholderText('Search query…');
+  const user = userEvent.setup();
+  await user.clear(input);
+  await user.type(input, 'my custom query');
+  await user.click(screen.getByRole('button', { name: /^search$/i }));
+
+  await waitFor(() => {
+    expect(vi.mocked(fetchImageCandidates)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(fetchImageCandidates)).toHaveBeenLastCalledWith(
+      'test-wine-id',
+      'my custom query',
+    );
+  });
 });
