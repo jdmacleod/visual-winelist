@@ -31,6 +31,7 @@
 		CAFE00000000000000000221 /* StateServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000121 /* StateServer.swift */; };
 		CAFE00000000000000000222 /* Bridges.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000122 /* Bridges.swift */; };
 		CAFE00000000000000000223 /* DebugOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000123 /* DebugOverlay.swift */; };
+		CAFE00000000000000000224 /* DebugBridgeTouch.m in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000124 /* DebugBridgeTouch.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -60,6 +61,8 @@
 		CAFE00000000000000000121 /* StateServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/DebugBridgeCore/StateServer.swift; sourceTree = SOURCE_ROOT; };
 		CAFE00000000000000000122 /* Bridges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/DebugBridgeUI/Bridges.swift; sourceTree = SOURCE_ROOT; };
 		CAFE00000000000000000123 /* DebugOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/DebugBridgeUI/DebugOverlay.swift; sourceTree = SOURCE_ROOT; };
+		CAFE00000000000000000124 /* DebugBridgeTouch.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Sources/DebugBridgeTouch/DebugBridgeTouch.m; sourceTree = SOURCE_ROOT; };
+		CAFE00000000000000000125 /* VisualWinelistIOS-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VisualWinelistIOS-Bridging-Header.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -89,6 +92,7 @@
 				CAFE00000000000000000121 /* StateServer.swift */,
 				CAFE00000000000000000122 /* Bridges.swift */,
 				CAFE00000000000000000123 /* DebugOverlay.swift */,
+				CAFE00000000000000000124 /* DebugBridgeTouch.m */,
 			);
 			name = DebugBridge;
 			sourceTree = "<group>";
@@ -106,6 +110,7 @@
 			children = (
 				CAFE00000000000000000100 /* VisualWinelistIOSApp.swift */,
 				CAFE00000000000000000101 /* Info.plist */,
+				CAFE00000000000000000125 /* VisualWinelistIOS-Bridging-Header.h */,
 				CAFE00000000000000000114 /* ScanSettings.swift */,
 				CAFE00000000000000000031 /* App */,
 				CAFE00000000000000000032 /* Backend */,
@@ -285,6 +290,7 @@
 				CAFE00000000000000000221 /* StateServer.swift in Sources */,
 				CAFE00000000000000000222 /* Bridges.swift in Sources */,
 				CAFE00000000000000000223 /* DebugOverlay.swift in Sources */,
+				CAFE00000000000000000224 /* DebugBridgeTouch.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -424,6 +430,8 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "com.jdmacleod.visual-winelist";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/Sources/DebugBridgeTouch/include";
+				SWIFT_OBJC_BRIDGING_HEADER = "Sources/VisualWinelistIOS/VisualWinelistIOS-Bridging-Header.h";
 				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -436,6 +444,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = WX2USNES7D;
+				EXCLUDED_SOURCE_FILE_NAMES = "Sources/DebugBridgeTouch/DebugBridgeTouch.m";
 				INFOPLIST_FILE = Sources/VisualWinelistIOS/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (

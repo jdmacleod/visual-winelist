@@ -220,12 +220,11 @@
             else { return false }
             let point = CGPoint(x: x.doubleValue, y: y.doubleValue)
             guard let scene = activeScene(), let window = activeKeyWindow(in: scene) else { return false }
-            guard let hit = window.hitTest(point, with: nil) else { return false }
-            if let control = hit as? UIControl {
-                control.sendActions(for: .touchUpInside)
-                return true
-            }
-            return hit.accessibilityActivate()
+            // DebugBridgeTouch synthesizes real IOHIDEvent+UITouch pairs via
+            // UIKit private selectors (KIF-derived). This is the only reliable
+            // path for SwiftUI Buttons on iOS 17/18 where the SwiftUI gesture
+            // system bypasses UIControl and accessibilityActivate.
+            return DebugBridgeTouch.sendTap(at: point, in: window)
         }
 
         /// Set text on the first responder if it's a UITextField or UITextView.
