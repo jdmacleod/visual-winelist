@@ -118,6 +118,9 @@ class WineListViewModel {
                         }
 
                     case .complete(let payload):
+                        // SSE stream is done — unblock action buttons now. Image
+                        // fetch tasks continue in the background via the group.
+                        isScanning = false
                         let hit = payload.cache_hits
                         scanMessage =
                             "\(payload.wine_count) wine\(payload.wine_count == 1 ? "" : "s")"

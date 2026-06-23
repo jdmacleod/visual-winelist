@@ -137,9 +137,14 @@ struct WineDetailView: View {
             Text(wine.name)
                 .font(.title2.bold())
             if let vintage = wine.vintage {
-                Text(vintage)
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(vintage)
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                    Text("vintage")
+                        .font(.caption.bold())
+                        .foregroundStyle(.tertiary)
+                }
             }
             if let price = wine.price {
                 Text(price)
