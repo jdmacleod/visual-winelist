@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.2.11.0 (2026-06-23)
+
+### Added
+
+- **Scan pipeline timing HUD** (iOS DEBUG builds only) — a translucent overlay in the top-right corner of the scan screen displays live instrumentation after each scan: screenshot size (KB), upload latency (`upload_ms`), time to first SSE chunk (`first_chunk_ms`), Ollama extraction wall time (`ollama_ms`), and total scan duration (`total_ms`). A waterfall bar chart shows per-event timing (`wine[n]`, `image[n]`, `complete`).
+- **Scan timing columns in ScanLog** — the backend `scan_log` table now records `ollama_ms`, `image_ms`, `sommelier_ms`, and `total_ms` for each completed scan. Existing databases are upgraded automatically on next startup via additive `ALTER TABLE` DDL (idempotent; existing rows retain NULL for the new columns).
+
+### Infrastructure
+
+- `DebugStore`, `DebugHUD`, `WaterfallView` — new `#if DEBUG`-only Swift types wired to `IOSScanSession` delegate callbacks and `WineListViewModel`. All DebugStore writes from the URLSession delegate queue are dispatched via `Task { @MainActor in }` to respect the `@Observable` main-actor invariant.
+- Migration exception handling narrowed to `OperationalError` (was bare `except Exception`) so non-schema errors (DB locked, disk full) surface at startup rather than silently crippling metric persistence.
+
+### Tests
+
+- **Backend**: 184 tests (was 179) — 5 new tests: `total_ms` in the SSE `complete` event (happy path), `total_ms` in the persisted `ScanLog` row, null timing on the `INTERNAL_ERROR` path, `init_db()` migration idempotency, and timing fields after Ollama failure.
+
 ## v0.2.10.0 (2026-06-23)
 
 ### Fixed

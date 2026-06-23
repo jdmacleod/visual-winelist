@@ -28,6 +28,12 @@ Share wine card via iOS share sheet / AirDrop.
 
 
 
+## E9: Scan stats endpoint + curator chart (Phase 4 instrumentation)
+
+`GET /scan/stats` returning per-phase timing aggregates (p50/p95 for `ollama_ms`, `image_ms`, `sommelier_ms`, `total_ms`). Curator header chart showing scan duration trend. Deferred until 50+ scans have accumulated in `scan_log` to establish a meaningful baseline. Foundation (ScanLog timing columns) shipped in v0.2.11.0.
+
+---
+
 ## E7: Web design system documentation
 
 Document the web curator's emergent color/typography/component system in DESIGN.md alongside the existing iOS tokens. New contributors currently derive web patterns from reading App.tsx/WineCard.tsx rather than a spec, which risks drift.
@@ -80,3 +86,4 @@ Add arrow-key navigation (←→↑↓) between candidates in the expanded 3x3 p
 - **feature/curator-search-query (T4)** — Stats fetched on mount and after every image update in `App.tsx`
 - **feature/curator-search-query (T5)** — `ScanLog` table added; writes at both CompleteEvent yield sites with try/except guards
 - **feature/curator-search-query (T6)** — `GET /scans/recent` returns recent scan summaries + aggregate hit rate; curator header shows hit rate
+- **feature/scan-instrumentation-v0.2.11** — iOS `DebugStore`/`DebugHUD`/`WaterfallView` (#if DEBUG); `IOSScanSession` timing hooks; backend `scan_log` timing columns (`ollama_ms`, `image_ms`, `sommelier_ms`, `total_ms`)
