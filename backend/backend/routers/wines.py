@@ -193,7 +193,9 @@ async def search_wines(
             tasting_note=r.tasting_note,
             pairings=r.pairings,
             verified=r.verified,
-            image_url=f"/wines/{r.wine_id}/image" if r.image_path else None,
+            image_url=f"/wines/{r.wine_id}/image?v={int(r.updated_at.timestamp())}"
+            if r.image_path
+            else None,
         )
         for r in rows
     ]
@@ -243,7 +245,7 @@ async def get_wine_image(
         raise HTTPException(status_code=404, detail="Image file missing") from exc
 
     etag = f'"{st.st_mtime:.0f}-{st.st_size}"'
-    cache_headers = {"Cache-Control": "public, max-age=86400", "ETag": etag}
+    cache_headers = {"Cache-Control": "public, no-cache", "ETag": etag}
 
     if request is not None:
         if_none_match = request.headers.get("if-none-match")
@@ -329,7 +331,9 @@ async def update_wine(wine_id: str, patch: WinePatch) -> WineRecord:
         tasting_note=updated.tasting_note,
         pairings=updated.pairings,
         verified=updated.verified,
-        image_url=f"/wines/{updated.wine_id}/image" if updated.image_path else None,
+        image_url=f"/wines/{updated.wine_id}/image?v={int(updated.updated_at.timestamp())}"
+        if updated.image_path
+        else None,
     )
 
 
