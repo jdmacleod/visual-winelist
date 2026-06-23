@@ -119,6 +119,45 @@ final class WineListViewModelTests: XCTestCase {
             "Unknown error code must be included in the generic fallback message")
     }
 
+    // MARK: - isScanning unblocks at .complete, not after image fetches
+
+    func testIsScanningFalseAtCompleteEventBeforeImageFetchReturns() async {
+        // Regression: isScanning used to stay true until all image fetches finished (defer).
+        // After fix, .complete sets isScanning=false so action buttons unblock immediately.
+        struct SlowImageClient: BackendClientProtocol {
+            func checkHealth() async throws -> HealthResponse { throw BackendError.unreachable("") }
+            func scan(photoData: Data) -> AsyncThrowingStream<SSEEvent, Error> {
+                AsyncThrowingStream { continuation in
+                    let wine = WineObject(name: "Test Wine", confidence: 0.9, wineId: "w1")
+                    let imagePaylod = ImageSSEPayload(wine_id: "w1", url: "/images/w1", placeholder: false)
+                    let complete = CompleteSSEPayload(
+                        wine_count: 1, cache_hits: 0, scan_id: "test",
+                        ollama_ms: nil, image_ms: nil, sommelier_ms: nil, total_ms: nil)
+                    continuation.yield(.wine(wine))
+                    continuation.yield(.image(imagePaylod))
+                    continuation.yield(.complete(complete))
+                    continuation.finish()
+                }
+            }
+            func fetchImage(wineId: String) async throws -> Data {
+                try await Task.sleep(nanoseconds: 500_000_000)  // 500ms — still in-flight when .complete fires
+                return Data()
+            }
+        }
+
+        let vm = WineListViewModel(backend: SlowImageClient())
+        let outerTask = Task { await vm.scan(photoData: Data()) }
+
+        // Poll up to 200ms for isScanning to flip false (happens at .complete, not after 500ms fetchImage).
+        for _ in 0..<40 {
+            if !vm.isScanning { break }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+        XCTAssertFalse(vm.isScanning, "isScanning must be false after .complete even while image fetches are pending")
+
+        await outerTask.value
+    }
+
     // MARK: - Cancel on dismiss
 
     func testWineListViewModelCancelOnDismiss() async {
