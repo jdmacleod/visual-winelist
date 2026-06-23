@@ -28,6 +28,18 @@ Share wine card via iOS share sheet / AirDrop.
 
 
 
+## E7: Web design system documentation
+
+Document the web curator's emergent color/typography/component system in DESIGN.md alongside the existing iOS tokens. New contributors currently derive web patterns from reading App.tsx/WineCard.tsx rather than a spec, which risks drift.
+
+---
+
+## E8: Keyboard navigation in ImageCandidatePicker grid
+
+Add arrow-key navigation (←→↑↓) between candidates in the expanded 3x3 picker grid. Tab-only navigation works but is slow for power curators doing batch image curation.
+
+---
+
 ## Completed
 
 - **v0.2.4.2** — SSE: iOS UTF-8 chunk boundary fix (`IOSScanSession.swift` → `Data`-based `lineBuffer`)
@@ -62,3 +74,9 @@ Share wine card via iOS share sheet / AirDrop.
 - **feature/image-pipeline-opt** — Backend: Pillow format normalization (PNG/WebP→JPEG) wrapped in `asyncio.to_thread` in both `wines.py` and `brave_client.py`
 - **feature/image-pipeline-opt** — `DELETE /wines/{id}` now cleans up variant files and source JPEG on deletion
 - **feature/image-pipeline-opt** — `IMAGE_WEBP_QUALITY` range `[0-100]` validated at startup in `lifespan()`
+- **feature/curator-search-query (T1)** — `GET /wines/{id}/image-candidates` accepts `?q=` override; returns `{candidates, query}`
+- **feature/curator-search-query (T2)** — ImageCandidatePicker expanded to panel body with 3×3 grid, editable query input, and re-search UX
+- **feature/curator-search-query (T3)** — `GET /wines/stats` returns `{total, verified, with_image}`; curator header shows image coverage %
+- **feature/curator-search-query (T4)** — Stats fetched on mount and after every image update in `App.tsx`
+- **feature/curator-search-query (T5)** — `ScanLog` table added; writes at both CompleteEvent yield sites with try/except guards
+- **feature/curator-search-query (T6)** — `GET /scans/recent` returns recent scan summaries + aggregate hit rate; curator header shows hit rate

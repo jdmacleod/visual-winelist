@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.2.8.0 (2026-06-23)
+
+### Added
+
+- **Curator search query** — `GET /wines/{id}/image-candidates` now accepts `?q=` to override the auto-built Brave query. The picker shows the active query in an editable input; submitting triggers a re-search without closing the panel.
+- **Image candidate picker expansion** — the picker is now a panel body (flex, fills parent height) instead of an absolute overlay. Shows a 3×3 grid of 9 candidates with aspect-ratio-correct thumbnails.
+- **Wine stats endpoint** — `GET /wines/stats` returns `{total, verified, with_image}`. The curator header now displays image coverage (%) updated after every image action.
+- **Scan log** — each completed scan writes a `ScanLog` row (scan_id, timestamp, wine_count, cache_hits). Writes at both error-path and happy-path CompleteEvent sites; failures are logged and swallowed so they never block scan delivery.
+- **Recent scans endpoint** — `GET /scans/recent?limit=10` returns the N most recent scan summaries and an aggregate `hit_rate` (cache hits ÷ total wines, capped at 100, null when no data).
+- **Hit rate in curator header** — the scan hit rate (from `/scans/recent`) is displayed in the header alongside image coverage.
+
+### Fixed
+
+- **Portrait-score rejects negative dimensions** — `_portrait_score` now guards `h <= 0 or w <= 0`, preventing negative-dimension Brave results from sorting above valid candidates.
+- **Vintage regex is word-bounded** — `vintageOf()` in `ImageCandidatePicker` now uses `\b...\b` anchors, preventing year extraction from catalog numbers like `SKU-199930`.
+- **Candidate grid key stability** — React grid uses `c.url` as key instead of array index; avoids stale-DOM morphing when re-searching returns a different candidate list.
+
+### Tests
+
+- **Backend**: 177 tests — new coverage for `GET /wines/stats` (empty + mixed data), `GET /wines/{id}/image-candidates` with custom `?q=`, `GET /scans/recent` (empty, with data, hit_rate cap, limit param), and `fetch_image_candidates` custom query forwarding.
+- **Frontend**: 72 tests — picker tests updated for new `{candidates, query}` return shape; added `populates query input from response` and `search button triggers re-fetch with custom query`.
+
 ## v0.2.7.0 (2026-06-22)
 
 ### Added
