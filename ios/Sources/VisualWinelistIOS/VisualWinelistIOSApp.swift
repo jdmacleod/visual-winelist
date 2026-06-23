@@ -12,6 +12,13 @@ private class AppDelegate: NSObject, UIApplicationDelegate {
 struct VisualWinelistIOSApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
+    init() {
+        #if DEBUG
+            StateServer.shared.start()
+            DebugBridgeUIWiring.installAll()
+        #endif
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()

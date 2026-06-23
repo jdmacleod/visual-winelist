@@ -6,12 +6,12 @@ enum AppPhase {
 }
 
 struct ContentView: View {
-    @StateObject private var camera = CameraManager()
-    @StateObject private var viewModel: WineListViewModel
+    @State private var camera = CameraManager()
+    @State private var viewModel: WineListViewModel
     @State private var phase: AppPhase = .camera
 
     init(backendURL: URL) {
-        _viewModel = StateObject(wrappedValue: WineListViewModel(backendURL: backendURL))
+        _viewModel = State(initialValue: WineListViewModel(backendURL: backendURL))
     }
 
     var body: some View {
@@ -99,6 +99,7 @@ struct ContentView: View {
                             Circle().fill(.white).frame(width: 72, height: 72)
                             Circle().stroke(.white.opacity(0.5), lineWidth: 4).frame(width: 84, height: 84)
                         }
+                        .shadow(color: .black.opacity(0.35), radius: 6, x: 0, y: 2)
                     }
                     .disabled(!camera.isSessionRunning)
                     .padding(.bottom, 50)

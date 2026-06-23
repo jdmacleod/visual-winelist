@@ -1,13 +1,15 @@
 import Foundation
+import Observation
 
+@Observable
 @MainActor
-class WineListViewModel: ObservableObject {
-    @Published var wines: [WineState] = []
-    @Published var isScanning = false
-    @Published var scanMessage = ""
-    @Published var errorMessage: String?
-    @Published var selectedWine: WineObject?
-    @Published var backendStatus: BackendStatus = .unknown
+class WineListViewModel {
+    var wines: [WineState] = []
+    var isScanning = false
+    var scanMessage = ""
+    var errorMessage: String?
+    var selectedWine: WineObject?
+    var backendStatus: BackendStatus = .unknown
 
     enum BackendStatus {
         case unknown, ok, degraded(String), unreachable
@@ -116,6 +118,9 @@ class WineListViewModel: ObservableObject {
                         }
 
                     case .complete(let payload):
+                        // SSE stream is done — unblock action buttons now. Image
+                        // fetch tasks continue in the background via the group.
+                        isScanning = false
                         let hit = payload.cache_hits
                         scanMessage =
                             "\(payload.wine_count) wine\(payload.wine_count == 1 ? "" : "s")"

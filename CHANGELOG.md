@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.2.10.0 (2026-06-23)
+
+### Fixed
+
+- **Shutter button visible on all backgrounds** — The capture button now has a drop shadow so it stays visible when the camera preview is white or bright (e.g. during warm-up or scanning a light-coloured menu).
+- **"Scan more" and Trash unblock immediately after extraction** — Both action buttons were disabled until all bottle images finished downloading (30–90s on slow networks). They now re-enable as soon as the backend sends the completion event, while image downloads continue in the background.
+- **Vintage and price labels in wine detail** — The vintage year now appears alongside a "vintage" label so it's never confused with a price or section header.
+
+### Infrastructure
+
+- **iOS QA automation** — Integrated DebugBridge + StateServer (DEBUG-only HTTP server) and ObjC touch synthesis (`DebugBridgeTouch`) so the gstack `/ios-qa` skill can drive the app on a real device via USB without Xcode.
+- **Session security** — `POST /session/release` now requires a valid session-ID header, preventing one agent from evicting another's active QA session.
+
+### Tests
+
+- Regression test for `isScanning` early-release: verifies the scan buttons unblock at the `.complete` SSE event, not after image downloads finish.
+
 ## v0.2.9.0 (2026-06-23)
 
 ### Added

@@ -53,21 +53,25 @@ ios/
 │   ├── project.pbxproj
 │   └── xcshareddata/xcschemes/
 │       └── VisualWinelistIOS.xcscheme
-└── Sources/VisualWinelistIOS/
-    ├── Info.plist                 ← bundle ID, camera usage description
-    ├── VisualWinelistIOSApp.swift
-    ├── App/
-    ├── Backend/
-    ├── Camera/
-    ├── Design/
-    ├── Models/
-    ├── Resources/
-    │   └── Settings.bundle
-    ├── ViewModels/
-    └── Views/
+└── Sources/
+    ├── VisualWinelistIOS/         ← main app target
+    │   ├── Info.plist             ← bundle ID, camera usage description
+    │   ├── VisualWinelistIOSApp.swift
+    │   ├── App/
+    │   ├── Backend/
+    │   ├── Camera/
+    │   ├── Design/
+    │   ├── Models/
+    │   ├── Resources/
+    │   │   └── Settings.bundle
+    │   ├── ViewModels/
+    │   └── Views/
+    ├── DebugBridgeCore/           ← HTTP state server (DEBUG only)
+    ├── DebugBridgeUI/             ← SwiftUI bridge wiring (DEBUG only)
+    └── DebugBridgeTouch/          ← ObjC UITouch synthesis (DEBUG only)
 ```
 
-The Swift source lives entirely under `Sources/VisualWinelistIOS/`. The `.xcodeproj` references those files directly — no code duplication. `Package.swift` remains for `swift build` and CI tooling.
+The main app source lives under `Sources/VisualWinelistIOS/`; the three `DebugBridge*` targets alongside it are DEBUG-only and excluded from App Store builds. The `.xcodeproj` references all source files directly — no code duplication. `Package.swift` remains for `swift build` and CI tooling.
 
 ## Build settings of note
 

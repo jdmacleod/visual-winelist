@@ -119,6 +119,7 @@ class WineListViewModel: ObservableObject {
                         }
 
                     case .complete(let payload):
+                        isScanning = false
                         let hit = payload.cache_hits
                         scanMessage =
                             "\(payload.wine_count) wine\(payload.wine_count == 1 ? "" : "s")"

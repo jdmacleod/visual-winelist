@@ -1,5 +1,6 @@
 @preconcurrency import AVFoundation
 import Foundation
+import Observation
 
 enum CameraError: Error, LocalizedError, Equatable {
     case permissionDenied
@@ -18,10 +19,11 @@ enum CameraError: Error, LocalizedError, Equatable {
     }
 }
 
+@Observable
 @MainActor
-class CameraManager: NSObject, ObservableObject {
-    @Published var isSessionRunning = false
-    @Published var error: CameraError?
+class CameraManager: NSObject {
+    var isSessionRunning = false
+    var error: CameraError?
 
     nonisolated let session = AVCaptureSession()
     private nonisolated let photoOutput = AVCapturePhotoOutput()
