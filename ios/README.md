@@ -71,7 +71,7 @@ ios/
     └── DebugBridgeTouch/          ← ObjC UITouch synthesis (DEBUG only)
 ```
 
-The Swift source lives entirely under `Sources/VisualWinelistIOS/`. The `.xcodeproj` references those files directly — no code duplication. `Package.swift` remains for `swift build` and CI tooling.
+The main app source lives under `Sources/VisualWinelistIOS/`; the three `DebugBridge*` targets alongside it are DEBUG-only and excluded from App Store builds. The `.xcodeproj` references all source files directly — no code duplication. `Package.swift` remains for `swift build` and CI tooling.
 
 ## Build settings of note
 
