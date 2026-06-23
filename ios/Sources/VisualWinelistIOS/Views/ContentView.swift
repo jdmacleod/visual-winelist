@@ -209,6 +209,14 @@ struct ContentView: View {
         do {
             let photoData = try await camera.capturePhoto()
             camera.stopSession()
+            #if DEBUG
+                if let origImg = UIImage(data: photoData) {
+                    DebugStore.shared.stageOriginalSize(
+                        width: Int(origImg.size.width * origImg.scale),
+                        height: Int(origImg.size.height * origImg.scale)
+                    )
+                }
+            #endif
             let uploadData = await Task.detached(priority: .userInitiated) {
                 resizeForUpload(photoData)
             }.value
@@ -228,14 +236,22 @@ struct ContentView: View {
 func resizeForUpload(_ data: Data) -> Data {
     guard let image = UIImage(data: data) else { return data }
     let maxSide = CGFloat(ScanSettings.uploadMaxSide)
-    let size = image.size
-    guard max(size.width, size.height) > maxSide else { return data }
-    let scale = maxSide / max(size.width, size.height)
-    let newSize = CGSize(
-        width: (size.width * scale).rounded(),
-        height: (size.height * scale).rounded()
+    // UIImage.size is in points; multiply by scale to get pixel dimensions.
+    // Without this, a 4320×5760 photo on a 3× device reports size=(1440,1920)
+    // and the guard fails silently (1920 > 1920 is false).
+    let pixelW = image.size.width * image.scale
+    let pixelH = image.size.height * image.scale
+    guard max(pixelW, pixelH) > maxSide else { return data }
+    let downscale = maxSide / max(pixelW, pixelH)
+    let targetPixels = CGSize(
+        width: (pixelW * downscale).rounded(),
+        height: (pixelH * downscale).rounded()
     )
-    let renderer = UIGraphicsImageRenderer(size: newSize)
-    let resized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: newSize)) }
+    // format.scale = 1 → renderer works in pixels directly; default (device screen
+    // scale) would multiply targetPixels by 3× on a Pro device.
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    let renderer = UIGraphicsImageRenderer(size: targetPixels, format: format)
+    let resized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: targetPixels)) }
     return resized.jpegData(compressionQuality: ScanSettings.uploadJPEGQuality) ?? data
 }
