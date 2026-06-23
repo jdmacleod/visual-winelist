@@ -26,6 +26,7 @@
 		CAFE00000000000000000211 /* WineGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000111 /* WineGridView.swift */; };
 		CAFE00000000000000000212 /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000112 /* Settings.bundle */; };
 		CAFE00000000000000000213 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000113 /* Assets.xcassets */; };
+		CAFE00000000000000000214 /* ScanSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000114 /* ScanSettings.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -50,6 +51,7 @@
 		CAFE00000000000000000111 /* WineGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WineGridView.swift; sourceTree = "<group>"; };
 		CAFE00000000000000000112 /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
 		CAFE00000000000000000113 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		CAFE00000000000000000114 /* ScanSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanSettings.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -84,6 +86,7 @@
 			children = (
 				CAFE00000000000000000100 /* VisualWinelistIOSApp.swift */,
 				CAFE00000000000000000101 /* Info.plist */,
+				CAFE00000000000000000114 /* ScanSettings.swift */,
 				CAFE00000000000000000031 /* App */,
 				CAFE00000000000000000032 /* Backend */,
 				CAFE00000000000000000033 /* Camera */,
@@ -257,6 +260,7 @@
 				CAFE0000000000000000020F /* WineBottleCard.swift in Sources */,
 				CAFE00000000000000000210 /* WineDetailView.swift in Sources */,
 				CAFE00000000000000000211 /* WineGridView.swift in Sources */,
+				CAFE00000000000000000214 /* ScanSettings.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
