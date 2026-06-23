@@ -15,9 +15,7 @@ struct VisualWinelistIOSApp: App {
     init() {
         #if DEBUG
             StateServer.shared.start()
-            #if canImport(UIKit)
-                DebugBridgeUIWiring.installAll()
-            #endif
+            DebugBridgeUIWiring.installAll()
         #endif
     }
 

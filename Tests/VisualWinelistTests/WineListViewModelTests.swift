@@ -124,19 +124,25 @@ final class WineListViewModelTests: XCTestCase {
     func testIsScanningFalseAtCompleteEventBeforeImageFetchReturns() async {
         // Regression: isScanning used to stay true until all image fetches finished (defer).
         // After fix, .complete sets isScanning=false so action buttons unblock immediately.
-        struct SlowImageClient: BackendClientProtocol {
+        struct SlowClient: BackendClientProtocol {
             func checkHealth() async throws -> HealthResponse { throw BackendError.unreachable("") }
             func scan(photoData: Data) -> AsyncThrowingStream<SSEEvent, Error> {
                 AsyncThrowingStream { continuation in
-                    let wine = WineObject(name: "Test Wine", confidence: 0.9, wineId: "w1")
-                    let imagePaylod = ImageSSEPayload(wine_id: "w1", url: "/images/w1", placeholder: false)
-                    let complete = CompleteSSEPayload(
-                        wine_count: 1, cache_hits: 0, scan_id: "test",
-                        ollama_ms: nil, image_ms: nil, sommelier_ms: nil, total_ms: nil)
-                    continuation.yield(.wine(wine))
-                    continuation.yield(.image(imagePaylod))
-                    continuation.yield(.complete(complete))
-                    continuation.finish()
+                    // Yield events from a background task so isScanning=true is observable
+                    // before .complete fires (synchronous yield drains before the poll loop runs).
+                    Task {
+                        let wine = WineObject(name: "Test Wine", confidence: 0.9, wineId: "w1")
+                        let imagePayload = ImageSSEPayload(wine_id: "w1", url: "/images/w1", placeholder: false)
+                        let complete = CompleteSSEPayload(
+                            wine_count: 1, cache_hits: 0, scan_id: "test",
+                            ollama_ms: nil, image_ms: nil, sommelier_ms: nil, total_ms: nil)
+                        continuation.yield(.wine(wine))
+                        continuation.yield(.image(imagePayload))
+                        // 50ms gap so isScanning=true can be observed before .complete fires.
+                        try? await Task.sleep(nanoseconds: 50_000_000)
+                        continuation.yield(.complete(complete))
+                        continuation.finish()
+                    }
                 }
             }
             func fetchImage(wineId: String) async throws -> Data {
@@ -145,10 +151,17 @@ final class WineListViewModelTests: XCTestCase {
             }
         }
 
-        let vm = WineListViewModel(backend: SlowImageClient())
+        let vm = WineListViewModel(backend: SlowClient())
         let outerTask = Task { await vm.scan(photoData: Data()) }
 
-        // Poll up to 200ms for isScanning to flip false (happens at .complete, not after 500ms fetchImage).
+        // Wait for scan to start (isScanning goes true once .wine is processed).
+        for _ in 0..<20 {
+            if vm.isScanning { break }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+        XCTAssertTrue(vm.isScanning, "scan should have started")
+
+        // Poll up to 200ms for isScanning to flip false (at .complete, before 500ms fetchImage).
         for _ in 0..<40 {
             if !vm.isScanning { break }
             try? await Task.sleep(nanoseconds: 5_000_000)
@@ -156,6 +169,7 @@ final class WineListViewModelTests: XCTestCase {
         XCTAssertFalse(vm.isScanning, "isScanning must be false after .complete even while image fetches are pending")
 
         await outerTask.value
+        XCTAssertEqual(vm.wines.count, 1, "scan must have produced wines")
     }
 
     // MARK: - Cancel on dismiss
