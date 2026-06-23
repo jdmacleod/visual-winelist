@@ -937,7 +937,7 @@ wheels = [
 
 [[package]]
 name = "visual-winelist-backend"
-version = "0.2.5"
+version = "0.2.8"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
