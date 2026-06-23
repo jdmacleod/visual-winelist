@@ -119,7 +119,7 @@ struct ContentView: View {
                 .padding()
             }
         }
-        .onAppear { camera.session.startRunning() }
+        .onAppear { camera.resumeSession() }
     }
 
     // MARK: - Scanning view
@@ -202,14 +202,34 @@ struct ContentView: View {
         phase = .scanning
         do {
             let photoData = try await camera.capturePhoto()
+            camera.stopSession()
+            let uploadData = await Task.detached(priority: .userInitiated) {
+                resizeForUpload(photoData)
+            }.value
             if viewModel.wines.isEmpty {
-                await viewModel.scan(photoData: photoData)
+                await viewModel.scan(photoData: uploadData)
             } else {
-                await viewModel.appendScan(photoData: photoData)
+                await viewModel.appendScan(photoData: uploadData)
                 if !viewModel.wines.isEmpty && viewModel.errorMessage == nil { phase = .grid }
             }
         } catch {
             phase = .error(error.localizedDescription)
         }
     }
+
+}
+
+func resizeForUpload(_ data: Data) -> Data {
+    guard let image = UIImage(data: data) else { return data }
+    let maxSide = CGFloat(ScanSettings.uploadMaxSide)
+    let size = image.size
+    guard max(size.width, size.height) > maxSide else { return data }
+    let scale = maxSide / max(size.width, size.height)
+    let newSize = CGSize(
+        width: (size.width * scale).rounded(),
+        height: (size.height * scale).rounded()
+    )
+    let renderer = UIGraphicsImageRenderer(size: newSize)
+    let resized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: newSize)) }
+    return resized.jpegData(compressionQuality: ScanSettings.uploadJPEGQuality) ?? data
 }

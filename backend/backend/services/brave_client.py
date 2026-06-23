@@ -13,9 +13,11 @@ D3 — Content-Length pre-check:
 import asyncio
 import logging
 import os
+from io import BytesIO
 from typing import Any
 
 import httpx
+from PIL import Image as _PILImage
 
 from backend import config
 from backend.models.wine import ImageEvent, WineObject
@@ -95,10 +97,90 @@ async def _download_image(url: str) -> bytes | None:
                         return None
                     chunks.append(chunk)
                 data = b"".join(chunks)
-                return data if data else None
+                if not data:
+                    return None
+                if data[:2] != b"\xff\xd8":
+                    try:
+                        _data = data
+
+                        def _convert() -> bytes:
+                            buf = BytesIO()
+                            _PILImage.open(BytesIO(_data)).convert("RGB").save(
+                                buf, "JPEG", quality=85
+                            )
+                            return buf.getvalue()
+
+                        data = await asyncio.to_thread(_convert)
+                    except Exception as exc:
+                        log.debug("Pillow conversion failed for %s: %s", url, exc)
+                        return None
+                return data
     except Exception as exc:
         log.debug("download failed for %s: %s", url, exc)
         return None
+
+
+async def fetch_image_candidates(wine: WineObject, limit: int = 5) -> list[dict[str, Any]]:
+    """
+    Return up to `limit` candidate dicts for curator image selection.
+    Each dict: {"url", "thumbnail_url", "title", "source_url", "width", "height"}.
+    Applies rate limiter. Does not download or persist anything.
+    Returns [] if Brave key is missing or returns no results.
+    """
+    if not config.BRAVE_API_KEY:
+        return []
+
+    await _wait_for_rate_limit()
+
+    query = _build_query(wine)
+    log.debug("[Brave] candidates query='%s'", query)
+
+    try:
+        async with _make_http_client(10.0) as client:
+            r = await client.get(
+                _SEARCH_URL,
+                params={"q": query, "count": str(_SEARCH_COUNT), "search_lang": "en"},
+                headers={
+                    "X-Subscription-Token": config.BRAVE_API_KEY,
+                    "Accept": "application/json",
+                },
+            )
+    except Exception as exc:
+        log.warning("[Brave] candidates search failed for '%s': %s", query, exc)
+        return []
+
+    if r.status_code != 200:
+        log.warning("[Brave] candidates HTTP %d for '%s'", r.status_code, query)
+        return []
+
+    try:
+        body = r.json()
+    except Exception:
+        log.warning("[Brave] candidates could not decode JSON for '%s'", query)
+        return []
+
+    results: list[dict[str, Any]] = body.get("results") or []
+    ranked = sorted(results, key=_portrait_score, reverse=True)
+
+    candidates: list[dict[str, Any]] = []
+    for result in ranked[:limit]:
+        thumb_url = (result.get("thumbnail") or {}).get("src") or ""
+        props = result.get("properties") or {}
+        full_url = props.get("url") or thumb_url
+        if not thumb_url and not full_url:
+            continue
+        candidates.append(
+            {
+                "url": full_url,
+                "thumbnail_url": thumb_url or full_url,
+                "title": result.get("title") or "",
+                "source_url": result.get("url") or "",
+                "width": props.get("width"),
+                "height": props.get("height"),
+            }
+        )
+
+    return candidates
 
 
 async def fetch_image(wine: WineObject) -> ImageEvent | None:

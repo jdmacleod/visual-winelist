@@ -90,6 +90,31 @@ async def update_image(wine_id: str, image_path: str) -> bool:
         return True
 
 
+async def update_image_and_verify(wine_id: str, image_path: str) -> bool:
+    """Set image_path and verified=True atomically. Returns False if record not found."""
+    async with db_session.SessionLocal() as session:
+        record = await session.get(WineCacheRecord, wine_id)
+        if record is None:
+            return False
+        record.image_path = image_path
+        record.verified = True
+        record.updated_at = datetime.now(UTC)
+        await session.commit()
+        return True
+
+
+async def clear_image(wine_id: str) -> None:
+    """Clear image_path and set verified=False. No-op if record not found."""
+    async with db_session.SessionLocal() as session:
+        record = await session.get(WineCacheRecord, wine_id)
+        if record is None:
+            return
+        record.image_path = None
+        record.verified = False
+        record.updated_at = datetime.now(UTC)
+        await session.commit()
+
+
 async def update_fields(
     wine_id: str,
     fields: dict[str, str | None],

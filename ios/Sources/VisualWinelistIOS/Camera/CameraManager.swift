@@ -46,6 +46,11 @@ class CameraManager: NSObject, ObservableObject {
         isSessionRunning = false
     }
 
+    func resumeSession() {
+        Task.detached { [session = self.session] in session.startRunning() }
+        isSessionRunning = true
+    }
+
     func capturePhoto() async throws -> Data {
         try await withCheckedThrowingContinuation { continuation in
             photoContinuation = continuation

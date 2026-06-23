@@ -4,8 +4,20 @@ import UIKit
 struct WineDetailView: View {
     let state: WineState
     var isScanning: Bool = false
+    var backendClient: BackendClient?
+
+    @State private var showFlagAlert = false
+    @State private var flagToast = false
+    @State private var localImageCleared = false
+    @State private var detailImageData: Data?
 
     private var wine: WineObject { state.wine }
+
+    private var hasImage: Bool {
+        if localImageCleared { return false }
+        if case .ready = state { return true }
+        return false
+    }
 
     var body: some View {
         ScrollView {
@@ -14,6 +26,41 @@ struct WineDetailView: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 260)
                     .clipped()
+                    .overlay(alignment: .bottomTrailing) {
+                        if hasImage {
+                            Button {
+                                showFlagAlert = true
+                            } label: {
+                                Image(systemName: "hand.thumbsdown.fill")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 44, height: 44)
+                                    .background(.black.opacity(0.55), in: Circle())
+                            }
+                            .padding(12)
+                            .accessibilityLabel("Flag wrong image")
+                        }
+                    }
+                    .alert("Remove image?", isPresented: $showFlagAlert) {
+                        Button("Remove", role: .destructive) {
+                            Task { await flagImage() }
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("The image will need to be re-set by a curator.")
+                    }
+                    .overlay(alignment: .bottom) {
+                        if flagToast {
+                            Text("Flagged for review")
+                                .font(.caption)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(.black.opacity(0.7), in: Capsule())
+                                .padding(.bottom, 12)
+                                .transition(.opacity)
+                        }
+                    }
 
                 VStack(alignment: .leading, spacing: 20) {
                     header
@@ -34,21 +81,54 @@ struct WineDetailView: View {
         }
         .navigationTitle(wine.name)
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            guard let client = backendClient, let wineId = wine.wineId else { return }
+            if let data = try? await client.fetchImage(wineId: wineId, size: "detail") {
+                withAnimation(.easeIn(duration: 0.25)) {
+                    detailImageData = data
+                }
+            }
+        }
     }
 
     @ViewBuilder
     private var bottleImage: some View {
-        switch state {
-        case .ready(_, let data):
-            if let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
+        if localImageCleared {
+            PlaceholderBottle(wine: wine).frame(height: 260)
+        } else {
+            switch state {
+            case .ready(_, let cardData):
+                ZStack {
+                    if let image = UIImage(data: cardData) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        PlaceholderBottle(wine: wine).frame(height: 260)
+                    }
+                    if let detailData = detailImageData, let image = UIImage(data: detailData) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .transition(.opacity)
+                    }
+                }
+            default:
                 PlaceholderBottle(wine: wine).frame(height: 260)
             }
-        default:
-            PlaceholderBottle(wine: wine).frame(height: 260)
+        }
+    }
+
+    private func flagImage() async {
+        guard let client = backendClient, let wineId = wine.wineId else { return }
+        do {
+            try await client.clearWineImage(wineId: wineId)
+            withAnimation { localImageCleared = true }
+            withAnimation { flagToast = true }
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            withAnimation { flagToast = false }
+        } catch {
+            // silent — image still shows if request failed
         }
     }
 

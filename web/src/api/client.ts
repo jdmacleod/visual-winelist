@@ -1,4 +1,10 @@
-import type { SearchResponse, StatusFilter, SortOption, WineRecord } from '../types/wine';
+import type {
+  ImageCandidate,
+  SearchResponse,
+  StatusFilter,
+  SortOption,
+  WineRecord,
+} from '../types/wine';
 
 // In dev: Vite proxies /wines and /curate to http://localhost:8000.
 // In production: nginx handles routing. Override with VITE_API_BASE_URL if needed.
@@ -86,6 +92,35 @@ export async function patchWine(
   });
   if (!res.ok) throw new Error(`Update failed: ${res.status}`);
   return res.json() as Promise<WineRecord>;
+}
+
+export async function fetchImageCandidates(wineId: string): Promise<ImageCandidate[]> {
+  const res = await timedFetch(`${BASE_URL}/wines/${wineId}/image-candidates`);
+  if (!res.ok) throw new Error(`Candidates failed: ${res.status}`);
+  const body = (await res.json()) as { candidates: ImageCandidate[] };
+  return body.candidates;
+}
+
+export async function setImageFromUrl(
+  wineId: string,
+  url: string,
+): Promise<{ wine_id: string; image_url: string }> {
+  const res = await timedFetch(`${BASE_URL}/wines/${wineId}/image-from-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+  if (!res.ok) {
+    let detail = '';
+    try {
+      detail = ((await res.json()) as { detail?: string }).detail ?? '';
+    } catch {
+      // ignore parse error
+    }
+    if (res.status === 404 && detail === 'image_expired') throw new Error('image_expired');
+    throw new Error(`Upload failed: ${res.status}`);
+  }
+  return res.json() as Promise<{ wine_id: string; image_url: string }>;
 }
 
 export function absoluteImageUrl(relativeUrl: string): string {

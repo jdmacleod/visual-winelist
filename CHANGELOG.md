@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.2.7.0 (2026-06-22)
+
+### Added
+
+- **WebP variant serving** — `GET /wines/{id}/image?size=thumb|card|detail|full` serves a named WebP variant (thumb=120 px, card=320 px, detail=800 px) or the original JPEG (`full`). Responses include `Cache-Control: public, max-age=86400` and a source-keyed ETag derived from `mtime+size`; matching `If-None-Match` returns 304.
+- **Pre-generated variants** — after each upload or image-from-url, all three WebP variants (thumb/card/detail) are generated eagerly via `_generate_all_variants()`, eliminating first-serve latency and thundering-herd on concurrent requests.
+- **iOS `fetchImage` size parameter** — `BackendClient.fetchImage(wineId:size:)` now accepts a `size` string and appends `?size=<size>` to the request URL, enabling callers to request appropriately sized images.
+- **iOS `resizeForUpload` testability** — the function is now a package-level (not `ContentView`-scoped) function, making it accessible via `@testable import` in unit tests.
+
+### Changed
+
+- **`DELETE /wines/{id}` cleans up image files** — deleting a wine record now also removes all three WebP variant files and the source JPEG, preventing orphaned files from accumulating on disk.
+- **iOS `resizeForUpload` runs off main thread** — the 4032×3024 camera photo resize now runs in `Task.detached(priority: .userInitiated)`, keeping the main actor free during CPU-bound JPEG scaling.
+- **Atomic variant writes** — `_generate_variant` writes to `{path}.tmp` and uses `os.replace()` for the final rename, ensuring readers never observe a partial WebP file.
+- **`set_image_from_url` adds Content-Length pre-check** — the `content-length` header is checked before downloading the body; responses that declare over 2 MB are rejected immediately with HTTP 422.
+
+### Fixed
+
+- **SSRF redirect bypass** — `set_image_from_url` now passes `follow_redirects=False` to httpx. Previously a 301/302 to an RFC-1918 address bypassed the IP validator.
+- **Pillow blocking the event loop** — non-JPEG image conversion in `set_image_from_url` and `brave_client._download_image` now runs in `asyncio.to_thread`, preventing Pillow's CPU-bound decode from blocking the asyncio event loop.
+- **`_generate_variant` opens source file safely** — `_PILImage.open()` is now wrapped in `try/except Exception` (re-raised as `OSError`), and a zero-width degenerate-image guard prevents ZeroDivisionError during aspect-ratio computation.
+- **`IMAGE_WEBP_QUALITY` startup validation** — `lifespan()` raises `ValueError` if the configured value is outside `[0, 100]`, failing fast instead of silently producing corrupt WebP output.
+- **`os.path.getsize` race on variant path** — the `getsize` call in `get_wine_image` is now wrapped in `asyncio.to_thread` with an `OSError` guard that returns `-1` if the file disappears between write and stat.
+
+### Tests
+
+- **Backend**: 169 tests — new coverage for variant serving (thumb/card/detail/full), `_generate_variant` unit tests, `_delete_variants` cleanup, upload rollback on missing record, `image-from-url` Content-Length pre-check, and Pillow format normalization path.
+- **iOS**: `ImagePipelineTests` — `ResizeForUploadTests` (downscale, passthrough) and `FetchImageSizeTests` (size param appended, default is `card`) using `MockURLProtocol`.
+
 ## v0.2.6.0 (2026-06-22)
 
 ### Added

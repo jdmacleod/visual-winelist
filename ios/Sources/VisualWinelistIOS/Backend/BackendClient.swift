@@ -57,18 +57,46 @@ struct BackendClient: Sendable {
 
     // MARK: - Image fetch
 
-    func fetchImage(wineId: String) async throws -> Data {
-        let url =
-            baseURL
-            .appendingPathComponent("wines")
-            .appendingPathComponent(wineId)
-            .appendingPathComponent("image")
+    func fetchImage(wineId: String, size: String = "card") async throws -> Data {
+        var components = URLComponents(
+            url:
+                baseURL
+                .appendingPathComponent("wines")
+                .appendingPathComponent(wineId)
+                .appendingPathComponent("image"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [URLQueryItem(name: "size", value: size)]
+        let url = components.url!
         do {
             let (data, response) = try await session.data(from: url)
             guard (response as? HTTPURLResponse)?.statusCode == 200 else {
                 throw BackendError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
             }
             return data
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            throw CancellationError()
+        } catch is URLError {
+            throw BackendError.unreachable(baseURL.absoluteString)
+        }
+    }
+
+    // MARK: - Clear image
+
+    func clearWineImage(wineId: String) async throws {
+        var request = URLRequest(
+            url:
+                baseURL
+                .appendingPathComponent("wines")
+                .appendingPathComponent(wineId)
+                .appendingPathComponent("image")
+        )
+        request.httpMethod = "DELETE"
+        do {
+            let (_, response) = try await session.data(for: request)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                throw BackendError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
+            }
         } catch let urlError as URLError where urlError.code == .cancelled {
             throw CancellationError()
         } catch is URLError {

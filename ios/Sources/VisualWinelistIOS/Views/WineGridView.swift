@@ -26,7 +26,8 @@ struct WineGridView: View {
                         NavigationLink {
                             WineDetailView(
                                 state: state,
-                                isScanning: viewModel.isScanning
+                                isScanning: viewModel.isScanning,
+                                backendClient: viewModel.backendClient
                             )
                         } label: {
                             WineBottleCard(state: state)

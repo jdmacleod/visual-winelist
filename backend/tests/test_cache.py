@@ -335,6 +335,49 @@ async def test_update_image_not_found():
 
 
 # ---------------------------------------------------------------------------
+# cache.update_image_and_verify()
+# ---------------------------------------------------------------------------
+
+
+async def test_update_image_and_verify_happy_path():
+    wine = _wine()
+    await cache.write(wine, "/old/path.jpg", None, [])
+    result = await cache.update_image_and_verify(wine.wine_id, "/new/path.jpg")
+    assert result is True
+    record = await cache.lookup(wine.wine_id)
+    assert record is not None
+    assert record.image_path == "/new/path.jpg"
+    assert record.verified is True
+
+
+async def test_update_image_and_verify_not_found():
+    result = await cache.update_image_and_verify("no-such-id", "/some/path.jpg")
+    assert result is False
+
+
+# ---------------------------------------------------------------------------
+# cache.clear_image()
+# ---------------------------------------------------------------------------
+
+
+async def test_clear_image_resets_path_and_verified():
+    wine = _wine()
+    await cache.write(wine, "/img/bottle.jpg", None, [])
+    await cache.update_image_and_verify(wine.wine_id, "/img/bottle.jpg")
+
+    await cache.clear_image(wine.wine_id)
+
+    record = await cache.lookup(wine.wine_id)
+    assert record is not None
+    assert record.image_path is None
+    assert record.verified is False
+
+
+async def test_clear_image_noop_for_missing_record():
+    await cache.clear_image("no-such-id")  # must not raise
+
+
+# ---------------------------------------------------------------------------
 # cache.update_fields()
 # ---------------------------------------------------------------------------
 

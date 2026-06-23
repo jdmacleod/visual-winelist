@@ -14,6 +14,7 @@ class WineListViewModel: ObservableObject {
     }
 
     private let backend: BackendClient
+    var backendClient: BackendClient { backend }
     private var activeScanSession: IOSScanSession?
 
     init(backendURL: URL) {
