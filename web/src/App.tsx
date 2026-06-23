@@ -188,9 +188,9 @@ export default function App() {
           </span>
           <div>
             <h1 className="text-xl font-semibold text-stone-800">Visual Winelist Curator</h1>
-            {results && (
+            {wineStats && (
               <p className="text-xs text-stone-400 mt-0.5">
-                {results.total.toLocaleString()} wine{results.total !== 1 ? 's' : ''} in cache
+                {wineStats.total.toLocaleString()} wine{wineStats.total !== 1 ? 's' : ''} in cache
                 {results.verified_total > 0 && (
                   <span className="text-green-600">
                     {' '}
