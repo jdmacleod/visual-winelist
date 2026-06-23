@@ -1,6 +1,7 @@
 from collections.abc import AsyncIterator
 
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from backend import config
@@ -37,7 +38,7 @@ async def init_db() -> None:
         for ddl in _SCAN_LOG_MIGRATION_DDL:
             try:
                 await conn.execute(text(ddl))
-            except Exception:
+            except OperationalError:
                 pass  # column already exists
 
 

@@ -576,11 +576,15 @@ async def test_scan_internal_error_scanlog_written_with_null_timing(client):
 
     events = _collect_sse(body.decode())
     event_types = [e for e, _ in events]
-    assert "error" in event_types
-    error_data = json.loads(next(d for e, d in events if e == "error"))
+    assert "error" in event_types, f"expected error event, got: {event_types}"
+    error_events = [d for e, d in events if e == "error"]
+    assert error_events, "expected at least one error event"
+    error_data = json.loads(error_events[0])
     assert error_data["code"] == "INTERNAL_ERROR"
 
-    complete = json.loads(next(d for e, d in events if e == "complete"))
+    complete_events = [d for e, d in events if e == "complete"]
+    assert complete_events, "expected complete event after INTERNAL_ERROR"
+    complete = json.loads(complete_events[0])
     scan_id = complete["scan_id"]
 
     async with db_session.SessionLocal() as s:

@@ -193,10 +193,6 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
                             scan_id=scan_id,
                             wine_count=len(wines),
                             cache_hits=cache_hits,
-                            ollama_ms=None,
-                            image_ms=None,
-                            sommelier_ms=None,
-                            total_ms=None,
                         )
                     )
                     await _s.commit()
