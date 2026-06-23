@@ -503,14 +503,15 @@ async def test_download_image_unreadable_bytes_returns_none(tmp_path):
 
 
 async def test_fetch_image_candidates_no_api_key():
-    """Returns [] immediately when BRAVE_API_KEY is empty."""
+    """Returns ([], query) immediately when BRAVE_API_KEY is empty."""
     with patch("backend.config.BRAVE_API_KEY", ""):
-        result = await brave_client.fetch_image_candidates(_make_wine())
-    assert result == []
+        candidates, query = await brave_client.fetch_image_candidates(_make_wine())
+    assert candidates == []
+    assert isinstance(query, str)
 
 
 async def test_fetch_image_candidates_returns_list():
-    """Returns up to limit candidate dicts on success."""
+    """Returns up to limit candidate dicts and the used query on success."""
     results = [
         {
             "thumbnail": {"src": f"http://cdn.example.com/thumb{i}.jpg"},
@@ -531,9 +532,10 @@ async def test_fetch_image_candidates_returns_list():
         patch("backend.config.BRAVE_API_KEY", "test-key"),
         _with_transport(transport),
     ):
-        candidates = await brave_client.fetch_image_candidates(_make_wine(), limit=3)
+        candidates, query = await brave_client.fetch_image_candidates(_make_wine(), limit=3)
 
     assert len(candidates) == 3
+    assert isinstance(query, str)
     # Each candidate must have the expected shape
     for c in candidates:
         assert "url" in c
@@ -545,29 +547,31 @@ async def test_fetch_image_candidates_returns_list():
 
 
 async def test_fetch_image_candidates_brave_non_200():
-    """Returns [] when Brave returns a non-200 status."""
+    """Returns ([], query) when Brave returns a non-200 status."""
     transport = _MockSearchTransport(search_status=429, search_body=b"rate limited")
     with (
         patch("backend.config.BRAVE_API_KEY", "test-key"),
         _with_transport(transport),
     ):
-        result = await brave_client.fetch_image_candidates(_make_wine())
-    assert result == []
+        candidates, query = await brave_client.fetch_image_candidates(_make_wine())
+    assert candidates == []
+    assert isinstance(query, str)
 
 
 async def test_fetch_image_candidates_invalid_json():
-    """Returns [] when the Brave response body is not valid JSON."""
+    """Returns ([], query) when the Brave response body is not valid JSON."""
     transport = _MockSearchTransport(search_body=b"not-json")
     with (
         patch("backend.config.BRAVE_API_KEY", "test-key"),
         _with_transport(transport),
     ):
-        result = await brave_client.fetch_image_candidates(_make_wine())
-    assert result == []
+        candidates, query = await brave_client.fetch_image_candidates(_make_wine())
+    assert candidates == []
+    assert isinstance(query, str)
 
 
 async def test_fetch_image_candidates_network_exception():
-    """Returns [] on network error."""
+    """Returns ([], query) on network error."""
     import httpx as _httpx
 
     class _FailTransport(httpx.AsyncBaseTransport):
@@ -581,8 +585,22 @@ async def test_fetch_image_candidates_network_exception():
             side_effect=lambda timeout: httpx.AsyncClient(transport=_FailTransport()),
         ),
     ):
-        result = await brave_client.fetch_image_candidates(_make_wine())
-    assert result == []
+        candidates, query = await brave_client.fetch_image_candidates(_make_wine())
+    assert candidates == []
+    assert isinstance(query, str)
+
+
+async def test_fetch_image_candidates_custom_query_used():
+    """Custom query overrides the default _build_query result."""
+    transport = _MockSearchTransport(search_body=b'{"results":[]}')
+    custom_q = "my custom search"
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        _with_transport(transport),
+    ):
+        candidates, query = await brave_client.fetch_image_candidates(_make_wine(), query=custom_q)
+    assert query == custom_q
+    assert transport.search_requests[0].url.params["q"] == custom_q
 
 
 async def test_fetch_image_candidates_skips_result_with_no_urls():
@@ -603,7 +621,7 @@ async def test_fetch_image_candidates_skips_result_with_no_urls():
         patch("backend.config.BRAVE_API_KEY", "test-key"),
         _with_transport(transport),
     ):
-        candidates = await brave_client.fetch_image_candidates(_make_wine())
+        candidates, _ = await brave_client.fetch_image_candidates(_make_wine())
 
     assert len(candidates) == 1
     assert candidates[0]["title"] == "Good Result"
@@ -640,7 +658,7 @@ async def test_fetch_image_candidates_portrait_ranked_first():
         patch("backend.config.BRAVE_API_KEY", "test-key"),
         _with_transport(transport),
     ):
-        candidates = await brave_client.fetch_image_candidates(_make_wine())
+        candidates, _ = await brave_client.fetch_image_candidates(_make_wine())
 
     assert len(candidates) == 2
     assert candidates[0]["title"] == "Portrait"
