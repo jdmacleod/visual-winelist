@@ -52,3 +52,13 @@ Share wine card via iOS share sheet / AirDrop.
 - **feature/ux-improvements** — P2: `notesIncomplete` session flag removed; `WineDetailView` shows "Tasting notes unavailable" whenever `!isScanning && wine.tastingNote == nil` (covers both dropped-connection and cached-wine cases)
 - **Closed (already done in v0.2.4.2)** — URLError mapping incomplete in BackendClient.swift (`.notConnectedToInternet` + `.secureConnectionFailed` were already in the macOS scan() catch)
 - **Closed (not worth complexity)** — Performance: Collapse `verified_total` COUNT into main search query (two queries are intentionally different; FILTER clause merge adds complexity for unmeasurable gain at SQLite personal-use scale)
+- **feature/image-pipeline-opt (T1)** — WebP variant serving: `GET /wines/{id}/image?size=thumb|card|detail|full`; source-keyed ETag + 304 support
+- **feature/image-pipeline-opt (T2)** — Atomic variant writes: `.tmp` + `os.replace()` to prevent partial-file reads
+- **feature/image-pipeline-opt (T3)** — Source-keyed ETag from `os.stat(source_path)` shared across all size variants
+- **feature/image-pipeline-opt (T4)** — Pre-generation of all variants after upload/set-from-url via `_generate_all_variants()`; thundering-herd eliminated
+- **feature/image-pipeline-opt (T5)** — iOS `resizeForUpload` moved to `Task.detached(priority: .userInitiated)`; main actor no longer blocked during photo resize
+- **feature/image-pipeline-opt (T6)** — iOS `fetchImage(wineId:size:)` accepts and forwards `?size=` param
+- **feature/image-pipeline-opt** — Security: `set_image_from_url` now `follow_redirects=False`; SSRF redirect bypass closed
+- **feature/image-pipeline-opt** — Backend: Pillow format normalization (PNG/WebP→JPEG) wrapped in `asyncio.to_thread` in both `wines.py` and `brave_client.py`
+- **feature/image-pipeline-opt** — `DELETE /wines/{id}` now cleans up variant files and source JPEG on deletion
+- **feature/image-pipeline-opt** — `IMAGE_WEBP_QUALITY` range `[0-100]` validated at startup in `lifespan()`
