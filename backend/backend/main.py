@@ -21,6 +21,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if not config.BRAVE_API_KEY:
         warnings.warn("BRAVE_API_KEY not set — image search will be skipped", stacklevel=2)
 
+    if not (0 <= config.IMAGE_WEBP_QUALITY <= 100):
+        raise ValueError(f"IMAGE_WEBP_QUALITY must be 0-100, got {config.IMAGE_WEBP_QUALITY}")
+
     log.info(
         "image config: thumb=%dpx card=%dpx detail=%dpx webp_quality=%d",
         config.IMAGE_THUMB_WIDTH,

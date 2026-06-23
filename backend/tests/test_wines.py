@@ -31,10 +31,13 @@ def _wine(
     return WineObject(name=name, producer=producer, vintage=vintage, confidence=0.9)
 
 
-def _mock_http_response(status: int = 200, content: bytes | None = None) -> MagicMock:
+def _mock_http_response(
+    status: int = 200, content: bytes | None = None, headers: dict | None = None
+) -> MagicMock:
     resp = MagicMock(spec=httpx.Response)
     resp.status_code = status
     resp.content = content if content is not None else make_jpeg()
+    resp.headers = headers or {}
     return resp
 
 

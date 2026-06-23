@@ -131,9 +131,7 @@ export default function ImageCandidatePicker({
   return (
     <div className="absolute inset-0 bg-stone-900 flex flex-col">
       {header}
-      {uploadError && (
-        <p className="text-[10px] text-red-400 px-3 pb-1 flex-shrink-0">{uploadError}</p>
-      )}
+      {uploadError && <p className="text-xs text-red-400 px-3 pb-1 flex-shrink-0">{uploadError}</p>}
       <div className="flex-1 flex items-center px-3 gap-1.5 min-h-0">
         {candidates.map((c, idx) => {
           const isUploading = uploadingIndex === idx;
@@ -167,10 +165,10 @@ export default function ImageCandidatePicker({
                 )}
               </div>
               <div className="min-w-0 mt-0.5 text-left">
-                {c.title && <p className="text-[10px] text-stone-500 truncate">{c.title}</p>}
+                {c.title && <p className="text-xs text-stone-500 truncate">{c.title}</p>}
                 <div className="flex items-center gap-1">
-                  {domain && <p className="text-[10px] text-stone-400 truncate">{domain}</p>}
-                  {vintage && <p className="text-[10px] text-purple-400 shrink-0">{vintage}</p>}
+                  {domain && <p className="text-xs text-stone-400 truncate">{domain}</p>}
+                  {vintage && <p className="text-xs text-purple-400 shrink-0">{vintage}</p>}
                 </div>
               </div>
             </button>

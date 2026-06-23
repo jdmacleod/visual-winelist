@@ -203,7 +203,9 @@ struct ContentView: View {
         do {
             let photoData = try await camera.capturePhoto()
             camera.stopSession()
-            let uploadData = resizeForUpload(photoData)
+            let uploadData = await Task.detached(priority: .userInitiated) {
+                resizeForUpload(photoData)
+            }.value
             if viewModel.wines.isEmpty {
                 await viewModel.scan(photoData: uploadData)
             } else {

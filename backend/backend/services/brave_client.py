@@ -101,9 +101,16 @@ async def _download_image(url: str) -> bytes | None:
                     return None
                 if data[:2] != b"\xff\xd8":
                     try:
-                        buf = BytesIO()
-                        _PILImage.open(BytesIO(data)).convert("RGB").save(buf, "JPEG", quality=85)
-                        data = buf.getvalue()
+                        _data = data
+
+                        def _convert() -> bytes:
+                            buf = BytesIO()
+                            _PILImage.open(BytesIO(_data)).convert("RGB").save(
+                                buf, "JPEG", quality=85
+                            )
+                            return buf.getvalue()
+
+                        data = await asyncio.to_thread(_convert)
                     except Exception as exc:
                         log.debug("Pillow conversion failed for %s: %s", url, exc)
                         return None

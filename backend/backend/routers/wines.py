@@ -2,6 +2,7 @@ import asyncio
 import ipaddress
 import logging
 import os
+from io import BytesIO
 from typing import Any, Literal
 from urllib.parse import urlparse
 
@@ -78,8 +79,13 @@ async def _save_image_bytes(path: str, data: bytes) -> None:
 
 def _generate_variant(source_path: str, variant_path: str, width: int) -> None:
     """Resize source JPEG to `width` px wide, save as WebP. Atomic write via .tmp."""
-    img = _PILImage.open(source_path).convert("RGB")
+    try:
+        img = _PILImage.open(source_path).convert("RGB")
+    except Exception as exc:
+        raise OSError(f"cannot open source image: {exc}") from exc
     orig_w, orig_h = img.size
+    if orig_w == 0:
+        raise OSError(f"degenerate image dimensions: {orig_w}x{orig_h}")
     new_h = round(width * orig_h / orig_w)
     resized = img.resize((width, new_h), _PILImage.Resampling.LANCZOS)
     tmp_path = variant_path + ".tmp"
@@ -102,6 +108,19 @@ _VARIANT_SIZES = {
     "card": lambda: config.IMAGE_CARD_WIDTH,
     "detail": lambda: config.IMAGE_DETAIL_WIDTH,
 }
+
+
+def _generate_all_variants(source_path: str, wine_id: str) -> None:
+    """Pre-generate thumb/card/detail WebP variants to eliminate thundering-herd on first serve."""
+    cache_dir = config.IMAGE_CACHE_DIR
+    for size_name, width_fn in _VARIANT_SIZES.items():
+        variant_path = os.path.join(cache_dir, f"{wine_id}_{size_name}.webp")
+        try:
+            _generate_variant(source_path, variant_path, width_fn())
+        except OSError as exc:
+            log.warning(
+                "pre-generate variant failed wine_id=%s size=%s: %s", wine_id, size_name, exc
+            )
 
 
 router = APIRouter()
@@ -226,7 +245,10 @@ async def get_wine_image(
             log.warning("variant write failed wine_id=%s size=%s: %s", wine_id, size, exc)
             raise HTTPException(status_code=500, detail="variant_write_failed") from exc
 
-    variant_size = os.path.getsize(variant_path)
+    try:
+        variant_size = await asyncio.to_thread(os.path.getsize, variant_path)
+    except OSError:
+        variant_size = -1
     log.info(
         "image_served wine_id=%s size=%s variant_generated=%s variant_size_bytes=%d",
         wine_id,
@@ -261,6 +283,7 @@ async def upload_wine_image(wine_id: str, file: UploadFile) -> dict[str, str]:
 
     await asyncio.to_thread(_delete_variants, wine_id)
     await _save_image_bytes(image_path, data)
+    await asyncio.to_thread(_generate_all_variants, image_path, wine_id)
 
     if not await cache.update_image(wine_id, image_path):
         await asyncio.to_thread(
@@ -292,16 +315,24 @@ async def update_wine(wine_id: str, patch: WinePatch) -> WineRecord:
 
 @router.delete("/wines/{wine_id}", status_code=204)
 async def delete_wine(wine_id: str) -> None:
+    record = await cache.lookup(wine_id)
     deleted = await cache.delete(wine_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Wine record not found")
+    if record is not None:
+        await asyncio.to_thread(_delete_variants, wine_id)
+        if record.image_path:
+            old_path = record.image_path
+            await asyncio.to_thread(
+                lambda: os.unlink(old_path) if os.path.exists(old_path) else None
+            )
 
 
 @router.get("/wines/{wine_id}/image-candidates")
 async def get_image_candidates(wine_id: str) -> dict[str, Any]:
     record = await cache.lookup(wine_id)
     if record is None:
-        raise HTTPException(status_code=404, detail="Wine not found")
+        raise HTTPException(status_code=404, detail="Wine record not found")
     wine = WineObject(
         name=record.name,
         producer=record.producer,
@@ -325,7 +356,7 @@ async def set_image_from_url(wine_id: str, body: ImageFromURLRequest) -> dict[st
     try:
         async with _make_url_client() as client:
             r = await client.get(
-                body.url, headers={"User-Agent": _USER_AGENT}, follow_redirects=True
+                body.url, headers={"User-Agent": _USER_AGENT}, follow_redirects=False
             )
     except Exception as exc:
         raise HTTPException(status_code=422, detail="invalid_image") from exc
@@ -335,8 +366,30 @@ async def set_image_from_url(wine_id: str, body: ImageFromURLRequest) -> dict[st
     if r.status_code != 200:
         raise HTTPException(status_code=422, detail="invalid_image")
 
+    _max_bytes = 2 * 1024 * 1024
+    content_length = r.headers.get("content-length")
+    if content_length is not None and int(content_length) > _max_bytes:
+        raise HTTPException(status_code=422, detail="invalid_image")
+
     data = r.content
-    _validate_jpeg(data, 2 * 1024 * 1024)
+    if len(data) > _max_bytes:
+        raise HTTPException(status_code=422, detail="invalid_image")
+    if not data:
+        raise HTTPException(status_code=422, detail="invalid_image")
+
+    if data[:2] != b"\xff\xd8":
+        try:
+
+            def _normalise() -> bytes:
+                buf = BytesIO()
+                _PILImage.open(BytesIO(data)).convert("RGB").save(buf, "JPEG", quality=85)
+                return buf.getvalue()
+
+            data = await asyncio.to_thread(_normalise)
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail="invalid_image") from exc
+
+    _validate_jpeg(data, _max_bytes)
 
     image_path = os.path.join(config.IMAGE_CACHE_DIR, f"{wine_id}.jpg")
     cache_dir = os.path.realpath(config.IMAGE_CACHE_DIR)
@@ -345,6 +398,7 @@ async def set_image_from_url(wine_id: str, body: ImageFromURLRequest) -> dict[st
 
     await asyncio.to_thread(_delete_variants, wine_id)
     await _save_image_bytes(image_path, data)
+    await asyncio.to_thread(_generate_all_variants, image_path, wine_id)
 
     if not await cache.update_image_and_verify(wine_id, image_path):
         await asyncio.to_thread(
@@ -359,7 +413,7 @@ async def set_image_from_url(wine_id: str, body: ImageFromURLRequest) -> dict[st
 async def clear_wine_image(wine_id: str) -> dict[str, Any]:
     record = await cache.lookup(wine_id)
     if record is None:
-        raise HTTPException(status_code=404, detail="Wine not found")
+        raise HTTPException(status_code=404, detail="Wine record not found")
     old_path = record.image_path
     await cache.clear_image(wine_id)
     await asyncio.to_thread(_delete_variants, wine_id)
