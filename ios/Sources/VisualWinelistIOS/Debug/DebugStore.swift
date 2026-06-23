@@ -13,6 +13,7 @@
         var lastScan: ScanMetrics?
 
         struct ScanMetrics {
+            var backendURL: String = ""
             var screenshotBytes: Int = 0
             var screenshotWidth: Int = 0
             var screenshotHeight: Int = 0
@@ -23,8 +24,9 @@
             var eventTimeline: [(label: String, ms: Int)] = []
         }
 
-        func beginScan(screenshotBytes: Int, width: Int, height: Int) {
+        func beginScan(screenshotBytes: Int, width: Int, height: Int, backendURL: String) {
             lastScan = ScanMetrics(
+                backendURL: backendURL,
                 screenshotBytes: screenshotBytes,
                 screenshotWidth: width,
                 screenshotHeight: height

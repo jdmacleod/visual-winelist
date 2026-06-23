@@ -48,6 +48,7 @@
                 Color.white.opacity(0.3)
                     .frame(height: 1)
                     .padding(.vertical, 1)
+                Text("url: \(m.backendURL)")
                 Text("img: \(m.screenshotWidth)×\(m.screenshotHeight) · \(m.screenshotBytes / 1024) KB")
                 Text("upload: \(m.uploadMs) ms")
                 Text("ttfb: \(m.ttfbMs) ms")

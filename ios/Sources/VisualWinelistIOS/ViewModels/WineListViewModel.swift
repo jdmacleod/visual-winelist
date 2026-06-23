@@ -88,16 +88,7 @@ class WineListViewModel {
         }
 
         #if DEBUG
-            var imgWidth = 0, imgHeight = 0
-            let srcOpts = [kCGImageSourceShouldCache: false] as CFDictionary
-            if let src = CGImageSourceCreateWithData(photoData as CFData, srcOpts),
-                let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]
-            {
-                imgWidth = props[kCGImagePropertyPixelWidth] as? Int ?? 0
-                imgHeight = props[kCGImagePropertyPixelHeight] as? Int ?? 0
-            }
-            DebugStore.shared.beginScan(
-                screenshotBytes: photoData.count, width: imgWidth, height: imgHeight)
+            debugBeginScan(photoData: photoData)
         #endif
         let (stream, scanSession) = backend.scan(photoData: photoData)
         activeScanSession = scanSession
@@ -215,6 +206,25 @@ class WineListViewModel {
             }
         }
     }
+
+    #if DEBUG
+        private func debugBeginScan(photoData: Data) {
+            var imgWidth = 0, imgHeight = 0
+            let srcOpts = [kCGImageSourceShouldCache: false] as CFDictionary
+            if let src = CGImageSourceCreateWithData(photoData as CFData, srcOpts),
+                let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]
+            {
+                imgWidth = props[kCGImagePropertyPixelWidth] as? Int ?? 0
+                imgHeight = props[kCGImagePropertyPixelHeight] as? Int ?? 0
+            }
+            DebugStore.shared.beginScan(
+                screenshotBytes: photoData.count,
+                width: imgWidth,
+                height: imgHeight,
+                backendURL: backend.baseURL.absoluteString
+            )
+        }
+    #endif
 
     private func handleNotesEvent(_ payload: NotesSSEPayload) {
         guard let idx = wines.firstIndex(where: { $0.wine.wineId == payload.wine_id }) else { return }
