@@ -93,10 +93,10 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         #if DEBUG
-            if !debugFirstChunkRecorded, let t1 = debugT1 {
-                let ms = Int(Date().timeIntervalSince(t1) * 1000)
+            if !debugFirstChunkRecorded, let t0 = debugT0 {
+                let ms = Int(Date().timeIntervalSince(t0) * 1000)
                 debugFirstChunkRecorded = true
-                Task { @MainActor in DebugStore.shared.recordFirstChunk(ms: ms) }
+                Task { @MainActor in DebugStore.shared.recordTTFB(ms: ms) }
             }
         #endif
         // Process delivery chunk segment-by-segment on newline boundaries. The previous

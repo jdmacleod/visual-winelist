@@ -14,15 +14,21 @@
 
         struct ScanMetrics {
             var screenshotBytes: Int = 0
+            var screenshotWidth: Int = 0
+            var screenshotHeight: Int = 0
             var uploadMs: Int = 0
-            var firstChunkMs: Int = 0
+            var ttfbMs: Int = 0
             var ollamaMs: Int?
             var totalMs: Int?
             var eventTimeline: [(label: String, ms: Int)] = []
         }
 
-        func beginScan(screenshotBytes: Int) {
-            lastScan = ScanMetrics(screenshotBytes: screenshotBytes)
+        func beginScan(screenshotBytes: Int, width: Int, height: Int) {
+            lastScan = ScanMetrics(
+                screenshotBytes: screenshotBytes,
+                screenshotWidth: width,
+                screenshotHeight: height
+            )
         }
 
         func scanFailed() {
@@ -33,8 +39,8 @@
             lastScan?.uploadMs = ms
         }
 
-        func recordFirstChunk(ms: Int) {
-            lastScan?.firstChunkMs = ms
+        func recordTTFB(ms: Int) {
+            lastScan?.ttfbMs = ms
         }
 
         func recordEvent(label: String, ms: Int) {

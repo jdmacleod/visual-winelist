@@ -1,5 +1,8 @@
 import Foundation
 import Observation
+#if DEBUG
+    import ImageIO
+#endif
 
 @Observable
 @MainActor
@@ -85,7 +88,16 @@ class WineListViewModel {
         }
 
         #if DEBUG
-            DebugStore.shared.beginScan(screenshotBytes: photoData.count)
+            var imgWidth = 0, imgHeight = 0
+            let srcOpts = [kCGImageSourceShouldCache: false] as CFDictionary
+            if let src = CGImageSourceCreateWithData(photoData as CFData, srcOpts),
+                let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]
+            {
+                imgWidth = props[kCGImagePropertyPixelWidth] as? Int ?? 0
+                imgHeight = props[kCGImagePropertyPixelHeight] as? Int ?? 0
+            }
+            DebugStore.shared.beginScan(
+                screenshotBytes: photoData.count, width: imgWidth, height: imgHeight)
         #endif
         let (stream, scanSession) = backend.scan(photoData: photoData)
         activeScanSession = scanSession

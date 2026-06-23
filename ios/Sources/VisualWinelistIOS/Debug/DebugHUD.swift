@@ -48,9 +48,9 @@
                 Color.white.opacity(0.3)
                     .frame(height: 1)
                     .padding(.vertical, 1)
-                Text("img: \(m.screenshotBytes / 1024) KB")
+                Text("img: \(m.screenshotWidth)×\(m.screenshotHeight) · \(m.screenshotBytes / 1024) KB")
                 Text("upload: \(m.uploadMs) ms")
-                Text("1st chunk: \(m.firstChunkMs) ms")
+                Text("ttfb: \(m.ttfbMs) ms")
                 if let ollama = m.ollamaMs { Text("ollama: \(ollama) ms") }
                 if let total = m.totalMs { Text("total: \(total) ms") }
                 if !m.eventTimeline.isEmpty {
