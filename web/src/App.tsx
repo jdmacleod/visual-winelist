@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { searchWines, curate, deleteWine, fetchWineStats, fetchRecentScans } from './api/client';
 import type { WineRecord, SearchResponse, StatusFilter, SortOption, WineStats } from './types/wine';
 import WineCard from './components/WineCard';
@@ -6,7 +6,16 @@ import WineDetailPanel from './components/WineDetailPanel';
 import ConfirmModal from './components/ConfirmModal';
 import Pagination from './components/Pagination';
 
-const PAGE_SIZE = 20;
+const ROWS_PER_PAGE = 5;
+
+type Density = 4 | 8 | 12 | 16;
+const DENSITIES: Density[] = [4, 8, 12, 16];
+const DENSITY_GRID: Record<Density, string> = {
+  4: 'grid-cols-4 gap-4',
+  8: 'grid-cols-8 gap-2',
+  12: 'grid-cols-12 gap-1.5',
+  16: 'grid-cols-16 gap-1',
+};
 
 const STATUS_LABELS: Record<StatusFilter, string> = {
   all: 'All',
@@ -38,6 +47,15 @@ export default function App() {
   const [deleteTarget, setDeleteTarget] = useState<WineRecord | null>(null);
   const [wineStats, setWineStats] = useState<WineStats | null>(null);
   const [hitRate, setHitRate] = useState<number | null>(null);
+  const fetchIdRef = useRef(0);
+  const [density, setDensity] = useState<Density>(() => {
+    const saved = localStorage.getItem('wine-gallery-density');
+    return saved === '4' || saved === '8' || saved === '12' || saved === '16'
+      ? (Number(saved) as Density)
+      : 12;
+  });
+
+  const pageSize = density * ROWS_PER_PAGE;
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -47,10 +65,14 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [query]);
 
-  // Reset to page 1 when filter or sort changes.
+  useEffect(() => {
+    localStorage.setItem('wine-gallery-density', String(density));
+  }, [density]);
+
+  // Reset to page 1 when filter, sort, or density changes.
   useEffect(() => {
     setPage(1);
-  }, [status, sortOption]);
+  }, [status, sortOption, density]);
 
   // Clear stale action errors when the selected wine changes.
   useEffect(() => {
@@ -72,21 +94,24 @@ export default function App() {
   }, [fetchStats]);
 
   const fetchWines = useCallback(async () => {
+    const thisId = ++fetchIdRef.current;
     setLoading(true);
     setFetchError(null);
     try {
-      const data = await searchWines(debouncedQuery, page, PAGE_SIZE, status, sortOption);
+      const data = await searchWines(debouncedQuery, page, pageSize, status, sortOption);
+      if (thisId !== fetchIdRef.current) return;
       setResults(data);
     } catch (err) {
+      if (thisId !== fetchIdRef.current) return;
       setFetchError(
         err instanceof Error
           ? err.message
           : 'Could not reach backend — is it running on localhost:8000?',
       );
     } finally {
-      setLoading(false);
+      if (thisId === fetchIdRef.current) setLoading(false);
     }
-  }, [debouncedQuery, page, status, sortOption]);
+  }, [debouncedQuery, page, pageSize, status, sortOption]);
 
   useEffect(() => {
     void fetchWines();
@@ -176,7 +201,7 @@ export default function App() {
     }
   }, [deleteTarget, fetchWines]);
 
-  const totalPages = results ? Math.ceil(results.total / PAGE_SIZE) : 0;
+  const totalPages = results ? Math.ceil(results.total / pageSize) : 0;
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -243,22 +268,45 @@ export default function App() {
               ))}
             </div>
 
-            <div className="flex items-center gap-2">
-              <label htmlFor="sort-select" className="text-xs text-stone-400 whitespace-nowrap">
-                Sort:
-              </label>
-              <select
-                id="sort-select"
-                value={sortOption}
-                onChange={(e) => setSortOption(e.target.value as SortOption)}
-                className="text-xs border border-stone-200 rounded-md px-2 py-1 text-stone-600 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label htmlFor="sort-select" className="text-xs text-stone-400 whitespace-nowrap">
+                  Sort:
+                </label>
+                <select
+                  id="sort-select"
+                  value={sortOption}
+                  onChange={(e) => setSortOption(e.target.value as SortOption)}
+                  className="text-xs border border-stone-200 rounded-md px-2 py-1 text-stone-600 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  {(Object.keys(SORT_LABELS) as SortOption[]).map((s) => (
+                    <option key={s} value={s}>
+                      {SORT_LABELS[s]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div
+                className="flex border border-stone-200 rounded-lg overflow-hidden"
+                role="group"
+                aria-label="Gallery density"
               >
-                {(Object.keys(SORT_LABELS) as SortOption[]).map((s) => (
-                  <option key={s} value={s}>
-                    {SORT_LABELS[s]}
-                  </option>
+                {DENSITIES.map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setDensity(d)}
+                    aria-pressed={density === d}
+                    className={`px-2.5 py-1 text-xs font-semibold border-r border-stone-200 last:border-r-0 transition-colors ${
+                      density === d
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-white text-stone-500 hover:bg-stone-100'
+                    }`}
+                  >
+                    {d}
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
           </div>
         </div>
@@ -296,9 +344,14 @@ export default function App() {
 
         {!loading && results && results.results.length > 0 && (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div className={`grid ${DENSITY_GRID[density]}`}>
               {results.results.map((wine) => (
-                <WineCard key={wine.wine_id} wine={wine} onClick={() => setSelected(wine)} />
+                <WineCard
+                  key={wine.wine_id}
+                  wine={wine}
+                  density={density}
+                  onClick={() => setSelected(wine)}
+                />
               ))}
             </div>
 
