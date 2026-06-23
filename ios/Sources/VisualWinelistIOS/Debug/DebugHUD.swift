@@ -4,14 +4,31 @@
     struct DebugHUD: View {
         @State private var store = DebugStore.shared
         @State private var expanded = false
+        @State private var dragOffset: CGSize = .zero
+        @State private var lastDragOffset: CGSize = .zero
 
         var body: some View {
             if let m = store.lastScan {
-                if expanded {
-                    expandedPanel(m)
-                } else {
-                    pill(m)
+                Group {
+                    if expanded {
+                        expandedPanel(m)
+                    } else {
+                        pill(m)
+                    }
                 }
+                .offset(dragOffset)
+                .gesture(
+                    DragGesture(minimumDistance: 10)
+                        .onChanged { value in
+                            dragOffset = CGSize(
+                                width: lastDragOffset.width + value.translation.width,
+                                height: lastDragOffset.height + value.translation.height
+                            )
+                        }
+                        .onEnded { _ in
+                            lastDragOffset = dragOffset
+                        }
+                )
             }
         }
 
@@ -43,7 +60,9 @@
                     } label: {
                         Image(systemName: "xmark")
                             .imageScale(.small)
+                            .padding(6)
                     }
+                    .contentShape(Rectangle())
                 }
                 Color.white.opacity(0.3)
                     .frame(height: 1)
@@ -57,6 +76,7 @@
                 Text("ttfb: \(m.ttfbMs) ms")
                 if let ollama = m.ollamaMs { Text("ollama: \(ollama) ms") }
                 if let total = m.totalMs { Text("total: \(total) ms") }
+                if let count = m.wineCount { Text("wines: \(count)") }
                 if !m.eventTimeline.isEmpty {
                     ScrollView(.vertical, showsIndicators: true) {
                         WaterfallView(events: m.eventTimeline)

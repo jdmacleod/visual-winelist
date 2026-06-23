@@ -48,7 +48,7 @@ struct ContentView: View {
             UIApplication.shared.isIdleTimerDisabled = false
         }
         #if DEBUG
-            .overlay(alignment: .topTrailing) {
+            .overlay(alignment: .bottomTrailing) {
                 DebugHUD()
             }
         #endif

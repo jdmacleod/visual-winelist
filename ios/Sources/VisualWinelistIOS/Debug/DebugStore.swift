@@ -27,6 +27,7 @@
             var ttfbMs: Int = 0
             var ollamaMs: Int?
             var totalMs: Int?
+            var wineCount: Int?
             var eventTimeline: [(label: String, ms: Int)] = []
         }
 
@@ -67,6 +68,7 @@
         func recordComplete(payload: CompleteSSEPayload) {
             lastScan?.ollamaMs = payload.ollama_ms
             lastScan?.totalMs = payload.total_ms
+            lastScan?.wineCount = payload.wine_count
         }
     }
 #endif
