@@ -29,19 +29,19 @@ struct ContentView: View {
         }
         .task { await camera.startSession() }
         .task { await viewModel.checkHealth() }
-        .onChange(of: camera.error) { err in
+        .onChange(of: camera.error) { _, err in
             if let err { phase = .error(err.localizedDescription) }
         }
-        .onChange(of: viewModel.errorMessage) { msg in
+        .onChange(of: viewModel.errorMessage) { _, msg in
             if let msg { phase = .error(msg) }
         }
-        .onChange(of: viewModel.wines.count) { count in
+        .onChange(of: viewModel.wines.count) { _, count in
             if count > 0, case .scanning = phase {
                 phase = .grid
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
             }
         }
-        .onChange(of: viewModel.isScanning) { isScanning in
+        .onChange(of: viewModel.isScanning) { _, isScanning in
             UIApplication.shared.isIdleTimerDisabled = isScanning
         }
         .onDisappear {
