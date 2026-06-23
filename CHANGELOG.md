@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.2.9.0 (2026-06-23)
+
+### Added
+
+- **Gallery density control** — Toolbar button group (4 / 8 / 12 / 16 columns) lets curators switch between a spacious 4-column view and a dense 16-column overview. Selection persists to `localStorage` across reloads. Page size scales with density (density × 5 rows per page), so the total wine count per page stays proportional.
+
+### Fixed
+
+- **Image cache staleness** — `searchWines` and the PATCH response now embed `?v={updated_at_timestamp}` in every image URL. After a label upload, the URL changes, so the browser fetches the fresh image instead of serving the Chrome `max-age=86400` cache entry. `Cache-Control` changed from `public, max-age=86400` to `public, no-cache` to force ETag revalidation on subsequent loads.
+- **Escape closes both zoom modal and detail panel** — Pressing Escape while the label-zoom modal was open fired both the zoom handler and the WineDetailPanel handler, closing the detail panel unexpectedly. The zoom Escape handler now calls `e.stopPropagation()` so only the modal closes.
+- **Stale density-change fetch** — Changing density while on page > 1 triggered two simultaneous `searchWines` calls (one with the old page, one with page=1). A `fetchId` counter now discards the stale response so only the second, correct call updates the gallery.
+- **Space key scrolls page** — `e.preventDefault()` added to the `Space` key handler on WineCard so pressing Space to select a card no longer also scrolls the gallery.
+- **"Upload" button label** — The image upload button in WineDetailPanel now reads "Upload" (was "Replace").
+
+### Tests
+
+- **Backend**: 179 tests — new coverage for `?v=` timestamp in `searchWines` and PATCH responses; strengthened assertions to verify the timestamp is a non-zero integer.
+- **Frontend**: 94 tests — density control (button rendering, default, localStorage persistence/restore/fallback, pageSize calculation, page reset); WineCard (zoom open/close, Space/Enter/Escape key behaviors); WineDetailPanel ("Upload" label assertion).
+
 ## v0.2.8.0 (2026-06-23)
 
 ### Added

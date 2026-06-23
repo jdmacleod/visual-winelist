@@ -159,7 +159,10 @@ async def test_search_result_includes_image_url(client):
 
     r = await client.get("/wines/search")
     result = r.json()["results"][0]
-    assert result["image_url"] == f"/wines/{_wine().wine_id}/image"
+    image_url = result["image_url"]
+    assert image_url.startswith(f"/wines/{_wine().wine_id}/image?v=")
+    ts = image_url.split("?v=")[1]
+    assert ts.isdigit() and int(ts) > 0, f"Expected a positive integer timestamp, got: {ts!r}"
     assert result["tasting_note"] == "Notes here"
     assert result["pairings"] == ["lamb"]
 
@@ -508,6 +511,30 @@ async def test_patch_wine_empty_body(client):
     assert body["producer"] == wine.producer
 
 
+async def test_patch_wine_image_url_versioned(client):
+    """PATCH /wines/{id} returns a versioned image_url when the wine has an image."""
+    wine = _wine()
+    await cache.write(wine, "/img/bottle.jpg", None, [])
+
+    r = await client.patch(f"/wines/{wine.wine_id}", json={"name": "Patched Name"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["image_url"] is not None
+    assert body["image_url"].startswith(f"/wines/{wine.wine_id}/image?v=")
+    ts = body["image_url"].split("?v=")[1]
+    assert ts.isdigit() and int(ts) > 0, f"Expected a positive integer timestamp, got: {ts!r}"
+
+
+async def test_patch_wine_image_url_null_when_no_image(client):
+    """PATCH /wines/{id} returns null image_url when the wine has no image."""
+    wine = _wine()
+    await cache.write(wine, None, None, [])
+
+    r = await client.patch(f"/wines/{wine.wine_id}", json={"name": "Patched"})
+    assert r.status_code == 200
+    assert r.json()["image_url"] is None
+
+
 # ---------------------------------------------------------------------------
 # GET /wines/search — status filter, verified_total, sort
 # ---------------------------------------------------------------------------
@@ -591,7 +618,7 @@ async def test_get_image_cache_control_header(client, tmp_path):
 
     r = await client.get(f"/wines/{wine.wine_id}/image")
     assert r.status_code == 200
-    assert r.headers["cache-control"] == "public, max-age=86400"
+    assert r.headers["cache-control"] == "public, no-cache"
 
 
 async def test_search_sort_name_desc(client):

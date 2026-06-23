@@ -7,6 +7,8 @@ vi.mock('./api/client', () => ({
   searchWines: vi.fn(),
   curate: vi.fn(),
   deleteWine: vi.fn(),
+  fetchWineStats: vi.fn().mockResolvedValue(null),
+  fetchRecentScans: vi.fn().mockResolvedValue(null),
   absoluteImageUrl: (url: string) => url,
 }));
 
@@ -40,6 +42,7 @@ function makeResponse(wines: WineRecord[], verified_total = 0, total?: number): 
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
 });
 
 test('renders wine list after loading', async () => {
@@ -212,4 +215,112 @@ test('default sort is not verified on fresh render', () => {
   render(<App />);
   const select = screen.getByRole('combobox', { name: /sort/i }) as HTMLSelectElement;
   expect(select.value).not.toBe('verified');
+});
+
+// ---------------------------------------------------------------------------
+// Density control
+// ---------------------------------------------------------------------------
+
+test('density control renders buttons for 4, 8, 12, 16 columns', () => {
+  vi.mocked(searchWines).mockResolvedValue(makeResponse([]));
+  render(<App />);
+  const group = screen.getByRole('group', { name: /gallery density/i });
+  const buttons = Array.from(group.querySelectorAll('button')).map((b) => b.textContent);
+  expect(buttons).toEqual(['4', '8', '12', '16']);
+});
+
+test('default density is 12 when localStorage is empty', () => {
+  vi.mocked(searchWines).mockResolvedValue(makeResponse([]));
+  render(<App />);
+  const group = screen.getByRole('group', { name: /gallery density/i });
+  const btn12 = Array.from(group.querySelectorAll('button')).find((b) => b.textContent === '12')!;
+  expect(btn12.getAttribute('aria-pressed')).toBe('true');
+});
+
+test('clicking density button 4 updates aria-pressed and calls searchWines with pageSize=20', async () => {
+  const user = userEvent.setup();
+  vi.mocked(searchWines).mockResolvedValue(makeResponse([]));
+  render(<App />);
+
+  const group = screen.getByRole('group', { name: /gallery density/i });
+  const btn4 = Array.from(group.querySelectorAll('button')).find((b) => b.textContent === '4')!;
+  await user.click(btn4);
+
+  expect(btn4.getAttribute('aria-pressed')).toBe('true');
+  await waitFor(() => {
+    const calls = vi.mocked(searchWines).mock.calls;
+    const last = calls.at(-1)!;
+    // pageSize = density * ROWS_PER_PAGE = 4 * 5 = 20
+    expect(last[2]).toBe(20);
+  });
+});
+
+test('clicking density button 16 calls searchWines with pageSize=80', async () => {
+  const user = userEvent.setup();
+  vi.mocked(searchWines).mockResolvedValue(makeResponse([]));
+  render(<App />);
+
+  const group = screen.getByRole('group', { name: /gallery density/i });
+  const btn16 = Array.from(group.querySelectorAll('button')).find((b) => b.textContent === '16')!;
+  await user.click(btn16);
+
+  await waitFor(() => {
+    const calls = vi.mocked(searchWines).mock.calls;
+    const last = calls.at(-1)!;
+    // pageSize = density * ROWS_PER_PAGE = 16 * 5 = 80
+    expect(last[2]).toBe(80);
+  });
+});
+
+test('density selection is persisted to localStorage', async () => {
+  const user = userEvent.setup();
+  vi.mocked(searchWines).mockResolvedValue(makeResponse([]));
+  render(<App />);
+
+  const group = screen.getByRole('group', { name: /gallery density/i });
+  const btn8 = Array.from(group.querySelectorAll('button')).find((b) => b.textContent === '8')!;
+  await user.click(btn8);
+
+  expect(localStorage.getItem('wine-gallery-density')).toBe('8');
+});
+
+test('density is restored from localStorage on mount', () => {
+  localStorage.setItem('wine-gallery-density', '4');
+  vi.mocked(searchWines).mockResolvedValue(makeResponse([]));
+  render(<App />);
+
+  const group = screen.getByRole('group', { name: /gallery density/i });
+  const btn4 = Array.from(group.querySelectorAll('button')).find((b) => b.textContent === '4')!;
+  expect(btn4.getAttribute('aria-pressed')).toBe('true');
+});
+
+test('invalid localStorage density value falls back to default 12', () => {
+  localStorage.setItem('wine-gallery-density', 'bad');
+  vi.mocked(searchWines).mockResolvedValue(makeResponse([]));
+  render(<App />);
+
+  const group = screen.getByRole('group', { name: /gallery density/i });
+  const btn12 = Array.from(group.querySelectorAll('button')).find((b) => b.textContent === '12')!;
+  expect(btn12.getAttribute('aria-pressed')).toBe('true');
+});
+
+test('changing density resets page to 1', async () => {
+  const user = userEvent.setup();
+  // Use total > pageSize to show pagination, pageSize=60 (density=12)
+  vi.mocked(searchWines).mockResolvedValue(makeResponse([makeWine()], 0, 200));
+  render(<App />);
+
+  await waitFor(() => screen.getByRole('button', { name: /next/i }));
+  await user.click(screen.getByRole('button', { name: /next/i }));
+
+  // Switch density - should reset page to 1
+  const group = screen.getByRole('group', { name: /gallery density/i });
+  const btn4 = Array.from(group.querySelectorAll('button')).find((b) => b.textContent === '4')!;
+  await user.click(btn4);
+
+  await waitFor(() => {
+    const calls = vi.mocked(searchWines).mock.calls;
+    const last = calls.at(-1)!;
+    expect(last[1]).toBe(1); // page reset to 1
+  });
 });
