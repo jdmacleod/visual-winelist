@@ -495,3 +495,248 @@ async def test_download_image_unreadable_bytes_returns_none(tmp_path):
         result = await brave_client.fetch_image(_make_wine())
 
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# T3: fetch_image_candidates (new in this PR — lines 123-176)
+# ---------------------------------------------------------------------------
+
+
+async def test_fetch_image_candidates_no_api_key():
+    """Returns [] immediately when BRAVE_API_KEY is empty."""
+    with patch("backend.config.BRAVE_API_KEY", ""):
+        result = await brave_client.fetch_image_candidates(_make_wine())
+    assert result == []
+
+
+async def test_fetch_image_candidates_returns_list():
+    """Returns up to limit candidate dicts on success."""
+    results = [
+        {
+            "thumbnail": {"src": f"http://cdn.example.com/thumb{i}.jpg"},
+            "properties": {
+                "url": f"http://cdn.example.com/img{i}.jpg",
+                "width": 300,
+                "height": 600,
+            },
+            "title": f"Wine {i}",
+            "url": f"http://www.source{i}.com/wine",
+        }
+        for i in range(5)
+    ]
+    search_body = _brave_response(results)
+    transport = _MockSearchTransport(search_body=search_body)
+
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        _with_transport(transport),
+    ):
+        candidates = await brave_client.fetch_image_candidates(_make_wine(), limit=3)
+
+    assert len(candidates) == 3
+    # Each candidate must have the expected shape
+    for c in candidates:
+        assert "url" in c
+        assert "thumbnail_url" in c
+        assert "title" in c
+        assert "source_url" in c
+        assert "width" in c
+        assert "height" in c
+
+
+async def test_fetch_image_candidates_brave_non_200():
+    """Returns [] when Brave returns a non-200 status."""
+    transport = _MockSearchTransport(search_status=429, search_body=b"rate limited")
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        _with_transport(transport),
+    ):
+        result = await brave_client.fetch_image_candidates(_make_wine())
+    assert result == []
+
+
+async def test_fetch_image_candidates_invalid_json():
+    """Returns [] when the Brave response body is not valid JSON."""
+    transport = _MockSearchTransport(search_body=b"not-json")
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        _with_transport(transport),
+    ):
+        result = await brave_client.fetch_image_candidates(_make_wine())
+    assert result == []
+
+
+async def test_fetch_image_candidates_network_exception():
+    """Returns [] on network error."""
+    import httpx as _httpx
+
+    class _FailTransport(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+            raise _httpx.ConnectError("refused")
+
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        patch(
+            "backend.services.brave_client._make_http_client",
+            side_effect=lambda timeout: httpx.AsyncClient(transport=_FailTransport()),
+        ),
+    ):
+        result = await brave_client.fetch_image_candidates(_make_wine())
+    assert result == []
+
+
+async def test_fetch_image_candidates_skips_result_with_no_urls():
+    """Candidates without thumbnail or url are skipped."""
+    results = [
+        {"thumbnail": {}, "properties": {}, "title": "No URL"},  # no src, no url → skip
+        {
+            "thumbnail": {"src": "http://cdn.example.com/t.jpg"},
+            "properties": {"url": "http://cdn.example.com/img.jpg", "width": 300, "height": 600},
+            "title": "Good Result",
+            "url": "http://source.com/wine",
+        },
+    ]
+    search_body = _brave_response(results)
+    transport = _MockSearchTransport(search_body=search_body)
+
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        _with_transport(transport),
+    ):
+        candidates = await brave_client.fetch_image_candidates(_make_wine())
+
+    assert len(candidates) == 1
+    assert candidates[0]["title"] == "Good Result"
+
+
+async def test_fetch_image_candidates_portrait_ranked_first():
+    """Portrait-shaped candidates (tall h/w ratio) appear first in results."""
+    results = [
+        {
+            "thumbnail": {"src": "http://cdn.example.com/landscape.jpg"},
+            "properties": {
+                "url": "http://cdn.example.com/landscape.jpg",
+                "width": 800,
+                "height": 400,
+            },
+            "title": "Landscape",
+            "url": "http://source.com/landscape",
+        },
+        {
+            "thumbnail": {"src": "http://cdn.example.com/portrait.jpg"},
+            "properties": {
+                "url": "http://cdn.example.com/portrait.jpg",
+                "width": 300,
+                "height": 700,
+            },
+            "title": "Portrait",
+            "url": "http://source.com/portrait",
+        },
+    ]
+    search_body = _brave_response(results)
+    transport = _MockSearchTransport(search_body=search_body)
+
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        _with_transport(transport),
+    ):
+        candidates = await brave_client.fetch_image_candidates(_make_wine())
+
+    assert len(candidates) == 2
+    assert candidates[0]["title"] == "Portrait"
+    assert candidates[1]["title"] == "Landscape"
+
+
+# ---------------------------------------------------------------------------
+# T4: fetch_image edge cases (remaining uncovered paths)
+# ---------------------------------------------------------------------------
+
+
+async def test_fetch_image_brave_network_exception(tmp_path):
+    """Returns None when the Brave API call raises a network error."""
+    import httpx as _httpx
+
+    class _FailTransport(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+            raise _httpx.ConnectError("refused")
+
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        patch(
+            "backend.services.brave_client._make_http_client",
+            side_effect=lambda timeout: httpx.AsyncClient(transport=_FailTransport()),
+        ),
+    ):
+        result = await brave_client.fetch_image(_make_wine())
+    assert result is None
+
+
+async def test_fetch_image_brave_json_decode_error(tmp_path):
+    """Returns None when Brave response body is not valid JSON."""
+    transport = _MockSearchTransport(search_body=b"not-json")
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        _with_transport(transport),
+    ):
+        result = await brave_client.fetch_image(_make_wine())
+    assert result is None
+
+
+async def test_fetch_image_skips_candidate_without_thumb_url(tmp_path):
+    """A candidate with no thumbnail.src is skipped; next candidate is tried."""
+    results = [
+        {
+            "thumbnail": {},  # no src → skip
+            "properties": {
+                "url": "http://cdn.example.com/no-thumb.jpg",
+                "width": 300,
+                "height": 600,
+            },
+        },
+        _make_result("http://cdn.example.com/ok.jpg", width=300, height=600),
+    ]
+    search_body = _brave_response(results)
+    transport = _MockSearchTransport(search_body=search_body, image_body=_FAKE_JPEG)
+
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        _with_transport(transport),
+    ):
+        result = await brave_client.fetch_image(_make_wine())
+
+    assert result is not None  # second candidate succeeded
+
+
+async def test_fetch_image_oserror_on_save_tries_next_candidate(tmp_path):
+    """OSError writing to disk causes the candidate to be skipped, not a crash."""
+    results = [
+        _make_result("http://cdn.example.com/a.jpg", width=300, height=600),
+        _make_result("http://cdn.example.com/b.jpg", width=300, height=600),
+    ]
+    search_body = _brave_response(results)
+    transport = _MockSearchTransport(search_body=search_body, image_body=_FAKE_JPEG)
+
+    call_count = 0
+
+    original_open = open  # noqa: WPS421 (builtins)
+
+    def _flaky_open(path, mode="r", **kwargs):
+        nonlocal call_count
+        if "wb" in mode and call_count == 0:
+            call_count += 1
+            raise OSError("disk full")
+        return original_open(path, mode, **kwargs)
+
+    with (
+        patch("backend.config.BRAVE_API_KEY", "test-key"),
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        _with_transport(transport),
+        patch("builtins.open", side_effect=_flaky_open),
+    ):
+        result = await brave_client.fetch_image(_make_wine())
+
+    # Second candidate should succeed after the first write fails
+    assert result is not None

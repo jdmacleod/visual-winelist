@@ -5,6 +5,8 @@ import {
   absoluteImageUrl,
   patchWine,
   uploadWineImage,
+  fetchImageCandidates,
+  setImageFromUrl,
 } from './client';
 
 const mockFetch = vi.fn();
@@ -132,4 +134,67 @@ test('searchWines sends sort=verified when sortOption is verified', async () => 
   const calledUrl = mockFetch.mock.calls[0][0] as string;
   expect(calledUrl).toContain('sort=verified');
   expect(calledUrl).toContain('order=desc');
+});
+
+// ---------------------------------------------------------------------------
+// fetchImageCandidates (new in this PR)
+// ---------------------------------------------------------------------------
+
+test('fetchImageCandidates returns candidates array', async () => {
+  const candidates = [
+    {
+      url: 'https://cdn.example.com/img.jpg',
+      thumbnail_url: 'https://cdn.example.com/thumb.jpg',
+      title: 'Château Margaux 2018',
+      source_url: 'https://vivino.com',
+      width: 300,
+      height: 600,
+    },
+  ];
+  mockFetch.mockResolvedValueOnce(makeOkResponse({ candidates }));
+  const result = await fetchImageCandidates('wine-abc');
+  expect(result).toEqual(candidates);
+  expect(mockFetch).toHaveBeenCalledWith(
+    expect.stringContaining('/wines/wine-abc/image-candidates'),
+    undefined,
+  );
+});
+
+test('fetchImageCandidates throws on non-ok response', async () => {
+  mockFetch.mockResolvedValueOnce(makeErrorResponse(404));
+  await expect(fetchImageCandidates('wine-abc')).rejects.toThrow('Candidates failed: 404');
+});
+
+// ---------------------------------------------------------------------------
+// setImageFromUrl (new in this PR)
+// ---------------------------------------------------------------------------
+
+test('setImageFromUrl returns result on success', async () => {
+  const body = { wine_id: 'wine-abc', image_url: '/wines/wine-abc/image' };
+  mockFetch.mockResolvedValueOnce(makeOkResponse(body));
+  const result = await setImageFromUrl('wine-abc', 'https://cdn.example.com/img.jpg');
+  expect(result).toEqual(body);
+  expect(mockFetch).toHaveBeenCalledWith(
+    expect.stringContaining('/wines/wine-abc/image-from-url'),
+    expect.objectContaining({ method: 'POST' }),
+  );
+});
+
+test('setImageFromUrl throws image_expired on 404 with image_expired detail', async () => {
+  const errorResponse = {
+    ok: false,
+    status: 404,
+    json: () => Promise.resolve({ detail: 'image_expired' }),
+  } as unknown as Response;
+  mockFetch.mockResolvedValueOnce(errorResponse);
+  await expect(setImageFromUrl('wine-abc', 'https://cdn.example.com/img.jpg')).rejects.toThrow(
+    'image_expired',
+  );
+});
+
+test('setImageFromUrl throws generic error on other failures', async () => {
+  mockFetch.mockResolvedValueOnce(makeErrorResponse(500));
+  await expect(setImageFromUrl('wine-abc', 'https://cdn.example.com/img.jpg')).rejects.toThrow(
+    'Upload failed: 500',
+  );
 });

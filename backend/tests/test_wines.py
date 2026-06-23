@@ -1,16 +1,26 @@
 """
-Tests for new wines.py endpoints: image-candidates, image-from-url, DELETE /image.
+Tests for new wines.py endpoints: image-candidates, image-from-url, DELETE /image,
+variant serving (GET /wines/{id}/image?size=thumb|card|detail), and helpers.
 All tests use the per-test SQLite DB from conftest.use_test_db.
 """
 
+from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+from PIL import Image as _PIL
 
 from backend.models.wine import WineObject
 from backend.services import cache
 from tests.conftest import make_jpeg
+
+
+def _make_real_jpeg(size: tuple[int, int] = (100, 200)) -> bytes:
+    """Return a real JPEG file (not just magic bytes) for Pillow-based tests."""
+    buf = BytesIO()
+    _PIL.new("RGB", size, color=(120, 60, 30)).save(buf, "JPEG")
+    return buf.getvalue()
 
 
 def _wine(
@@ -344,3 +354,234 @@ async def test_validate_candidate_url_rejects_bad_urls(client, tmp_path, monkeyp
     r = await client.post(f"/wines/{wine.wine_id}/image-from-url", json={"url": url})
     assert r.status_code == 422
     assert r.json()["detail"] == "invalid_url"
+
+
+# ---------------------------------------------------------------------------
+# GET /wines/{wine_id}/image?size= — variant serving (new in this PR)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("size", ["thumb", "card", "detail"])
+async def test_get_wine_image_variant_generates_webp(client, tmp_path, monkeypatch, size):
+    """Requesting a named size generates a WebP variant and returns image/webp."""
+    import backend.config as cfg
+
+    monkeypatch.setattr(cfg, "IMAGE_CACHE_DIR", str(tmp_path))
+    img_path = tmp_path / "bottle.jpg"
+    img_path.write_bytes(_make_real_jpeg())
+    wine = _wine()
+    await cache.write(wine, str(img_path), None, [])
+
+    r = await client.get(f"/wines/{wine.wine_id}/image?size={size}")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("image/webp")
+    # Variant file should now exist
+    variant = tmp_path / f"{wine.wine_id}_{size}.webp"
+    assert variant.exists()
+
+
+async def test_get_wine_image_variant_served_from_cache_on_second_request(
+    client, tmp_path, monkeypatch
+):
+    """Second request for a variant skips _generate_variant (file already exists)."""
+    import backend.config as cfg
+
+    monkeypatch.setattr(cfg, "IMAGE_CACHE_DIR", str(tmp_path))
+    img_path = tmp_path / "bottle.jpg"
+    img_path.write_bytes(_make_real_jpeg())
+    wine = _wine()
+    await cache.write(wine, str(img_path), None, [])
+
+    # First request generates the variant
+    r1 = await client.get(f"/wines/{wine.wine_id}/image?size=thumb")
+    assert r1.status_code == 200
+
+    # Second request should also succeed (served from cached file)
+    r2 = await client.get(f"/wines/{wine.wine_id}/image?size=thumb")
+    assert r2.status_code == 200
+
+
+async def test_get_wine_image_variant_oserror_returns_500(client, tmp_path, monkeypatch):
+    """If _generate_variant raises OSError, endpoint returns 500."""
+    import backend.config as cfg
+
+    monkeypatch.setattr(cfg, "IMAGE_CACHE_DIR", str(tmp_path))
+    img_path = tmp_path / "bottle.jpg"
+    img_path.write_bytes(_make_real_jpeg())
+    wine = _wine()
+    await cache.write(wine, str(img_path), None, [])
+
+    with patch(
+        "backend.routers.wines._generate_variant",
+        side_effect=OSError("disk full"),
+    ):
+        r = await client.get(f"/wines/{wine.wine_id}/image?size=card")
+
+    assert r.status_code == 500
+    assert r.json()["detail"] == "variant_write_failed"
+
+
+async def test_get_wine_image_etag_304(client, tmp_path, monkeypatch):
+    """Sending If-None-Match with matching ETag returns 304 Not Modified."""
+    import backend.config as cfg
+
+    monkeypatch.setattr(cfg, "IMAGE_CACHE_DIR", str(tmp_path))
+    img_path = tmp_path / "bottle.jpg"
+    img_path.write_bytes(_make_real_jpeg())
+    wine = _wine()
+    await cache.write(wine, str(img_path), None, [])
+
+    # First request to grab the ETag
+    r1 = await client.get(f"/wines/{wine.wine_id}/image")
+    assert r1.status_code == 200
+    etag = r1.headers["etag"]
+    assert etag
+
+    # Second request with matching ETag should return 304
+    r2 = await client.get(f"/wines/{wine.wine_id}/image", headers={"if-none-match": etag})
+    assert r2.status_code == 304
+
+
+# ---------------------------------------------------------------------------
+# _generate_variant unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_generate_variant_creates_webp(tmp_path):
+    """_generate_variant produces a valid WebP file at the correct dimensions."""
+    from backend.routers.wines import _generate_variant
+
+    src = tmp_path / "source.jpg"
+    src.write_bytes(_make_real_jpeg((400, 600)))  # 400w × 600h
+    dst = tmp_path / "thumb.webp"
+
+    _generate_variant(str(src), str(dst), width=120)
+
+    assert dst.exists()
+    img = _PIL.open(str(dst))
+    assert img.format == "WEBP"
+    # Width should be exactly 120; height proportional to 600/400 * 120 = 180
+    assert img.size[0] == 120
+    assert img.size[1] == 180
+
+
+def test_generate_variant_atomic_write(tmp_path):
+    """No .tmp file should remain after a successful _generate_variant call."""
+    from backend.routers.wines import _generate_variant
+
+    src = tmp_path / "source.jpg"
+    src.write_bytes(_make_real_jpeg())
+    dst = tmp_path / "card.webp"
+
+    _generate_variant(str(src), str(dst), width=320)
+
+    assert dst.exists()
+    assert not (tmp_path / "card.webp.tmp").exists()
+
+
+# ---------------------------------------------------------------------------
+# _delete_variants unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_delete_variants_removes_existing_files(tmp_path, monkeypatch):
+    """_delete_variants deletes thumb, card, and detail WebP files when they exist."""
+    import backend.config as cfg
+    from backend.routers.wines import _delete_variants
+
+    monkeypatch.setattr(cfg, "IMAGE_CACHE_DIR", str(tmp_path))
+    wine_id = "test-wine-id"
+    for size in ("thumb", "card", "detail"):
+        (tmp_path / f"{wine_id}_{size}.webp").write_bytes(b"fake-webp")
+
+    _delete_variants(wine_id)
+
+    for size in ("thumb", "card", "detail"):
+        assert not (tmp_path / f"{wine_id}_{size}.webp").exists()
+
+
+def test_delete_variants_noop_when_files_missing(tmp_path, monkeypatch):
+    """_delete_variants does not raise when variant files do not exist."""
+    import backend.config as cfg
+    from backend.routers.wines import _delete_variants
+
+    monkeypatch.setattr(cfg, "IMAGE_CACHE_DIR", str(tmp_path))
+    _delete_variants("nonexistent-wine")  # Must not raise
+
+
+# ---------------------------------------------------------------------------
+# POST /wines/{wine_id}/image — upload delete-then-rollback on update failure
+# ---------------------------------------------------------------------------
+
+
+async def test_upload_wine_image_rollback_on_cache_update_failure(client, tmp_path, monkeypatch):
+    """If cache.update_image returns False, the saved file is cleaned up."""
+    import backend.config as cfg
+
+    monkeypatch.setattr(cfg, "IMAGE_CACHE_DIR", str(tmp_path))
+    wine = _wine()
+    await cache.write(wine, None, None, [])
+
+    with patch("backend.routers.wines.cache.update_image", new=AsyncMock(return_value=False)):
+        r = await client.post(
+            f"/wines/{wine.wine_id}/image",
+            files={"file": ("bottle.jpg", make_jpeg(), "image/jpeg")},
+        )
+
+    assert r.status_code == 404
+    # The orphaned file should have been removed
+    leftover = tmp_path / f"{wine.wine_id}.jpg"
+    assert not leftover.exists()
+
+
+# ---------------------------------------------------------------------------
+# POST /wines/{wine_id}/image-from-url — network exception + rollback path
+# ---------------------------------------------------------------------------
+
+
+async def test_image_from_url_network_exception(client, tmp_path, monkeypatch):
+    """Network error during image fetch returns 422 invalid_image."""
+    import backend.config as cfg
+
+    monkeypatch.setattr(cfg, "IMAGE_CACHE_DIR", str(tmp_path))
+    wine = _wine()
+    await cache.write(wine, None, None, [])
+
+    # Simulate a connection error
+    client_ctx = AsyncMock()
+    client_ctx.__aenter__ = AsyncMock(return_value=client_ctx)
+    client_ctx.__aexit__ = AsyncMock(return_value=None)
+    client_ctx.get = AsyncMock(side_effect=httpx.ConnectError("connection refused"))
+    with patch("backend.routers.wines._make_url_client", return_value=client_ctx):
+        r = await client.post(
+            f"/wines/{wine.wine_id}/image-from-url",
+            json={"url": "https://cdn.example.com/img.jpg"},
+        )
+
+    assert r.status_code == 422
+    assert r.json()["detail"] == "invalid_image"
+
+
+async def test_image_from_url_rollback_on_cache_update_failure(client, tmp_path, monkeypatch):
+    """If update_image_and_verify fails, the saved file is removed."""
+    import backend.config as cfg
+
+    monkeypatch.setattr(cfg, "IMAGE_CACHE_DIR", str(tmp_path))
+    wine = _wine()
+    await cache.write(wine, None, None, [])
+
+    with (
+        _patch_url_client(_mock_http_response(content=make_jpeg())),
+        patch(
+            "backend.routers.wines.cache.update_image_and_verify",
+            new=AsyncMock(return_value=False),
+        ),
+    ):
+        r = await client.post(
+            f"/wines/{wine.wine_id}/image-from-url",
+            json={"url": "https://cdn.example.com/img.jpg"},
+        )
+
+    assert r.status_code == 404
+    leftover = tmp_path / f"{wine.wine_id}.jpg"
+    assert not leftover.exists()

@@ -215,18 +215,19 @@ struct ContentView: View {
         }
     }
 
-    private func resizeForUpload(_ data: Data) -> Data {
-        guard let image = UIImage(data: data) else { return data }
-        let maxSide = CGFloat(ScanSettings.uploadMaxSide)
-        let size = image.size
-        guard max(size.width, size.height) > maxSide else { return data }
-        let scale = maxSide / max(size.width, size.height)
-        let newSize = CGSize(
-            width: (size.width * scale).rounded(),
-            height: (size.height * scale).rounded()
-        )
-        let renderer = UIGraphicsImageRenderer(size: newSize)
-        let resized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: newSize)) }
-        return resized.jpegData(compressionQuality: ScanSettings.uploadJPEGQuality) ?? data
-    }
+}
+
+func resizeForUpload(_ data: Data) -> Data {
+    guard let image = UIImage(data: data) else { return data }
+    let maxSide = CGFloat(ScanSettings.uploadMaxSide)
+    let size = image.size
+    guard max(size.width, size.height) > maxSide else { return data }
+    let scale = maxSide / max(size.width, size.height)
+    let newSize = CGSize(
+        width: (size.width * scale).rounded(),
+        height: (size.height * scale).rounded()
+    )
+    let renderer = UIGraphicsImageRenderer(size: newSize)
+    let resized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: newSize)) }
+    return resized.jpegData(compressionQuality: ScanSettings.uploadJPEGQuality) ?? data
 }
