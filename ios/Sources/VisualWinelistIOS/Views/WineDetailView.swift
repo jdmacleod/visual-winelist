@@ -4,11 +4,12 @@ import UIKit
 struct WineDetailView: View {
     let state: WineState
     var isScanning: Bool = false
-    var backendClient: BackendClient? = nil
+    var backendClient: BackendClient?
 
     @State private var showFlagAlert = false
     @State private var flagToast = false
     @State private var localImageCleared = false
+    @State private var detailImageData: Data?
 
     private var wine: WineObject { state.wine }
 
@@ -80,6 +81,14 @@ struct WineDetailView: View {
         }
         .navigationTitle(wine.name)
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            guard let client = backendClient, let wineId = wine.wineId else { return }
+            if let data = try? await client.fetchImage(wineId: wineId, size: "detail") {
+                withAnimation(.easeIn(duration: 0.25)) {
+                    detailImageData = data
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -88,13 +97,21 @@ struct WineDetailView: View {
             PlaceholderBottle(wine: wine).frame(height: 260)
         } else {
             switch state {
-            case .ready(_, let data):
-                if let image = UIImage(data: data) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    PlaceholderBottle(wine: wine).frame(height: 260)
+            case .ready(_, let cardData):
+                ZStack {
+                    if let image = UIImage(data: cardData) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        PlaceholderBottle(wine: wine).frame(height: 260)
+                    }
+                    if let detailData = detailImageData, let image = UIImage(data: detailData) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .transition(.opacity)
+                    }
                 }
             default:
                 PlaceholderBottle(wine: wine).frame(height: 260)

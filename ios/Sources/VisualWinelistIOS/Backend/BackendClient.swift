@@ -57,12 +57,17 @@ struct BackendClient: Sendable {
 
     // MARK: - Image fetch
 
-    func fetchImage(wineId: String) async throws -> Data {
-        let url =
-            baseURL
-            .appendingPathComponent("wines")
-            .appendingPathComponent(wineId)
-            .appendingPathComponent("image")
+    func fetchImage(wineId: String, size: String = "card") async throws -> Data {
+        var components = URLComponents(
+            url:
+                baseURL
+                .appendingPathComponent("wines")
+                .appendingPathComponent(wineId)
+                .appendingPathComponent("image"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [URLQueryItem(name: "size", value: size)]
+        let url = components.url!
         do {
             let (data, response) = try await session.data(from: url)
             guard (response as? HTTPURLResponse)?.statusCode == 200 else {

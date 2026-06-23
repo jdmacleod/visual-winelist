@@ -11,3 +11,9 @@ DATABASE_URL: str = os.environ.get(
     f"sqlite+aiosqlite:///{os.path.expanduser('~/.visual-winelist/cache.db')}",
 )
 MAX_UPLOAD_SIZE: int = int(os.environ.get("MAX_UPLOAD_SIZE", str(25 * 1024 * 1024)))
+
+# Image variant dimensions (px, longest side) — tune via env vars for experiments.
+IMAGE_THUMB_WIDTH: int = int(os.environ.get("IMAGE_THUMB_WIDTH", "120"))
+IMAGE_CARD_WIDTH: int = int(os.environ.get("IMAGE_CARD_WIDTH", "320"))
+IMAGE_DETAIL_WIDTH: int = int(os.environ.get("IMAGE_DETAIL_WIDTH", "800"))
+IMAGE_WEBP_QUALITY: int = int(os.environ.get("IMAGE_WEBP_QUALITY", "80"))

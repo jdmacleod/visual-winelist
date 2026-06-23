@@ -13,9 +13,11 @@ D3 — Content-Length pre-check:
 import asyncio
 import logging
 import os
+from io import BytesIO
 from typing import Any
 
 import httpx
+from PIL import Image as _PILImage
 
 from backend import config
 from backend.models.wine import ImageEvent, WineObject
@@ -95,7 +97,17 @@ async def _download_image(url: str) -> bytes | None:
                         return None
                     chunks.append(chunk)
                 data = b"".join(chunks)
-                return data if data else None
+                if not data:
+                    return None
+                if data[:2] != b"\xff\xd8":
+                    try:
+                        buf = BytesIO()
+                        _PILImage.open(BytesIO(data)).convert("RGB").save(buf, "JPEG", quality=85)
+                        data = buf.getvalue()
+                    except Exception as exc:
+                        log.debug("Pillow conversion failed for %s: %s", url, exc)
+                        return None
+                return data
     except Exception as exc:
         log.debug("download failed for %s: %s", url, exc)
         return None

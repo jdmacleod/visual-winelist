@@ -1,3 +1,4 @@
+import logging
 import os
 import warnings
 from collections.abc import AsyncGenerator
@@ -9,6 +10,8 @@ from backend import config
 from backend.db.session import init_db
 from backend.routers import curate, health, scan, wines
 
+log = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -17,6 +20,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     if not config.BRAVE_API_KEY:
         warnings.warn("BRAVE_API_KEY not set — image search will be skipped", stacklevel=2)
+
+    log.info(
+        "image config: thumb=%dpx card=%dpx detail=%dpx webp_quality=%d",
+        config.IMAGE_THUMB_WIDTH,
+        config.IMAGE_CARD_WIDTH,
+        config.IMAGE_DETAIL_WIDTH,
+        config.IMAGE_WEBP_QUALITY,
+    )
 
     yield
 
