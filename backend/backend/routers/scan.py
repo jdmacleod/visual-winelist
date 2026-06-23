@@ -188,7 +188,17 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
             )
             try:
                 async with db_session.SessionLocal() as _s:
-                    _s.add(ScanLog(scan_id=scan_id, wine_count=len(wines), cache_hits=cache_hits))
+                    _s.add(
+                        ScanLog(
+                            scan_id=scan_id,
+                            wine_count=len(wines),
+                            cache_hits=cache_hits,
+                            ollama_ms=None,
+                            image_ms=None,
+                            sommelier_ms=None,
+                            total_ms=None,
+                        )
+                    )
                     await _s.commit()
             except Exception:
                 log.warning("ScanLog write failed for %s", scan_id, exc_info=True)
@@ -251,7 +261,17 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
         )
         try:
             async with db_session.SessionLocal() as _s:
-                _s.add(ScanLog(scan_id=scan_id, wine_count=len(wines), cache_hits=cache_hits))
+                _s.add(
+                    ScanLog(
+                        scan_id=scan_id,
+                        wine_count=len(wines),
+                        cache_hits=cache_hits,
+                        ollama_ms=ollama_ms,
+                        image_ms=image_ms,
+                        sommelier_ms=sommelier_ms,
+                        total_ms=total_ms,
+                    )
+                )
                 await _s.commit()
         except Exception:
             log.warning("ScanLog write failed for %s", scan_id, exc_info=True)

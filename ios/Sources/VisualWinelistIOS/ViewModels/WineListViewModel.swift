@@ -84,6 +84,9 @@ class WineListViewModel {
             activeScanSession = nil
         }
 
+        #if DEBUG
+            DebugStore.shared.beginScan(screenshotBytes: photoData.count)
+        #endif
         let (stream, scanSession) = backend.scan(photoData: photoData)
         activeScanSession = scanSession
 
@@ -120,6 +123,9 @@ class WineListViewModel {
                     case .complete(let payload):
                         // SSE stream is done — unblock action buttons now. Image
                         // fetch tasks continue in the background via the group.
+                        #if DEBUG
+                            DebugStore.shared.recordComplete(payload: payload)
+                        #endif
                         isScanning = false
                         let hit = payload.cache_hits
                         scanMessage =
@@ -143,15 +149,30 @@ class WineListViewModel {
             }  // end withThrowingTaskGroup
 
         } catch is CancellationError {
+            #if DEBUG
+                DebugStore.shared.scanFailed()
+            #endif
             ()  // user cancelled — leave wines as-is, don't show error
         } catch BackendError.scannerBusy {
+            #if DEBUG
+                DebugStore.shared.scanFailed()
+            #endif
             errorMessage = "Scanner is busy — another scan is in progress"
         } catch BackendError.invalidImage {
+            #if DEBUG
+                DebugStore.shared.scanFailed()
+            #endif
             errorMessage =
                 "Image format not supported — use JPEG. Try taking a photo directly rather than importing."
         } catch BackendError.unreachable(let url) {
+            #if DEBUG
+                DebugStore.shared.scanFailed()
+            #endif
             errorMessage = "Backend not reachable at \(url)\n\nCheck WiFi and try again"
         } catch {
+            #if DEBUG
+                DebugStore.shared.scanFailed()
+            #endif
             if let urlErr = error as? URLError, urlErr.code == .cancelled {
                 ()  // URLSession cancel on view dismiss
             } else {

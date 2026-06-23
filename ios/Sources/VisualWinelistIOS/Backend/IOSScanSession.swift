@@ -14,6 +14,16 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
     private var parser = SSEParser()
     private(set) var dataTask: URLSessionDataTask?
 
+    #if DEBUG
+        // t0 is written on the calling actor before dataTask.resume(); all reads occur later on the
+        // delegate serial queue after the network round-trip, so the write-before-read ordering is safe.
+        var debugT0: Date?
+        private var debugT1: Date?
+        private var debugFirstChunkRecorded = false
+        private var debugWineCount = 0
+        private var debugImageCount = 0
+    #endif
+
     private init(continuation: AsyncThrowingStream<SSEEvent, Error>.Continuation) {
         self.continuation = continuation
     }
@@ -32,6 +42,9 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
             // delegateQueue: nil → URLSession creates its own serial queue
             let urlSession = URLSession(configuration: configuration, delegate: session, delegateQueue: nil)
             session.dataTask = urlSession.dataTask(with: request)
+            #if DEBUG
+                session.debugT0 = Date()
+            #endif
             session.dataTask?.resume()
             continuation.onTermination = { [weak session] _ in session?.cancel() }
         }
@@ -58,6 +71,13 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
         }
         switch http.statusCode {
         case 200:
+            #if DEBUG
+                if let t0 = debugT0 {
+                    let ms = Int(Date().timeIntervalSince(t0) * 1000)
+                    debugT1 = Date()
+                    Task { @MainActor in DebugStore.shared.recordUpload(ms: ms) }
+                }
+            #endif
             completionHandler(.allow)
         case 415:
             continuation.finish(throwing: BackendError.invalidImage)
@@ -72,6 +92,13 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        #if DEBUG
+            if !debugFirstChunkRecorded, let t1 = debugT1 {
+                let ms = Int(Date().timeIntervalSince(t1) * 1000)
+                debugFirstChunkRecorded = true
+                Task { @MainActor in DebugStore.shared.recordFirstChunk(ms: ms) }
+            }
+        #endif
         // Process delivery chunk segment-by-segment on newline boundaries. The previous
         // approach (append full chunk, check cap, return early) silently dropped valid SSE
         // events that arrived after an oversized pseudo-line in the same chunk.
@@ -83,7 +110,12 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
                 if lineBuffer.count > sseLineBufferMaxBytes { lineBuffer = Data(); continue }
                 var line = String(decoding: lineBuffer, as: UTF8.self)
                 if line.hasSuffix("\r") { line.removeLast() }
-                if let event = parser.feed(line: line) { continuation.yield(event) }
+                if let event = parser.feed(line: line) {
+                    continuation.yield(event)
+                    #if DEBUG
+                        recordDebugEvent(event)
+                    #endif
+                }
                 lineBuffer = Data()
             } else {
                 lineBuffer.append(contentsOf: data[offset...])
@@ -108,14 +140,43 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
                 if line.hasSuffix("\r") { line.removeLast() }
                 if let event = parser.feed(line: line) {
                     continuation.yield(event)
+                    #if DEBUG
+                        recordDebugEvent(event)
+                    #endif
                 }
                 lineBuffer = Data()
             }
             // Flush any pending SSE event if the stream ended without a trailing blank line.
             if let event = parser.feed(line: "") {
                 continuation.yield(event)
+                #if DEBUG
+                    recordDebugEvent(event)
+                #endif
             }
             continuation.finish()
         }
     }
+
+    #if DEBUG
+        private func recordDebugEvent(_ event: SSEEvent) {
+            guard let t0 = debugT0 else { return }
+            let ms = Int(Date().timeIntervalSince(t0) * 1000)
+            let label: String
+            switch event {
+            case .wine:
+                label = "wine[\(debugWineCount)]"
+                debugWineCount += 1
+            case .image:
+                label = "image[\(debugImageCount)]"
+                debugImageCount += 1
+            case .complete:
+                label = "complete"
+            case .error:
+                label = "error"
+            case .ping, .parseError, .notes:
+                return
+            }
+            Task { @MainActor in DebugStore.shared.recordEvent(label: label, ms: ms) }
+        }
+    #endif
 }

@@ -32,6 +32,9 @@
 		CAFE00000000000000000222 /* Bridges.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000122 /* Bridges.swift */; };
 		CAFE00000000000000000223 /* DebugOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000123 /* DebugOverlay.swift */; };
 		CAFE00000000000000000224 /* DebugBridgeTouch.m in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000124 /* DebugBridgeTouch.m */; };
+		CAFE00000000000000000230 /* DebugStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000130 /* DebugStore.swift */; };
+		CAFE00000000000000000231 /* DebugHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000131 /* DebugHUD.swift */; };
+		CAFE00000000000000000232 /* WaterfallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000132 /* WaterfallView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -63,6 +66,9 @@
 		CAFE00000000000000000123 /* DebugOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/DebugBridgeUI/DebugOverlay.swift; sourceTree = SOURCE_ROOT; };
 		CAFE00000000000000000124 /* DebugBridgeTouch.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Sources/DebugBridgeTouch/DebugBridgeTouch.m; sourceTree = SOURCE_ROOT; };
 		CAFE00000000000000000125 /* VisualWinelistIOS-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VisualWinelistIOS-Bridging-Header.h; sourceTree = "<group>"; };
+		CAFE00000000000000000130 /* DebugStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugStore.swift; sourceTree = "<group>"; };
+		CAFE00000000000000000131 /* DebugHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugHUD.swift; sourceTree = "<group>"; };
+		CAFE00000000000000000132 /* WaterfallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterfallView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -120,6 +126,7 @@
 				CAFE00000000000000000036 /* ViewModels */,
 				CAFE00000000000000000037 /* Views */,
 				CAFE00000000000000000038 /* Resources */,
+				CAFE00000000000000000039 /* Debug */,
 			);
 			path = Sources/VisualWinelistIOS;
 			sourceTree = SOURCE_ROOT;
@@ -196,6 +203,16 @@
 				CAFE00000000000000000113 /* Assets.xcassets */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		CAFE00000000000000000039 /* Debug */ = {
+			isa = PBXGroup;
+			children = (
+				CAFE00000000000000000130 /* DebugStore.swift */,
+				CAFE00000000000000000131 /* DebugHUD.swift */,
+				CAFE00000000000000000132 /* WaterfallView.swift */,
+			);
+			path = Debug;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -291,6 +308,9 @@
 				CAFE00000000000000000222 /* Bridges.swift in Sources */,
 				CAFE00000000000000000223 /* DebugOverlay.swift in Sources */,
 				CAFE00000000000000000224 /* DebugBridgeTouch.m in Sources */,
+				CAFE00000000000000000230 /* DebugStore.swift in Sources */,
+				CAFE00000000000000000231 /* DebugHUD.swift in Sources */,
+				CAFE00000000000000000232 /* WaterfallView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

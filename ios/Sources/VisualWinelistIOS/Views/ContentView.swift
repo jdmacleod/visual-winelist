@@ -47,6 +47,11 @@ struct ContentView: View {
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
         }
+        #if DEBUG
+            .overlay(alignment: .topTrailing) {
+                DebugHUD()
+            }
+        #endif
     }
 
     // MARK: - Camera view
