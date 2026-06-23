@@ -7,11 +7,21 @@ import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, UploadFile
+from fastapi import APIRouter, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
+from sqlalchemy import desc, select
 
 from backend import config
-from backend.models.wine import CompleteEvent, ErrorEvent, ImageEvent, NotesEvent, WineObject
+from backend.db import session as db_session
+from backend.db.models import ScanLog
+from backend.models.wine import (
+    CompleteEvent,
+    ErrorEvent,
+    ImageEvent,
+    NotesEvent,
+    ScanSummary,
+    WineObject,
+)
 from backend.services import brave_client, cache, ollama_client, sommelier
 
 log = logging.getLogger(__name__)
@@ -176,6 +186,12 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
                     scan_id=scan_id,
                 ).model_dump(),
             )
+            try:
+                async with db_session.SessionLocal() as _s:
+                    _s.add(ScanLog(scan_id=scan_id, wine_count=len(wines), cache_hits=cache_hits))
+                    await _s.commit()
+            except Exception:
+                log.warning("ScanLog write failed for %s", scan_id, exc_info=True)
             return
 
         t_phase1_end = time.perf_counter()
@@ -233,6 +249,12 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
                 total_ms=total_ms,
             ).model_dump(),
         )
+        try:
+            async with db_session.SessionLocal() as _s:
+                _s.add(ScanLog(scan_id=scan_id, wine_count=len(wines), cache_hits=cache_hits))
+                await _s.commit()
+        except Exception:
+            log.warning("ScanLog write failed for %s", scan_id, exc_info=True)
 
     finally:
         # Always release the lock — even on client disconnect (GeneratorExit/CancelledError
@@ -294,3 +316,27 @@ async def scan(image: UploadFile, request: Request) -> StreamingResponse:
             "X-Scan-Id": scan_id,
         },
     )
+
+
+@router.get("/scans/recent")
+async def get_recent_scans(limit: int = Query(default=10, ge=1, le=100)) -> dict[str, Any]:
+    async with db_session.SessionLocal() as session:
+        rows = await session.execute(select(ScanLog).order_by(desc(ScanLog.timestamp)).limit(limit))
+        scans = rows.scalars().all()
+
+    total_wines = sum(s.wine_count for s in scans)
+    total_hits = sum(s.cache_hits for s in scans)
+    hit_rate = min(100, round(total_hits / total_wines * 100)) if total_wines > 0 else None
+
+    return {
+        "scans": [
+            ScanSummary(
+                scan_id=s.scan_id,
+                timestamp=s.timestamp.isoformat(),
+                wine_count=s.wine_count,
+                cache_hits=s.cache_hits,
+            ).model_dump()
+            for s in scans
+        ],
+        "hit_rate": hit_rate,
+    }

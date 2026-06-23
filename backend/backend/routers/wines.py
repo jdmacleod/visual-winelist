@@ -11,12 +11,12 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response, UploadFi
 from fastapi.responses import FileResponse
 from PIL import Image as _PILImage
 from pydantic import BaseModel
-from sqlalchemy import asc, desc, func, or_, select
+from sqlalchemy import asc, case, desc, func, or_, select
 
 from backend import config
 from backend.db import session as db_session
 from backend.db.models import WineCacheRecord
-from backend.models.wine import SearchResponse, WineObject, WinePatch, WineRecord
+from backend.models.wine import SearchResponse, WineObject, WinePatch, WineRecord, WineStats
 from backend.services import brave_client, cache
 
 log = logging.getLogger(__name__)
@@ -206,6 +206,26 @@ async def search_wines(
     )
 
 
+@router.get("/wines/stats")
+async def get_wine_stats() -> WineStats:
+    async with db_session.SessionLocal() as session:
+        row = await session.execute(
+            select(
+                func.count().label("total"),
+                func.sum(case((WineCacheRecord.verified == True, 1), else_=0)).label("verified"),  # noqa: E712
+                func.sum(case((WineCacheRecord.image_path.isnot(None), 1), else_=0)).label(
+                    "with_image"
+                ),
+            ).select_from(WineCacheRecord)
+        )
+        r = row.one()
+    return WineStats(
+        total=r.total or 0,
+        verified=r.verified or 0,
+        with_image=r.with_image or 0,
+    )
+
+
 @router.get("/wines/{wine_id}/image")
 async def get_wine_image(
     wine_id: str,
@@ -329,7 +349,9 @@ async def delete_wine(wine_id: str) -> None:
 
 
 @router.get("/wines/{wine_id}/image-candidates")
-async def get_image_candidates(wine_id: str) -> dict[str, Any]:
+async def get_image_candidates(
+    wine_id: str, q: str | None = Query(default=None, max_length=256)
+) -> dict[str, Any]:
     record = await cache.lookup(wine_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Wine record not found")
@@ -341,8 +363,8 @@ async def get_image_candidates(wine_id: str) -> dict[str, Any]:
         appellation=record.appellation,
         confidence=1.0,
     )
-    candidates = await brave_client.fetch_image_candidates(wine, limit=5)
-    return {"wine_id": wine_id, "candidates": candidates}
+    candidates, used_query = await brave_client.fetch_image_candidates(wine, limit=9, query=q)
+    return {"wine_id": wine_id, "query": used_query, "candidates": candidates}
 
 
 @router.post("/wines/{wine_id}/image-from-url")
