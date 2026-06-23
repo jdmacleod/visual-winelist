@@ -475,3 +475,157 @@ async def test_recent_scans_limit_param(client):
     r = await client.get("/scans/recent?limit=3")
     assert r.status_code == 200
     assert len(r.json()["scans"]) == 3
+
+
+async def test_scan_happy_path_timing_fields_in_complete_event(client):
+    """complete event includes integer timing fields populated by the scan pipeline."""
+    with (
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(MARGAUX),
+        ),
+        patch(
+            "backend.routers.scan.brave_client.fetch_image",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "backend.routers.scan.sommelier.get_notes",
+            new=AsyncMock(side_effect=lambda w: NotesEvent(wine_id=w.wine_id)),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        async with client.stream(
+            "POST",
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+        ) as r:
+            assert r.status_code == 200
+            body = await r.aread()
+
+    events = _collect_sse(body.decode())
+    complete = json.loads(next(d for e, d in events if e == "complete"))
+
+    assert "total_ms" in complete
+    assert isinstance(complete["total_ms"], int)
+    assert complete["total_ms"] >= 0
+    assert "ollama_ms" in complete
+    assert complete["ollama_ms"] is None or isinstance(complete["ollama_ms"], int)
+    assert "sommelier_ms" in complete
+    assert complete["sommelier_ms"] is None or isinstance(complete["sommelier_ms"], int)
+
+
+async def test_scan_happy_path_timing_persisted_in_db(client):
+    """ScanLog row written by the happy path has total_ms populated."""
+    from sqlalchemy import select as sa_select
+
+    with (
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(MARGAUX),
+        ),
+        patch(
+            "backend.routers.scan.brave_client.fetch_image",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "backend.routers.scan.sommelier.get_notes",
+            new=AsyncMock(side_effect=lambda w: NotesEvent(wine_id=w.wine_id)),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        async with client.stream(
+            "POST",
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+        ) as r:
+            body = await r.aread()
+
+    events = _collect_sse(body.decode())
+    complete = json.loads(next(d for e, d in events if e == "complete"))
+    scan_id = complete["scan_id"]
+
+    async with db_session.SessionLocal() as s:
+        row = await s.scalar(sa_select(ScanLog).where(ScanLog.scan_id == scan_id))
+
+    assert row is not None, "ScanLog row must be persisted after a successful scan"
+    assert row.total_ms is not None, "total_ms must be populated in ScanLog"
+    assert isinstance(row.total_ms, int)
+    assert row.total_ms >= 0
+
+
+async def test_scan_internal_error_scanlog_written_with_null_timing(client):
+    """INTERNAL_ERROR path (queue loop exception) writes ScanLog with all timing fields as None."""
+    from sqlalchemy import select as sa_select
+
+    with (
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(MARGAUX),
+        ),
+        patch(
+            "backend.routers.scan.cache.lookup",
+            new=AsyncMock(side_effect=RuntimeError("forced internal error")),
+        ),
+    ):
+        async with client.stream(
+            "POST",
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+        ) as r:
+            body = await r.aread()
+
+    events = _collect_sse(body.decode())
+    event_types = [e for e, _ in events]
+    assert "error" in event_types
+    error_data = json.loads(next(d for e, d in events if e == "error"))
+    assert error_data["code"] == "INTERNAL_ERROR"
+
+    complete = json.loads(next(d for e, d in events if e == "complete"))
+    scan_id = complete["scan_id"]
+
+    async with db_session.SessionLocal() as s:
+        row = await s.scalar(sa_select(ScanLog).where(ScanLog.scan_id == scan_id))
+
+    assert row is not None, "ScanLog row must be written even on INTERNAL_ERROR"
+    assert row.ollama_ms is None
+    assert row.image_ms is None
+    assert row.sommelier_ms is None
+    assert row.total_ms is None
+
+
+async def test_init_db_migration_idempotent():
+    """init_db() must not raise when called against a DB that already has all columns.
+
+    use_test_db autouse fixture creates tables via Base.metadata.create_all
+    (all columns present). Calling init_db() again exercises the ALTER TABLE
+    swallow-except path in _SCAN_LOG_MIGRATION_DDL.
+    """
+    from backend.db.session import init_db
+
+    await init_db()
+
+
+async def test_scan_ollama_error_timing_fields_in_complete(client):
+    """complete event after Ollama failure includes total_ms as a non-negative integer."""
+
+    async def raise_connection_error(image_data: bytes) -> AsyncIterator[WineObject]:
+        raise ConnectionRefusedError("Ollama not running")
+        yield  # pragma: no cover
+
+    with patch(
+        "backend.routers.scan.ollama_client.extract_wines",
+        side_effect=raise_connection_error,
+    ):
+        async with client.stream(
+            "POST",
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+        ) as r:
+            body = await r.aread()
+
+    events = _collect_sse(body.decode())
+    complete = json.loads(next(d for e, d in events if e == "complete"))
+
+    assert "total_ms" in complete
+    assert isinstance(complete["total_ms"], int)
+    assert complete["total_ms"] >= 0
