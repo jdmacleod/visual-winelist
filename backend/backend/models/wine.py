@@ -115,3 +115,16 @@ class SearchResponse(BaseModel):
     page: int
     page_size: int
     verified_total: int = 0
+
+
+class WineStats(BaseModel):
+    total: int
+    verified: int
+    with_image: int
+
+
+class ScanSummary(BaseModel):
+    scan_id: str
+    timestamp: str
+    wine_count: int
+    cache_hits: int

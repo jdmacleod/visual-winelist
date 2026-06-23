@@ -1,9 +1,11 @@
 import type {
   ImageCandidate,
+  ScanSummary,
   SearchResponse,
   StatusFilter,
   SortOption,
   WineRecord,
+  WineStats,
 } from '../types/wine';
 
 // In dev: Vite proxies /wines and /curate to http://localhost:8000.
@@ -94,11 +96,31 @@ export async function patchWine(
   return res.json() as Promise<WineRecord>;
 }
 
-export async function fetchImageCandidates(wineId: string): Promise<ImageCandidate[]> {
-  const res = await timedFetch(`${BASE_URL}/wines/${wineId}/image-candidates`);
+export async function fetchImageCandidates(
+  wineId: string,
+  q?: string,
+): Promise<{ candidates: ImageCandidate[]; query: string }> {
+  const url = q
+    ? `${BASE_URL}/wines/${wineId}/image-candidates?q=${encodeURIComponent(q)}`
+    : `${BASE_URL}/wines/${wineId}/image-candidates`;
+  const res = await timedFetch(url);
   if (!res.ok) throw new Error(`Candidates failed: ${res.status}`);
-  const body = (await res.json()) as { candidates: ImageCandidate[] };
-  return body.candidates;
+  const body = (await res.json()) as { candidates: ImageCandidate[]; query: string };
+  return { candidates: body.candidates, query: body.query };
+}
+
+export async function fetchWineStats(): Promise<WineStats> {
+  const res = await timedFetch(`${BASE_URL}/wines/stats`);
+  if (!res.ok) throw new Error(`Stats failed: ${res.status}`);
+  return res.json() as Promise<WineStats>;
+}
+
+export async function fetchRecentScans(
+  limit = 10,
+): Promise<{ scans: ScanSummary[]; hit_rate: number | null }> {
+  const res = await timedFetch(`${BASE_URL}/scans/recent?limit=${limit}`);
+  if (!res.ok) throw new Error(`Recent scans failed: ${res.status}`);
+  return res.json() as Promise<{ scans: ScanSummary[]; hit_rate: number | null }>;
 }
 
 export async function setImageFromUrl(

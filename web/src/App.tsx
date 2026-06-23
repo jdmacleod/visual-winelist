@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { searchWines, curate, deleteWine } from './api/client';
-import type { WineRecord, SearchResponse, StatusFilter, SortOption } from './types/wine';
+import { searchWines, curate, deleteWine, fetchWineStats, fetchRecentScans } from './api/client';
+import type { WineRecord, SearchResponse, StatusFilter, SortOption, WineStats } from './types/wine';
 import WineCard from './components/WineCard';
 import WineDetailPanel from './components/WineDetailPanel';
 import ConfirmModal from './components/ConfirmModal';
@@ -36,6 +36,8 @@ export default function App() {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WineRecord | null>(null);
+  const [wineStats, setWineStats] = useState<WineStats | null>(null);
+  const [hitRate, setHitRate] = useState<number | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -54,6 +56,20 @@ export default function App() {
   useEffect(() => {
     setActionError(null);
   }, [selected?.wine_id]);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const [stats, recent] = await Promise.all([fetchWineStats(), fetchRecentScans()]);
+      setWineStats(stats);
+      setHitRate(recent.hit_rate);
+    } catch {
+      // stats are non-critical; silently ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchStats();
+  }, [fetchStats]);
 
   const fetchWines = useCallback(async () => {
     setLoading(true);
@@ -120,19 +136,23 @@ export default function App() {
     setSelected(updated);
   }, []);
 
-  const handleImageUpdate = useCallback((wineId: string, newImageUrl: string) => {
-    setResults((prev) =>
-      prev
-        ? {
-            ...prev,
-            results: prev.results.map((w) =>
-              w.wine_id === wineId ? { ...w, image_url: newImageUrl } : w,
-            ),
-          }
-        : null,
-    );
-    setSelected((prev) => (prev ? { ...prev, image_url: newImageUrl } : null));
-  }, []);
+  const handleImageUpdate = useCallback(
+    (wineId: string, newImageUrl: string) => {
+      setResults((prev) =>
+        prev
+          ? {
+              ...prev,
+              results: prev.results.map((w) =>
+                w.wine_id === wineId ? { ...w, image_url: newImageUrl } : w,
+              ),
+            }
+          : null,
+      );
+      setSelected((prev) => (prev ? { ...prev, image_url: newImageUrl } : null));
+      void fetchStats();
+    },
+    [fetchStats],
+  );
 
   const handleDelete = useCallback(() => {
     if (!selected) return;
@@ -168,14 +188,24 @@ export default function App() {
           </span>
           <div>
             <h1 className="text-xl font-semibold text-stone-800">Visual Winelist Curator</h1>
-            {results && (
+            {wineStats && (
               <p className="text-xs text-stone-400 mt-0.5">
-                {results.total.toLocaleString()} wine{results.total !== 1 ? 's' : ''} in cache
+                {wineStats.total.toLocaleString()} wine{wineStats.total !== 1 ? 's' : ''} in cache
                 {results.verified_total > 0 && (
                   <span className="text-green-600">
                     {' '}
                     · {results.verified_total.toLocaleString()} verified
                   </span>
+                )}
+                {wineStats && wineStats.total > 0 && (
+                  <span className="text-stone-400">
+                    {' '}
+                    · {wineStats.with_image.toLocaleString()} with images (
+                    {Math.round((wineStats.with_image / wineStats.total) * 100)}%)
+                  </span>
+                )}
+                {hitRate !== null && (
+                  <span className="text-stone-400"> · {hitRate}% cache hit rate</span>
                 )}
               </p>
             )}

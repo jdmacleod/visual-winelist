@@ -76,13 +76,14 @@ async def test_image_candidates_returns_list(client):
     ]
     with patch(
         "backend.routers.wines.brave_client.fetch_image_candidates",
-        new=AsyncMock(return_value=mock_candidates),
+        new=AsyncMock(return_value=(mock_candidates, "Château Margaux 2018 wine bottle")),
     ):
         r = await client.get(f"/wines/{wine.wine_id}/image-candidates")
 
     assert r.status_code == 200
     body = r.json()
     assert body["wine_id"] == wine.wine_id
+    assert body["query"] == "Château Margaux 2018 wine bottle"
     assert len(body["candidates"]) == 1
     assert body["candidates"][0]["url"] == "https://cdn.example.com/img.jpg"
     assert body["candidates"][0]["title"] == "Château Margaux 2018 - Vivino"
@@ -95,12 +96,72 @@ async def test_image_candidates_empty_when_brave_returns_nothing(client):
 
     with patch(
         "backend.routers.wines.brave_client.fetch_image_candidates",
-        new=AsyncMock(return_value=[]),
+        new=AsyncMock(return_value=([], "Château Margaux wine bottle")),
     ):
         r = await client.get(f"/wines/{wine.wine_id}/image-candidates")
 
     assert r.status_code == 200
     assert r.json()["candidates"] == []
+
+
+async def test_image_candidates_with_custom_query(client):
+    wine = _wine()
+    await cache.write(wine, None, None, [])
+
+    with patch(
+        "backend.routers.wines.brave_client.fetch_image_candidates",
+        new=AsyncMock(return_value=([], "my custom query")),
+    ) as mock_fn:
+        r = await client.get(f"/wines/{wine.wine_id}/image-candidates?q=my+custom+query")
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["query"] == "my custom query"
+    _, kwargs = mock_fn.call_args
+    assert kwargs.get("query") == "my custom query"
+
+
+# ---------------------------------------------------------------------------
+# GET /wines/stats
+# ---------------------------------------------------------------------------
+
+
+async def test_stats_empty_db(client):
+    r = await client.get("/wines/stats")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total"] == 0
+    assert body["verified"] == 0
+    assert body["with_image"] == 0
+
+
+async def test_stats_mixed_data(client):
+    from backend.models.wine import WineObject as _WO
+
+    wines = [_WO(name=f"Wine {i}", confidence=1.0) for i in range(3)]
+    await cache.write(wines[0], None, None, [])
+    await cache.write(wines[1], "/images/w1.jpg", None, [])
+    await cache.write(wines[2], "/images/w2.jpg", None, [])
+
+    from sqlalchemy import update
+
+    from backend.db import session as db_session
+    from backend.db.models import WineCacheRecord
+
+    async with db_session.SessionLocal() as s:
+        await s.execute(
+            update(WineCacheRecord)
+            .where(WineCacheRecord.wine_id == wines[2].wine_id)
+            .values(verified=True)
+        )
+        await s.commit()
+
+    r = await client.get("/wines/stats")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total"] == 3
+    assert body["verified"] == 1
+    assert body["with_image"] == 2
 
 
 # ---------------------------------------------------------------------------

@@ -30,3 +30,16 @@ export interface ImageCandidate {
   width: number | null;
   height: number | null;
 }
+
+export interface WineStats {
+  total: number;
+  verified: number;
+  with_image: number;
+}
+
+export interface ScanSummary {
+  scan_id: string;
+  timestamp: string;
+  wine_count: number;
+  cache_hits: number;
+}

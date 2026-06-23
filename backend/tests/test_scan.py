@@ -2,6 +2,8 @@ import json
 from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, patch
 
+from backend.db import session as db_session
+from backend.db.models import ScanLog
 from backend.models.wine import ImageEvent, NotesEvent, WineObject
 from backend.services import cache
 from tests.conftest import make_jpeg
@@ -161,7 +163,7 @@ async def test_scan_lock_released_on_generator_close():
 
     async def _no_wines(_image_data: bytes) -> AsyncIterator[WineObject]:
         return
-        yield  # noqa: unreachable — makes this an async generator function
+        yield  # makes this an async generator function
 
     assert not scan_mod._scanning, "pre-condition: lock must start False"
 
@@ -423,3 +425,53 @@ async def test_scan_id_in_response_header(client):
     assert complete["scan_id"] == scan_id_header, (
         "scan_id in event:complete must match X-Scan-Id response header"
     )
+
+
+async def test_recent_scans_empty(client):
+    """GET /scans/recent returns empty list and null hit_rate when no scans logged."""
+    r = await client.get("/scans/recent")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["scans"] == []
+    assert body["hit_rate"] is None
+
+
+async def test_recent_scans_with_data(client):
+    """GET /scans/recent returns scans ordered newest-first and computes hit_rate."""
+    async with db_session.SessionLocal() as s:
+        s.add(ScanLog(scan_id="aaa00001", wine_count=4, cache_hits=1))
+        s.add(ScanLog(scan_id="bbb00002", wine_count=6, cache_hits=3))
+        await s.commit()
+
+    r = await client.get("/scans/recent")
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["scans"]) == 2
+    # hit_rate = round((1+3)/(4+6)*100) = round(40) = 40
+    assert body["hit_rate"] == 40
+    # scans ordered newest-first (bbb was inserted last, so has a later timestamp)
+    assert body["scans"][0]["scan_id"] == "bbb00002"
+    assert body["scans"][1]["scan_id"] == "aaa00001"
+
+
+async def test_recent_scans_hit_rate_capped(client):
+    """hit_rate is capped at 100 even if cache_hits exceeds wine_count."""
+    async with db_session.SessionLocal() as s:
+        s.add(ScanLog(scan_id="ccc00003", wine_count=2, cache_hits=5))
+        await s.commit()
+
+    r = await client.get("/scans/recent")
+    assert r.status_code == 200
+    assert r.json()["hit_rate"] == 100
+
+
+async def test_recent_scans_limit_param(client):
+    """limit query param restricts how many scans are returned."""
+    async with db_session.SessionLocal() as s:
+        for i in range(5):
+            s.add(ScanLog(scan_id=f"scan{i:04d}", wine_count=1, cache_hits=0))
+        await s.commit()
+
+    r = await client.get("/scans/recent?limit=3")
+    assert r.status_code == 200
+    assert len(r.json()["scans"]) == 3

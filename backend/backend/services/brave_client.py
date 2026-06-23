@@ -65,7 +65,7 @@ def _portrait_score(result: dict[str, Any]) -> float:
     props = result.get("properties") or {}
     h = props.get("height")
     w = props.get("width")
-    if not h or not w or w == 0:
+    if h is None or w is None or h <= 0 or w <= 0:
         return -1.0
     return float(h) / float(w)
 
@@ -120,44 +120,47 @@ async def _download_image(url: str) -> bytes | None:
         return None
 
 
-async def fetch_image_candidates(wine: WineObject, limit: int = 5) -> list[dict[str, Any]]:
+async def fetch_image_candidates(
+    wine: WineObject, limit: int = 5, query: str | None = None
+) -> tuple[list[dict[str, Any]], str]:
     """
-    Return up to `limit` candidate dicts for curator image selection.
-    Each dict: {"url", "thumbnail_url", "title", "source_url", "width", "height"}.
-    Applies rate limiter. Does not download or persist anything.
-    Returns [] if Brave key is missing or returns no results.
+    Return (candidates, used_query) for curator image selection.
+    Each candidate: {"url", "thumbnail_url", "title", "source_url", "width", "height"}.
+    If query is provided it overrides _build_query(). Applies rate limiter.
+    Returns ([], query) if Brave key is missing or returns no results.
     """
+    used_query = query if query is not None else _build_query(wine)
+
     if not config.BRAVE_API_KEY:
-        return []
+        return [], used_query
 
     await _wait_for_rate_limit()
 
-    query = _build_query(wine)
-    log.debug("[Brave] candidates query='%s'", query)
+    log.debug("[Brave] candidates query='%s'", used_query)
 
     try:
         async with _make_http_client(10.0) as client:
             r = await client.get(
                 _SEARCH_URL,
-                params={"q": query, "count": str(_SEARCH_COUNT), "search_lang": "en"},
+                params={"q": used_query, "count": str(_SEARCH_COUNT), "search_lang": "en"},
                 headers={
                     "X-Subscription-Token": config.BRAVE_API_KEY,
                     "Accept": "application/json",
                 },
             )
     except Exception as exc:
-        log.warning("[Brave] candidates search failed for '%s': %s", query, exc)
-        return []
+        log.warning("[Brave] candidates search failed for '%s': %s", used_query, exc)
+        return [], used_query
 
     if r.status_code != 200:
-        log.warning("[Brave] candidates HTTP %d for '%s'", r.status_code, query)
-        return []
+        log.warning("[Brave] candidates HTTP %d for '%s'", r.status_code, used_query)
+        return [], used_query
 
     try:
         body = r.json()
     except Exception:
-        log.warning("[Brave] candidates could not decode JSON for '%s'", query)
-        return []
+        log.warning("[Brave] candidates could not decode JSON for '%s'", used_query)
+        return [], used_query
 
     results: list[dict[str, Any]] = body.get("results") or []
     ranked = sorted(results, key=_portrait_score, reverse=True)
@@ -180,7 +183,7 @@ async def fetch_image_candidates(wine: WineObject, limit: int = 5) -> list[dict[
             }
         )
 
-    return candidates
+    return candidates, used_query
 
 
 async def fetch_image(wine: WineObject) -> ImageEvent | None:
