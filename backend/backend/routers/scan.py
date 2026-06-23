@@ -39,6 +39,33 @@ def _sse(event: str, data: Any) -> str:
     return f"event: {event}\ndata: {payload}\n\n"
 
 
+async def _write_scan_log(
+    scan_id: str,
+    wine_count: int,
+    cache_hits: int,
+    ollama_ms: int | None = None,
+    image_ms: int | None = None,
+    sommelier_ms: int | None = None,
+    total_ms: int | None = None,
+) -> None:
+    try:
+        async with db_session.SessionLocal() as _s:
+            _s.add(
+                ScanLog(
+                    scan_id=scan_id,
+                    wine_count=wine_count,
+                    cache_hits=cache_hits,
+                    ollama_ms=ollama_ms,
+                    image_ms=image_ms,
+                    sommelier_ms=sommelier_ms,
+                    total_ms=total_ms,
+                )
+            )
+            await _s.commit()
+    except Exception:
+        log.warning("ScanLog write failed for %s", scan_id, exc_info=True)
+
+
 async def _fetch_image_to_queue(
     wine: WineObject,
     queue: asyncio.Queue,
@@ -186,18 +213,7 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
                     scan_id=scan_id,
                 ).model_dump(),
             )
-            try:
-                async with db_session.SessionLocal() as _s:
-                    _s.add(
-                        ScanLog(
-                            scan_id=scan_id,
-                            wine_count=len(wines),
-                            cache_hits=cache_hits,
-                        )
-                    )
-                    await _s.commit()
-            except Exception:
-                log.warning("ScanLog write failed for %s", scan_id, exc_info=True)
+            await _write_scan_log(scan_id=scan_id, wine_count=len(wines), cache_hits=cache_hits)
             return
 
         t_phase1_end = time.perf_counter()
@@ -255,22 +271,15 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
                 total_ms=total_ms,
             ).model_dump(),
         )
-        try:
-            async with db_session.SessionLocal() as _s:
-                _s.add(
-                    ScanLog(
-                        scan_id=scan_id,
-                        wine_count=len(wines),
-                        cache_hits=cache_hits,
-                        ollama_ms=ollama_ms,
-                        image_ms=image_ms,
-                        sommelier_ms=sommelier_ms,
-                        total_ms=total_ms,
-                    )
-                )
-                await _s.commit()
-        except Exception:
-            log.warning("ScanLog write failed for %s", scan_id, exc_info=True)
+        await _write_scan_log(
+            scan_id=scan_id,
+            wine_count=len(wines),
+            cache_hits=cache_hits,
+            ollama_ms=ollama_ms,
+            image_ms=image_ms,
+            sommelier_ms=sommelier_ms,
+            total_ms=total_ms,
+        )
 
     finally:
         # Always release the lock — even on client disconnect (GeneratorExit/CancelledError

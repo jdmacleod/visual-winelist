@@ -26,6 +26,8 @@
             var uploadMs: Int = 0
             var ttfbMs: Int = 0
             var ollamaMs: Int?
+            var imageMs: Int?
+            var sommelierMs: Int?
             var totalMs: Int?
             var wineCount: Int?
             var eventTimeline: [(label: String, ms: Int)] = []
@@ -67,6 +69,8 @@
 
         func recordComplete(payload: CompleteSSEPayload) {
             lastScan?.ollamaMs = payload.ollama_ms
+            lastScan?.imageMs = payload.image_ms
+            lastScan?.sommelierMs = payload.sommelier_ms
             lastScan?.totalMs = payload.total_ms
             lastScan?.wineCount = payload.wine_count
         }

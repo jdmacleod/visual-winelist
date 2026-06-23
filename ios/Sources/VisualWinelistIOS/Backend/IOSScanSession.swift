@@ -18,10 +18,12 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
         // t0 is written on the calling actor before dataTask.resume(); all reads occur later on the
         // delegate serial queue after the network round-trip, so the write-before-read ordering is safe.
         var debugT0: Date?
-        private var debugT1: Date?
         private var debugFirstChunkRecorded = false
         private var debugWineCount = 0
         private var debugImageCount = 0
+        // Incremented on cancel() so Task { @MainActor in } dispatches from a cancelled scan
+        // can detect they're stale before writing into the next scan's HUD metrics.
+        private(set) var debugGen = 0
     #endif
 
     private init(continuation: AsyncThrowingStream<SSEEvent, Error>.Continuation) {
@@ -54,6 +56,9 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
     /// Cancel the underlying URLSessionDataTask. Safe to call from any thread or actor.
     func cancel() {
         dataTask?.cancel()
+        #if DEBUG
+            debugGen &+= 1
+        #endif
     }
 
     // MARK: - URLSessionDataDelegate
@@ -74,8 +79,11 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
             #if DEBUG
                 if let t0 = debugT0 {
                     let ms = Int(Date().timeIntervalSince(t0) * 1000)
-                    debugT1 = Date()
-                    Task { @MainActor in DebugStore.shared.recordUpload(ms: ms) }
+                    let gen = debugGen
+                    Task { @MainActor [weak self] in
+                        guard self?.debugGen == gen else { return }
+                        DebugStore.shared.recordUpload(ms: ms)
+                    }
                 }
             #endif
             completionHandler(.allow)
@@ -96,7 +104,11 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
             if !debugFirstChunkRecorded, let t0 = debugT0 {
                 let ms = Int(Date().timeIntervalSince(t0) * 1000)
                 debugFirstChunkRecorded = true
-                Task { @MainActor in DebugStore.shared.recordTTFB(ms: ms) }
+                let gen = debugGen
+                Task { @MainActor [weak self] in
+                    guard self?.debugGen == gen else { return }
+                    DebugStore.shared.recordTTFB(ms: ms)
+                }
             }
         #endif
         // Process delivery chunk segment-by-segment on newline boundaries. The previous
@@ -176,7 +188,11 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
             case .ping, .parseError, .notes:
                 return
             }
-            Task { @MainActor in DebugStore.shared.recordEvent(label: label, ms: ms) }
+            let gen = debugGen
+            Task { @MainActor [weak self] in
+                guard self?.debugGen == gen else { return }
+                DebugStore.shared.recordEvent(label: label, ms: ms)
+            }
         }
     #endif
 }

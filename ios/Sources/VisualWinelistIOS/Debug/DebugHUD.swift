@@ -72,9 +72,11 @@
                     Text("orig: \(m.origWidth)×\(m.origHeight)")
                 }
                 Text("img: \(m.screenshotWidth)×\(m.screenshotHeight) · \(m.screenshotBytes / 1024) KB")
-                Text("upload: \(m.uploadMs) ms")
+                Text("http_ok: \(m.uploadMs) ms")
                 Text("ttfb: \(m.ttfbMs) ms")
                 if let ollama = m.ollamaMs { Text("ollama: \(ollama) ms") }
+                if let image = m.imageMs { Text("image: \(image) ms") }
+                if let sommelier = m.sommelierMs { Text("sommelier: \(sommelier) ms") }
                 if let total = m.totalMs { Text("total: \(total) ms") }
                 if let count = m.wineCount { Text("wines: \(count)") }
                 if !m.eventTimeline.isEmpty {

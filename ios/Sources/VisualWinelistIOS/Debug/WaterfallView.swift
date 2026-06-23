@@ -4,7 +4,7 @@
     struct WaterfallView: View {
         let events: [(label: String, ms: Int)]
 
-        private var maxMs: Int { events.map(\.ms).max() ?? 1 }
+        private var maxMs: Int { max(1, events.map(\.ms).max() ?? 1) }
 
         var body: some View {
             // Explicit frame required — GeometryReader inside an overlay collapses to zero height

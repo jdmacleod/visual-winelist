@@ -38,8 +38,9 @@ async def init_db() -> None:
         for ddl in _SCAN_LOG_MIGRATION_DDL:
             try:
                 await conn.execute(text(ddl))
-            except OperationalError:
-                pass  # column already exists
+            except OperationalError as exc:
+                if "duplicate column name" not in str(exc):
+                    raise  # only swallow "already exists" — let real errors surface
 
 
 async def get_db() -> AsyncIterator[AsyncSession]:

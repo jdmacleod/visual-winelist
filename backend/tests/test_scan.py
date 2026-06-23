@@ -510,6 +510,8 @@ async def test_scan_happy_path_timing_fields_in_complete_event(client):
     assert complete["total_ms"] >= 0
     assert "ollama_ms" in complete
     assert complete["ollama_ms"] is None or isinstance(complete["ollama_ms"], int)
+    assert "image_ms" in complete
+    assert complete["image_ms"] is None or isinstance(complete["image_ms"], int)
     assert "sommelier_ms" in complete
     assert complete["sommelier_ms"] is None or isinstance(complete["sommelier_ms"], int)
 
@@ -585,6 +587,11 @@ async def test_scan_internal_error_scanlog_written_with_null_timing(client):
     complete_events = [d for e, d in events if e == "complete"]
     assert complete_events, "expected complete event after INTERNAL_ERROR"
     complete = json.loads(complete_events[0])
+    # INTERNAL_ERROR path emits complete without timing fields
+    assert complete.get("ollama_ms") is None
+    assert complete.get("image_ms") is None
+    assert complete.get("sommelier_ms") is None
+    assert complete.get("total_ms") is None
     scan_id = complete["scan_id"]
 
     async with db_session.SessionLocal() as s:
