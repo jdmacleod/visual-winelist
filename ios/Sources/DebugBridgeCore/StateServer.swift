@@ -315,7 +315,7 @@ import os.log
 
             switch (request.method, path) {
             case ("POST", "/session/acquire"): handleSessionAcquire(connection: connection)
-            case ("POST", "/session/release"): handleSessionRelease(connection: connection)
+            case ("POST", "/session/release"): handleSessionRelease(connection: connection, request: request)
             case ("POST", "/session/heartbeat"): handleSessionHeartbeat(connection: connection, request: request)
             case ("GET", "/state/snapshot"): handleSnapshotGet(connection: connection)
             case ("POST", "/state/restore"): handleSnapshotRestore(connection: connection, request: request)
@@ -414,7 +414,8 @@ import os.log
                 ])
         }
 
-        private func handleSessionRelease(connection: NWConnection) {
+        private func handleSessionRelease(connection: NWConnection, request: ParsedRequest) {
+            guard requireSession(in: request, connection: connection) else { return }
             activeSession = nil
             send(connection: connection, status: 200, body: ["ok": true])
         }
