@@ -27,6 +27,10 @@
 		CAFE00000000000000000212 /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000112 /* Settings.bundle */; };
 		CAFE00000000000000000213 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000113 /* Assets.xcassets */; };
 		CAFE00000000000000000214 /* ScanSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000114 /* ScanSettings.swift */; };
+		CAFE00000000000000000220 /* DebugBridgeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000120 /* DebugBridgeManager.swift */; };
+		CAFE00000000000000000221 /* StateServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000121 /* StateServer.swift */; };
+		CAFE00000000000000000222 /* Bridges.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000122 /* Bridges.swift */; };
+		CAFE00000000000000000223 /* DebugOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000123 /* DebugOverlay.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -52,6 +56,10 @@
 		CAFE00000000000000000112 /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
 		CAFE00000000000000000113 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CAFE00000000000000000114 /* ScanSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanSettings.swift; sourceTree = "<group>"; };
+		CAFE00000000000000000120 /* DebugBridgeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/DebugBridgeCore/DebugBridgeManager.swift; sourceTree = SOURCE_ROOT; };
+		CAFE00000000000000000121 /* StateServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/DebugBridgeCore/StateServer.swift; sourceTree = SOURCE_ROOT; };
+		CAFE00000000000000000122 /* Bridges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/DebugBridgeUI/Bridges.swift; sourceTree = SOURCE_ROOT; };
+		CAFE00000000000000000123 /* DebugOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/DebugBridgeUI/DebugOverlay.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -69,8 +77,20 @@
 			isa = PBXGroup;
 			children = (
 				CAFE00000000000000000030 /* Sources/VisualWinelistIOS */,
+				CAFE00000000000000000040 /* DebugBridge */,
 				CAFE00000000000000000003 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		CAFE00000000000000000040 /* DebugBridge */ = {
+			isa = PBXGroup;
+			children = (
+				CAFE00000000000000000120 /* DebugBridgeManager.swift */,
+				CAFE00000000000000000121 /* StateServer.swift */,
+				CAFE00000000000000000122 /* Bridges.swift */,
+				CAFE00000000000000000123 /* DebugOverlay.swift */,
+			);
+			name = DebugBridge;
 			sourceTree = "<group>";
 		};
 		CAFE00000000000000000003 /* Products */ = {
@@ -261,6 +281,10 @@
 				CAFE00000000000000000210 /* WineDetailView.swift in Sources */,
 				CAFE00000000000000000211 /* WineGridView.swift in Sources */,
 				CAFE00000000000000000214 /* ScanSettings.swift in Sources */,
+				CAFE00000000000000000220 /* DebugBridgeManager.swift in Sources */,
+				CAFE00000000000000000221 /* StateServer.swift in Sources */,
+				CAFE00000000000000000222 /* Bridges.swift in Sources */,
+				CAFE00000000000000000223 /* DebugOverlay.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -318,7 +342,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -373,7 +397,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
@@ -391,7 +415,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = WX2USNES7D;
 				INFOPLIST_FILE = Sources/VisualWinelistIOS/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -413,7 +437,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = WX2USNES7D;
 				INFOPLIST_FILE = Sources/VisualWinelistIOS/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

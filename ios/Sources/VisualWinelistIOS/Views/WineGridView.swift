@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct WineGridView: View {
-    @ObservedObject var viewModel: WineListViewModel
+    var viewModel: WineListViewModel
     let onScanMore: () -> Void
 
     private let columnCount = 2

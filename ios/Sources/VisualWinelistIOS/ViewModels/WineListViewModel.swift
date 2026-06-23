@@ -1,13 +1,15 @@
 import Foundation
+import Observation
 
+@Observable
 @MainActor
-class WineListViewModel: ObservableObject {
-    @Published var wines: [WineState] = []
-    @Published var isScanning = false
-    @Published var scanMessage = ""
-    @Published var errorMessage: String?
-    @Published var selectedWine: WineObject?
-    @Published var backendStatus: BackendStatus = .unknown
+class WineListViewModel {
+    var wines: [WineState] = []
+    var isScanning = false
+    var scanMessage = ""
+    var errorMessage: String?
+    var selectedWine: WineObject?
+    var backendStatus: BackendStatus = .unknown
 
     enum BackendStatus {
         case unknown, ok, degraded(String), unreachable
