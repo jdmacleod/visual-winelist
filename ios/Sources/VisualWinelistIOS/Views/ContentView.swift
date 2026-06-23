@@ -119,7 +119,7 @@ struct ContentView: View {
                 .padding()
             }
         }
-        .onAppear { camera.session.startRunning() }
+        .onAppear { camera.resumeSession() }
     }
 
     // MARK: - Scanning view
@@ -202,6 +202,7 @@ struct ContentView: View {
         phase = .scanning
         do {
             let photoData = try await camera.capturePhoto()
+            camera.stopSession()
             if viewModel.wines.isEmpty {
                 await viewModel.scan(photoData: photoData)
             } else {

@@ -25,17 +25,19 @@ struct WineDetailView: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 260)
                     .clipped()
-                    .overlay(alignment: .topTrailing) {
+                    .overlay(alignment: .bottomTrailing) {
                         if hasImage {
                             Button {
                                 showFlagAlert = true
                             } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.title3)
-                                    .foregroundStyle(.white.opacity(0.8), .black.opacity(0.4))
-                                    .padding(10)
+                                Image(systemName: "hand.thumbsdown.fill")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 44, height: 44)
+                                    .background(.black.opacity(0.55), in: Circle())
                             }
-                            .accessibilityLabel("Remove image")
+                            .padding(12)
+                            .accessibilityLabel("Flag wrong image")
                         }
                     }
                     .alert("Remove image?", isPresented: $showFlagAlert) {
