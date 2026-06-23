@@ -225,7 +225,7 @@ jobs:
       #   gh api repos/gitleaks/gitleaks-action/git/refs/tags/v2.3.9 | jq -r '.object.sha')
       # TODO(public-repo): uncomment GITLEAKS_LICENSE to enforce on fork PRs when this
       # repo is public (forked GITHUB_TOKEN lacks write permissions without the license).
-      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
