@@ -25,6 +25,7 @@ class CameraManager: NSObject, ObservableObject {
 
     nonisolated let session = AVCaptureSession()
     private nonisolated let photoOutput = AVCapturePhotoOutput()
+    private nonisolated let sessionQueue = DispatchQueue(label: "com.visualwinelist.camera.session")
 
     private var photoContinuation: CheckedContinuation<Data, Error>?
 
@@ -42,12 +43,12 @@ class CameraManager: NSObject, ObservableObject {
     }
 
     func stopSession() {
-        Task.detached { [session = self.session] in session.stopRunning() }
+        sessionQueue.async { [session = self.session] in session.stopRunning() }
         isSessionRunning = false
     }
 
     func resumeSession() {
-        Task.detached { [session = self.session] in session.startRunning() }
+        sessionQueue.async { [session = self.session] in session.startRunning() }
         isSessionRunning = true
     }
 
@@ -64,28 +65,32 @@ class CameraManager: NSObject, ObservableObject {
     private func configure() async {
         let session = self.session
         let photoOutput = self.photoOutput
+        let sessionQueue = self.sessionQueue
 
-        let started = await Task.detached(priority: .userInitiated) { () -> Bool in
-            session.beginConfiguration()
-            session.sessionPreset = .photo
+        let started: Bool = await withCheckedContinuation { continuation in
+            sessionQueue.async {
+                session.beginConfiguration()
+                session.sessionPreset = .photo
 
-            // Prefer the rear wide-angle camera on iPhone/iPad
-            let device =
-                AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
-                ?? AVCaptureDevice.default(for: .video)
-            guard let device,
-                let input = try? AVCaptureDeviceInput(device: device)
-            else {
+                // Prefer the rear wide-angle camera on iPhone/iPad
+                let device =
+                    AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
+                    ?? AVCaptureDevice.default(for: .video)
+                guard let device,
+                    let input = try? AVCaptureDeviceInput(device: device)
+                else {
+                    session.commitConfiguration()
+                    continuation.resume(returning: false)
+                    return
+                }
+
+                if session.canAddInput(input) { session.addInput(input) }
+                if session.canAddOutput(photoOutput) { session.addOutput(photoOutput) }
                 session.commitConfiguration()
-                return false
+                session.startRunning()
+                continuation.resume(returning: true)
             }
-
-            if session.canAddInput(input) { session.addInput(input) }
-            if session.canAddOutput(photoOutput) { session.addOutput(photoOutput) }
-            session.commitConfiguration()
-            session.startRunning()
-            return true
-        }.value
+        }
 
         if started {
             isSessionRunning = true
