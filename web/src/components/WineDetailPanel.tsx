@@ -218,7 +218,7 @@ export default function WineDetailPanel({
           <div className="flex-1 overflow-y-auto">
             {/* Image section */}
             <div
-              className={`aspect-video bg-gradient-to-b from-purple-800 to-purple-950 relative transition-all duration-700 ${imageFlash ? 'ring-2 ring-green-400/60' : ''}`}
+              className={`h-[55vh] bg-gradient-to-b from-purple-800 to-purple-950 relative transition-all duration-700 ${imageFlash ? 'ring-2 ring-green-400/60' : ''}`}
             >
               {imageSrc ? (
                 <>
@@ -227,7 +227,7 @@ export default function WineDetailPanel({
                     alt={wine.name}
                     loading="lazy"
                     decoding="async"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                   />
                   {!uploadLoading && (
                     <>
@@ -241,7 +241,7 @@ export default function WineDetailPanel({
                         onClick={() => fileInputRef.current?.click()}
                         className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2.5 py-1 rounded-md hover:bg-black/80 transition-colors"
                       >
-                        Replace
+                        Upload
                       </button>
                     </>
                   )}

@@ -174,3 +174,14 @@ test('onDelete called when Delete button is clicked', async () => {
   await user.click(screen.getByRole('button', { name: /delete/i }));
   expect(defaultProps.onDelete).toHaveBeenCalled();
 });
+
+test('image upload button label is "Upload" (not "Replace")', () => {
+  render(
+    <WineDetailPanel
+      {...defaultProps}
+      wine={makeWine({ image_url: '/wines/test-wine-id/image' })}
+    />,
+  );
+  expect(screen.getByRole('button', { name: /^upload$/i })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /^replace$/i })).not.toBeInTheDocument();
+});
