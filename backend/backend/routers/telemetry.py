@@ -57,11 +57,22 @@ async def list_scan_telemetry(
 ) -> dict[str, Any]:
     """Recent telemetry reports, newest first. Returns the full stored payloads
     (plus the server-side received timestamp) so you can inspect a run directly."""
+    if not config.TELEMETRY_ENABLED:
+        raise HTTPException(status_code=404, detail="telemetry disabled")
+
     async with db_session.SessionLocal() as s:
         stmt = select(ScanTelemetryRecord).order_by(desc(ScanTelemetryRecord.timestamp))
         if outcome is not None:
             stmt = stmt.where(ScanTelemetryRecord.outcome == outcome)
         rows = (await s.execute(stmt.limit(limit))).scalars().all()
 
-    scans = [{**json.loads(r.payload), "received_at": r.timestamp.isoformat()} for r in rows]
+    scans = []
+    for r in rows:
+        try:
+            parsed = json.loads(r.payload)
+        except (ValueError, TypeError):
+            # A single corrupt/truncated row must not 500 the whole listing.
+            log.warning("skipping unparseable telemetry payload for %s", r.scan_id)
+            continue
+        scans.append({**parsed, "received_at": r.timestamp.isoformat()})
     return {"scans": scans, "count": len(scans)}

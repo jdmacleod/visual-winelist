@@ -95,6 +95,31 @@ async def test_post_telemetry_disabled_returns_404(client):
     assert r.status_code == 404
 
 
+async def test_get_telemetry_disabled_returns_404(client):
+    """GET mirrors POST: when telemetry is disabled the listing is also off,
+    so disabling the feature doesn't keep serving stored reports."""
+    await client.post("/telemetry/scan", json=_payload(scan_id="getdis01"))
+    with patch("backend.config.TELEMETRY_ENABLED", False):
+        r = await client.get("/telemetry/scans")
+    assert r.status_code == 404
+
+
+async def test_get_telemetry_skips_corrupt_payload_row(client):
+    """A single unparseable payload row is skipped, not allowed to 500 the whole listing."""
+    await client.post("/telemetry/scan", json=_payload(scan_id="good0001"))
+    # Hand-corrupt one stored payload to simulate a truncated/garbage row.
+    async with db_session.SessionLocal() as s:
+        bad = ScanTelemetryRecord(scan_id="corrupt1", outcome="completed", payload="{not json")
+        await s.merge(bad)
+        await s.commit()
+
+    r = await client.get("/telemetry/scans")
+    assert r.status_code == 200, "one bad row must not take down the endpoint"
+    scan_ids = {s["scan_id"] for s in r.json()["scans"]}
+    assert "good0001" in scan_ids
+    assert "corrupt1" not in scan_ids
+
+
 async def test_post_telemetry_rejects_bad_outcome(client):
     r = await client.post("/telemetry/scan", json={"scan_id": "bad00001", "outcome": "nope"})
     assert r.status_code == 422
