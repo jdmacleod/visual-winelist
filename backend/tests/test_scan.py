@@ -1,3 +1,4 @@
+import asyncio
 import json
 from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, patch
@@ -245,6 +246,64 @@ async def test_scan_happy_path(client):
     complete_data = json.loads(next(d for e, d in events if e == "complete"))
     assert complete_data["wine_count"] == 2
     assert "scan_id" in complete_data
+
+
+async def test_notes_run_concurrently_with_image_fetch(client):
+    """Sommelier notes must start as soon as extraction ends, concurrent with the
+    Brave image fetches — not serially after them. fetch_image blocks on an event
+    that only get_notes sets: if notes still ran after all images (the old serial
+    Phase 2), the fetch would unblock via its timeout, not via notes."""
+    notes_started = asyncio.Event()
+    unblocked_by_notes: list[bool] = []
+
+    async def mock_notes(wine: WineObject) -> NotesEvent:
+        notes_started.set()
+        return NotesEvent(wine_id=wine.wine_id, tasting_note="Lush.", pairings=["beef"])
+
+    async def mock_fetch(wine: WineObject):
+        try:
+            await asyncio.wait_for(notes_started.wait(), timeout=8.0)
+            unblocked_by_notes.append(True)
+        except TimeoutError:
+            unblocked_by_notes.append(False)
+        return (None, 0, 0)
+
+    with (
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(MARGAUX, OPUS),
+        ),
+        patch(
+            "backend.routers.scan.brave_client.fetch_image",
+            new=AsyncMock(side_effect=mock_fetch),
+        ),
+        patch(
+            "backend.routers.scan.sommelier.get_notes",
+            new=AsyncMock(side_effect=mock_notes),
+        ),
+        patch(
+            "backend.routers.scan.cache.lookup",
+            new=AsyncMock(return_value=None),
+        ),
+    ):
+        async with client.stream(
+            "POST",
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+        ) as r:
+            assert r.status_code == 200
+            body = await r.aread()
+
+    events = _collect_sse(body.decode())
+    types = [e for e, _ in events]
+    assert "notes" in types, "notes must be emitted"
+    assert "image" in types, "image events must be emitted"
+    assert "complete" in types
+    assert unblocked_by_notes, "image fetch was never attempted"
+    assert all(unblocked_by_notes), (
+        "image fetch must be unblocked by notes running concurrently, "
+        "not by its own timeout (proves notes no longer wait for images)"
+    )
 
 
 async def test_scan_ollama_down(client):

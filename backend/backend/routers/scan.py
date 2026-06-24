@@ -131,12 +131,14 @@ async def _scan_sse(
 ) -> AsyncIterator[str]:
     global _scanning
     extraction_task: asyncio.Task[None] | None = None
+    sommelier_task: asyncio.Task[None] | None = None
     image_tasks: list[asyncio.Task[None]] = []
 
     t_scan_start = time.perf_counter()
     t_first_wine: float | None = None
     t_extraction_end: float | None = None
-    t_phase1_end: float | None = None
+    t_images_end: float | None = None
+    t_sommelier_end: float | None = None
 
     # Shared accumulator for per-wine Brave timing, summed across all fetch tasks.
     timing_acc: dict[str, int] = {"brave_search_ms": 0, "image_download_ms": 0}
@@ -205,11 +207,35 @@ async def _scan_sse(
                 t_extraction_end = time.perf_counter()
                 await queue.put(("extraction_done", None))
 
+        async def run_sommelier(target_wines: list[WineObject]) -> None:
+            # Tasting notes use Ollama, which is free the moment extraction ends.
+            # Run this concurrently with the still-in-flight Brave image fetches
+            # (HTTP, no Ollama) instead of waiting for them — notes start sooner.
+            nonlocal t_sommelier_end
+            for note_wine in target_wines:
+                try:
+                    notes = await sommelier.get_notes(note_wine)
+                    await queue.put(("notes", notes))
+                    try:
+                        await cache.write(note_wine, None, notes.tasting_note, notes.pairings)
+                    except Exception:
+                        log.warning(
+                            "cache.write (notes) failed for %s",
+                            note_wine.wine_id,
+                            exc_info=True,
+                        )
+                except Exception:
+                    await queue.put(("notes", NotesEvent(wine_id=note_wine.wine_id)))
+            t_sommelier_end = time.perf_counter()
+            await queue.put(("sommelier_done", None))
+
         extraction_task = asyncio.ensure_future(run_extraction())
 
-        # Phase 1: drain queue until extraction + all image tasks complete
+        # Single drain loop: stream wines + images, and the moment extraction
+        # finishes, kick off the sommelier pass so notes overlap image fetching.
         # Keepalive: send SSE comment every 15s to prevent proxy/iOS from closing connection
         extraction_done = False
+        sommelier_done = False
         try:
             while True:
                 try:
@@ -247,11 +273,17 @@ async def _scan_sse(
                     img_event: ImageEvent = data
                     yield _sse("image", img_event.model_dump())
 
+                elif event_type == "notes":
+                    notes_event: NotesEvent = data
+                    yield _sse("notes", notes_event.model_dump())
+
                 elif event_type == "analyzing":
                     yield _sse("status", "analyzing")
 
                 elif event_type == "image_done":
                     pending_images -= 1
+                    if extraction_done and pending_images == 0 and t_images_end is None:
+                        t_images_end = time.perf_counter()
 
                 elif event_type == "error":
                     error: ErrorEvent = data
@@ -259,8 +291,16 @@ async def _scan_sse(
 
                 elif event_type == "extraction_done":
                     extraction_done = True
+                    # Extraction is complete, so `wines` holds the full set and
+                    # Ollama is free. Start notes now, concurrent with images.
+                    if t_images_end is None and pending_images == 0:
+                        t_images_end = time.perf_counter()
+                    sommelier_task = asyncio.ensure_future(run_sommelier(list(wines)))
 
-                if extraction_done and pending_images == 0:
+                elif event_type == "sommelier_done":
+                    sommelier_done = True
+
+                if extraction_done and pending_images == 0 and sommelier_done:
                     break
 
         except Exception as exc:
@@ -287,24 +327,8 @@ async def _scan_sse(
             await _write_scan_log(scan_id=scan_id, wine_count=len(wines), cache_hits=cache_hits)
             return
 
-        t_phase1_end = time.perf_counter()
-
-        # Phase 2: sommelier notes (serial — Ollama single-instance)
-        for wine in wines:
-            try:
-                notes = await sommelier.get_notes(wine)
-                yield _sse("notes", notes.model_dump())
-                # Update cache record with notes; image_path already set by Phase 1.
-                try:
-                    await cache.write(wine, None, notes.tasting_note, notes.pairings)
-                except Exception:
-                    log.warning("cache.write (notes) failed for %s", wine.wine_id, exc_info=True)
-            except Exception:
-                yield _sse(
-                    "notes",
-                    NotesEvent(wine_id=wine.wine_id).model_dump(),
-                )
-
+        # Notes + images both completed inside the loop above (sommelier now runs
+        # concurrent with image fetches), so the stream is fully drained here.
         t_scan_end = time.perf_counter()
 
         first_wine_ms = (
@@ -313,13 +337,18 @@ async def _scan_sse(
         ollama_ms = (
             int((t_extraction_end - t_scan_start) * 1000) if t_extraction_end is not None else None
         )
+        # image_ms and sommelier_ms are now wall-clock durations measured from the
+        # end of extraction; they overlap (notes run during image fetching) rather
+        # than summing serially, which is the whole point of the change.
         image_ms = (
-            max(0, int((t_phase1_end - t_extraction_end) * 1000))
-            if t_extraction_end is not None and t_phase1_end is not None
+            max(0, int((t_images_end - t_extraction_end) * 1000))
+            if t_extraction_end is not None and t_images_end is not None
             else None
         )
         sommelier_ms = (
-            max(0, int((t_scan_end - t_phase1_end) * 1000)) if t_phase1_end is not None else None
+            max(0, int((t_sommelier_end - t_extraction_end) * 1000))
+            if t_extraction_end is not None and t_sommelier_end is not None
+            else None
         )
         total_ms = int((t_scan_end - t_scan_start) * 1000)
 
@@ -368,6 +397,8 @@ async def _scan_sse(
         _scanning = False
         if extraction_task is not None and not extraction_task.done():
             extraction_task.cancel()
+        if sommelier_task is not None and not sommelier_task.done():
+            sommelier_task.cancel()
         for _task in image_tasks:
             if not _task.done():
                 _task.cancel()
