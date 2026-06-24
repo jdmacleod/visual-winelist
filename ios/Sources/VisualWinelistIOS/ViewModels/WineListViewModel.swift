@@ -78,7 +78,7 @@ class WineListViewModel {
 
     private func performScan(photoData: Data) async {
         isScanning = true
-        scanMessage = "Sending photo to backend…"
+        scanMessage = "Sending photo…"
         errorMessage = nil
 
         defer {
@@ -108,6 +108,7 @@ class WineListViewModel {
 
         do {
             var extractedCount = 0
+            var notesReceived = 0
 
             try await withThrowingTaskGroup(of: Void.self) { group in
                 for try await event in stream {
@@ -116,13 +117,18 @@ class WineListViewModel {
                         guard !wines.contains(where: { $0.wine == wine }) else { continue }
                         extractedCount += 1
                         wines.append(.extracting(wine))
-                        scanMessage = "\(wines.count) wine\(wines.count == 1 ? "" : "s") found…"
+                        scanMessage = "Found \(wines.count) wine\(wines.count == 1 ? "" : "s")…"
 
                     case .image(let payload):
                         group.addTask { try await self.handleImageEvent(payload) }
 
                     case .notes(let payload):
                         handleNotesEvent(payload)
+                        // Phase 2: sommelier notes stream one per wine. Show progress so
+                        // the ~N-second pass after the gallery fills isn't a silent wait.
+                        notesReceived += 1
+                        scanMessage =
+                            "Getting tasting notes… (\(notesReceived)/\(max(notesReceived, extractedCount)))"
 
                     case .error(let payload):
                         switch payload.code {
@@ -149,7 +155,10 @@ class WineListViewModel {
                             + (hit > 0 ? " · \(hit) from cache" : "")
 
                     case .ping:
-                        break
+                        // First byte from the backend (the ": ready" flush) confirms the
+                        // upload landed and AI extraction is now running — this is the
+                        // ~15s wait, so label it accurately instead of "Sending photo…".
+                        if wines.isEmpty { scanMessage = "Analyzing the wine list…" }
 
                     case .parseError:
                         print("[SSE] parse error — malformed event from backend")
