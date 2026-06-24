@@ -67,8 +67,10 @@ before committing — if round-trips are <100ms on LAN, skip this.
 `POST /telemetry/scan` is unauthenticated with no payload size cap (`event_timeline` is an
 unbounded list). Consistent with the existing LAN-only posture (`/scan` accepts 25 MB, `/wines`
 is open), so it's fine for self-host on a trusted network. Before exposing the backend beyond a
-trusted LAN, add: a `max_length` on `event_timeline`, a request body size guard, and
-auth/rate-limiting on the telemetry routes. Shipped unhardened in v0.2.13.0.
+trusted LAN, add: a `max_length` on `event_timeline`, a request body size guard, a `scan_id`
+charset/length validator (it is a client-controlled upsert key), and auth/rate-limiting on the
+telemetry routes. Shipped unhardened in v0.2.13.0; the `GET` listing now mirrors the
+`TELEMETRY_ENABLED` gate and tolerates a corrupt row (v0.2.13.0), but the rest remain open.
 
 ---
 

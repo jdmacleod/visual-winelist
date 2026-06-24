@@ -15,6 +15,7 @@
 - **Image variant race** — concurrent requests for the same wine image no longer double-generate the resized WebP (per-wine generation lock; the lock releases even if image decoding fails).
 - **Perf HUD recoverable** — closing the debug overlay with the ✕ no longer strands it off-screen; it re-homes to the corner and the drag is clamped so it can't be lost.
 - **Dropped end-of-scan timing** — the transaction-metrics rows (DNS/TCP/upload) were being discarded on normal scan completion; they now record correctly.
+- **Telemetry listing consistency** — `GET /telemetry/scans` now honors `TELEMETRY_ENABLED` (returns 404 when off, matching `POST`), and a single corrupt stored payload is skipped rather than failing the whole listing.
 
 ## v0.2.12.0 (2026-06-23)
 
