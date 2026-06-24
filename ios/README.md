@@ -85,6 +85,14 @@ The main app source lives under `Sources/VisualWinelistIOS/`; the three `DebugBr
 
 To change the bundle ID (required if you have a custom domain), edit `PRODUCT_BUNDLE_IDENTIFIER` in the target's Build Settings.
 
+## Features
+
+- **4-column wine grid** — approximately 8 wines per scroll on an iPhone 15; card text is the wine name only (one line, truncated).
+- **Full-bottle detail view** — tapping a card opens a 280 pt image panel showing the full bottle label (blur background + fit scaling); name, vintage, price, and section appear in a gradient overlay. Tasting notes start immediately below.
+- **Preferences screen** — tap the gear icon (top-left of the grid toolbar) to open Preferences:
+  - *Show price on card* — displays extracted price as a translucent capsule badge at the top-left of each card. Persisted via `@AppStorage`.
+  - *About* — shows the app version sourced from the repo `VERSION` file.
+
 ## Architecture
 
 The iOS client uses `URLSessionDataDelegate` for SSE streaming (rather than the `async/await bytes(for:)` API used by the macOS client) because it needs to hold an explicit `URLSessionDataTask` reference to support task cancellation when the user navigates away mid-scan. See [docs/explanation/design-decisions.md](../docs/explanation/design-decisions.md) for the full rationale.
