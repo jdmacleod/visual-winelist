@@ -240,7 +240,7 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
             int((t_extraction_end - t_scan_start) * 1000) if t_extraction_end is not None else None
         )
         image_ms = (
-            int((t_phase1_end - t_extraction_end) * 1000)
+            max(0, int((t_phase1_end - t_extraction_end) * 1000))
             if t_extraction_end is not None and t_phase1_end is not None
             else None
         )

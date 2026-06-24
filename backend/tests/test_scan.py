@@ -263,6 +263,14 @@ async def test_scan_ollama_down(client):
 
     error_data = json.loads(next(d for e, d in events if e == "error"))
     assert error_data["code"] == "OLLAMA_DOWN"
+    complete_data = json.loads(next(d for e, d in events if e == "complete"))
+    scan_id = complete_data["scan_id"]
+
+    from sqlalchemy import select as sa_select
+
+    async with db_session.SessionLocal() as s:
+        row = await s.scalar(sa_select(ScanLog).where(ScanLog.scan_id == scan_id))
+    assert row is not None, "ScanLog must be written even on OLLAMA_DOWN"
 
 
 async def test_two_phase_sse_order(client):
@@ -353,6 +361,15 @@ async def test_scan_ollama_timeout(client):
     assert error_data["code"] == "OLLAMA_TIMEOUT"
     complete_data = json.loads(next(d for e, d in events if e == "complete"))
     assert complete_data["wine_count"] == 0
+    assert isinstance(complete_data["total_ms"], int)
+    assert complete_data["total_ms"] >= 0
+    scan_id = complete_data["scan_id"]
+
+    from sqlalchemy import select as sa_select
+
+    async with db_session.SessionLocal() as s:
+        row = await s.scalar(sa_select(ScanLog).where(ScanLog.scan_id == scan_id))
+    assert row is not None, "ScanLog must be written even on OLLAMA_TIMEOUT"
 
 
 async def test_scan_cache_miss_writes_to_db(client):
