@@ -8,7 +8,7 @@ from fastapi import FastAPI
 
 from backend import config
 from backend.db.session import init_db
-from backend.routers import curate, health, scan, wines
+from backend.routers import curate, health, scan, telemetry, wines
 
 log = logging.getLogger(__name__)
 
@@ -41,3 +41,4 @@ app.include_router(scan.router)
 app.include_router(health.router)
 app.include_router(wines.router)
 app.include_router(curate.router)
+app.include_router(telemetry.router)

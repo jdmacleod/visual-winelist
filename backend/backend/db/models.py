@@ -58,3 +58,26 @@ class ScanLog(Base):
     image_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     sommelier_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class ScanTelemetryRecord(Base):
+    """Client-reported scan diagnostics (opt-in). Indexed scalar dims for queries
+    plus the full JSON payload for lossless inspection and schema evolution."""
+
+    __tablename__ = "scan_telemetry"
+
+    scan_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+    )
+    outcome: Mapped[str] = mapped_column(String(16), default="completed", index=True)
+    app_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    git_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    device_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    wine_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ttfb_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    first_wine_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ollama_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    payload: Mapped[str] = mapped_column(Text)

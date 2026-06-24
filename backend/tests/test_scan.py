@@ -968,6 +968,50 @@ async def test_scan_emits_analyzing_status_on_first_ollama_token(client):
     assert types.index("status") < types.index("wine"), "analyzing must precede the first wine"
 
 
+async def test_scan_saves_image_when_enabled(client, tmp_path):
+    """With SAVE_SCAN_IMAGES on, /scan persists the upload to scans/{scan_id}.jpg."""
+    with (
+        patch("backend.config.SAVE_SCAN_IMAGES", True),
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        async with client.stream(
+            "POST",
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+        ) as r:
+            scan_id = r.headers.get("x-scan-id")
+            await r.aread()
+
+    assert scan_id, "X-Scan-Id header must be present"
+    assert (tmp_path / "scans" / f"{scan_id}.jpg").exists()
+
+
+async def test_scan_does_not_save_image_when_disabled(client, tmp_path):
+    """Default (SAVE_SCAN_IMAGES off): no scans/ directory is created."""
+    with (
+        patch("backend.config.SAVE_SCAN_IMAGES", False),
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        async with client.stream(
+            "POST",
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+        ) as r:
+            await r.aread()
+
+    assert not (tmp_path / "scans").exists()
+
+
 async def test_scan_first_wine_ms_none_when_no_wines(client):
     """No wines extracted → first_wine_ms is None (nothing was ever yielded)."""
     with (

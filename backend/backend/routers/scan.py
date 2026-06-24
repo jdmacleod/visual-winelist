@@ -40,6 +40,14 @@ def _sse(event: str, data: Any) -> str:
     return f"event: {event}\ndata: {payload}\n\n"
 
 
+def _write_scan_image(image_data: bytes, scan_id: str) -> None:
+    """Persist the uploaded scan photo to scans/{scan_id}.jpg for later inspection."""
+    scans_dir = os.path.join(config.IMAGE_CACHE_DIR, "scans")
+    os.makedirs(scans_dir, exist_ok=True)
+    with open(os.path.join(scans_dir, f"{scan_id}.jpg"), "wb") as f:
+        f.write(image_data)
+
+
 async def _write_scan_log(
     scan_id: str,
     wine_count: int,
@@ -139,6 +147,14 @@ async def _scan_sse(
         # keepalive). This makes the iOS http_ok/ttfb reflect true network time and
         # exposes Ollama's first-wine latency as the gap to the first wine event.
         yield ": ready\n\n"
+
+        # Optionally persist the raw scan photo (keyed by scan_id) so telemetry rows
+        # can be correlated to what the model actually saw. Non-fatal on failure.
+        if config.SAVE_SCAN_IMAGES:
+            try:
+                await asyncio.to_thread(_write_scan_image, image_data, scan_id)
+            except Exception:
+                log.warning("save_scan_image failed for %s", scan_id, exc_info=True)
 
         queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
         wines: list[WineObject] = []
