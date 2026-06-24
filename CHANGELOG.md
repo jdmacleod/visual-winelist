@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.2.12.0 (2026-06-23)
+
+### Added
+
+- **4-across wine grid** — Grid columns increased from 2 to 4, spacing tightened from 12 to 8 pt. ~8 wines visible per scroll on iPhone 15. Card text simplified to wine name only (caption2, one line, truncated) — vintage removed from card overlay; images become primary at this density.
+- **Full-bottle detail image** — Replaces the 260 pt fixed-height scaledToFill crop (which showed only ~22% of a portrait bottle) with a blur-background + scaledToFit pattern: a darkened blurred fill behind the full bottle image. Label text is now fully readable on the detail screen.
+- **Preferences screen** — Gear icon in the grid toolbar navigates to a native SwiftUI Form with a "Show price on card" toggle (persisted via `@AppStorage`) and an About section showing the app version.
+- **Price overlay badge** — When "Show price on card" is enabled, extracted price appears as a translucent capsule pill at the top-left of each wine card.
+
 ## v0.2.11.0 (2026-06-23)
 
 ### Added
