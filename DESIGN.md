@@ -79,7 +79,7 @@ fixed sizes for readable content.
 | `.subheadline.bold()` | Action button labels, form section headings |
 | `.callout` | Setup view descriptive subtitle |
 | `.headline` | Scanning state progress message |
-| `.title3` | Secondary detail headers — vintage, price, setup tagline |
+| `.title3` | Setup tagline, secondary headers (vintage/price moved to image gradient overlay in detail view) |
 | `.title3.bold()` | Wine name in detail view image overlay |
 
 ### Fixed sizes (decorative icons only)

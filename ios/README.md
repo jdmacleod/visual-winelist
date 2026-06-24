@@ -91,7 +91,7 @@ To change the bundle ID (required if you have a custom domain), edit `PRODUCT_BU
 - **Full-bottle detail view** — tapping a card opens a 280 pt image panel showing the full bottle label (blur background + fit scaling); name, vintage, price, and section appear in a gradient overlay. Tasting notes start immediately below.
 - **Preferences screen** — tap the gear icon (top-left of the grid toolbar) to open Preferences:
   - *Show price on card* — displays extracted price as a translucent capsule badge at the top-left of each card. Persisted via `@AppStorage`.
-  - *About* — shows the app version sourced from the repo `VERSION` file.
+  - *About* — shows the app version from `CFBundleShortVersionString` (set via `MARKETING_VERSION` in `project.pbxproj`).
 
 ## Architecture
 
