@@ -103,6 +103,10 @@
                 // install (see /investigate finding on perf-ttfi).
                 Text("build: \(Self.buildMarker)")
                     .foregroundStyle(.green)
+                if m.parseErrorCount > 0 {
+                    Text("parse_err: \(m.parseErrorCount) — malformed SSE")
+                        .foregroundStyle(.red)
+                }
                 Text("url: \(m.backendURL)")
                 if m.origWidth > 0 {
                     Text("orig: \(m.origWidth)×\(m.origHeight)")

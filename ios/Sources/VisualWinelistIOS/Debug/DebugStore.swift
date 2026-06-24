@@ -43,6 +43,10 @@
             var braveSearchMs: Int?
             var imageDownloadMs: Int?
             var wineCount: Int?
+            // Count of SSE events that failed to decode this scan. Surfaced as a
+            // red parse_err row so a CompleteSSEPayload (or any event) decode break
+            // is visible on-device instead of only print()'d to the console.
+            var parseErrorCount: Int = 0
             var eventTimeline: [(label: String, ms: Int)] = []
         }
 
@@ -87,6 +91,10 @@
 
         func recordEvent(label: String, ms: Int) {
             lastScan?.eventTimeline.append((label: label, ms: ms))
+        }
+
+        func recordParseError() {
+            lastScan?.parseErrorCount += 1
         }
 
         func recordComplete(payload: CompleteSSEPayload) {

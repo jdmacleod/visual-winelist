@@ -90,8 +90,11 @@ class WineListViewModel {
         #if DEBUG
             // Single call site: wineCount is set by recordComplete() for every complete
             // event (including error paths), so nil means complete was never received.
+            // Keep the panel when a parse error occurred — otherwise a complete-event
+            // decode failure would wipe the very evidence (parse_err) of the break.
             defer {
-                if DebugStore.shared.lastScan?.wineCount == nil {
+                let m = DebugStore.shared.lastScan
+                if m?.wineCount == nil && (m?.parseErrorCount ?? 0) == 0 {
                     DebugStore.shared.scanFailed()
                 }
             }
@@ -150,6 +153,9 @@ class WineListViewModel {
 
                     case .parseError:
                         print("[SSE] parse error — malformed event from backend")
+                        #if DEBUG
+                            DebugStore.shared.recordParseError()
+                        #endif
                     }
                 }
 
