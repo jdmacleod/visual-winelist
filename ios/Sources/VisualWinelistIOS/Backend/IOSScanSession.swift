@@ -196,11 +196,15 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
             let tcp = ms(tx.connectStartDate, tx.connectEndDate)
             let request = ms(tx.requestStartDate, tx.requestEndDate)
             let response = ms(tx.responseStartDate, tx.responseEndDate)
+            // requestEnd → responseStart: the server's time-to-first-byte, i.e. how
+            // long it sat silent after we finished sending. This is where the "15s
+            // upload" actually lives (Diagnostic 1).
+            let wait = ms(tx.requestEndDate, tx.responseStartDate)
             let gen = debugGen
             Task { @MainActor [weak self] in
                 guard self?.debugGen == gen else { return }
                 DebugStore.shared.recordTransactionMetrics(
-                    dns: dns, tcp: tcp, request: request, response: response)
+                    dns: dns, tcp: tcp, request: request, response: response, wait: wait)
             }
         }
 

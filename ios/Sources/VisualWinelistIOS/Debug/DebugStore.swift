@@ -33,8 +33,15 @@
             var tcpMs: Int?
             var requestMs: Int?
             var responseMs: Int?
+            // Gap between request-fully-sent and first response byte = pure server
+            // time-to-first-byte (responseStartDate − requestEndDate). Isolates the
+            // "server hasn't replied yet" wait from upload/connect (Diagnostic 1).
+            var waitMs: Int?
             // Server-side body-receive time, from the complete event (T1).
             var receiveMs: Int?
+            // Time from scan start to the first wine yielded by Ollama — the real
+            // time-to-first-image gate (Diagnostic 3, from the complete event).
+            var firstWineMs: Int?
             var ollamaMs: Int?
             var imageMs: Int?
             var sommelierMs: Int?
@@ -82,11 +89,14 @@
             lastScan?.ttfbMs = ms
         }
 
-        func recordTransactionMetrics(dns: Int?, tcp: Int?, request: Int?, response: Int?) {
+        func recordTransactionMetrics(
+            dns: Int?, tcp: Int?, request: Int?, response: Int?, wait: Int?
+        ) {
             lastScan?.dnsMs = dns
             lastScan?.tcpMs = tcp
             lastScan?.requestMs = request
             lastScan?.responseMs = response
+            lastScan?.waitMs = wait
         }
 
         func recordEvent(label: String, ms: Int) {
@@ -99,6 +109,7 @@
 
         func recordComplete(payload: CompleteSSEPayload) {
             lastScan?.receiveMs = payload.receive_ms
+            lastScan?.firstWineMs = payload.first_wine_ms
             lastScan?.ollamaMs = payload.ollama_ms
             lastScan?.imageMs = payload.image_ms
             lastScan?.sommelierMs = payload.sommelier_ms

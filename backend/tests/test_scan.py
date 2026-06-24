@@ -172,10 +172,18 @@ async def test_scan_lock_released_on_generator_close():
         # before handing the generator to StreamingResponse (TOCTOU fix).
         scan_mod._scanning = True
         gen = _scan_sse(make_jpeg(), "test-disconnect")
-        # Generator runs Phase 1+2, yields the complete event, then suspends.
-        # At this suspend point the finally block has NOT run — _scanning is True.
-        first = await gen.__anext__()
-        assert "complete" in first, f"expected complete event, got: {first!r}"
+        # First chunk is the immediate ": ready" flush; drain until the complete event.
+        # The generator runs Phase 1+2, yields complete, then suspends — at that suspend
+        # point the finally block has NOT run, so _scanning is still True.
+        chunks: list[str] = []
+        async for chunk in gen:
+            chunks.append(chunk)
+            if "complete" in chunk:
+                break
+        assert chunks and chunks[0].startswith(": ready"), (
+            f"stream must open with ': ready'; got {chunks[:1]!r}"
+        )
+        assert any("complete" in c for c in chunks), f"expected complete event, got: {chunks!r}"
         assert scan_mod._scanning, "lock must be True while generator is suspended"
 
         # Simulate client disconnect: close the generator before it is exhausted.
@@ -862,3 +870,82 @@ async def test_scan_complete_includes_brave_timing(client):
     complete = json.loads(next(d for e, d in _collect_sse(body.decode()) if e == "complete"))
     assert complete["brave_search_ms"] == 100
     assert complete["image_download_ms"] == 50
+
+
+async def test_scan_emits_ready_comment_before_any_event(client):
+    """_scan_sse flushes a ': ready' comment first so the 200/first byte leave immediately."""
+    with (
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(MARGAUX),
+        ),
+        patch(
+            "backend.routers.scan.brave_client.fetch_image",
+            new=AsyncMock(return_value=(None, 0, 0)),
+        ),
+        patch(
+            "backend.routers.scan.sommelier.get_notes",
+            new=AsyncMock(side_effect=lambda w: NotesEvent(wine_id=w.wine_id)),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        async with client.stream(
+            "POST",
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+        ) as r:
+            body = await r.aread()
+
+    text = body.decode()
+    assert text.startswith(": ready"), f"stream must open with ': ready'; got {text[:40]!r}"
+    assert text.index(": ready") < text.index("event:"), "ready comment must precede all events"
+
+
+async def test_scan_complete_includes_first_wine_ms(client):
+    """happy-path complete event carries first_wine_ms as a non-negative integer (Diagnostic 3)."""
+    with (
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(MARGAUX),
+        ),
+        patch(
+            "backend.routers.scan.brave_client.fetch_image",
+            new=AsyncMock(return_value=(None, 0, 0)),
+        ),
+        patch(
+            "backend.routers.scan.sommelier.get_notes",
+            new=AsyncMock(side_effect=lambda w: NotesEvent(wine_id=w.wine_id)),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        async with client.stream(
+            "POST",
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+        ) as r:
+            body = await r.aread()
+
+    complete = json.loads(next(d for e, d in _collect_sse(body.decode()) if e == "complete"))
+    assert "first_wine_ms" in complete
+    assert isinstance(complete["first_wine_ms"], int)
+    assert complete["first_wine_ms"] >= 0
+
+
+async def test_scan_first_wine_ms_none_when_no_wines(client):
+    """No wines extracted → first_wine_ms is None (nothing was ever yielded)."""
+    with (
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        async with client.stream(
+            "POST",
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+        ) as r:
+            body = await r.aread()
+
+    complete = json.loads(next(d for e, d in _collect_sse(body.decode()) if e == "complete"))
+    assert complete.get("first_wine_ms") is None

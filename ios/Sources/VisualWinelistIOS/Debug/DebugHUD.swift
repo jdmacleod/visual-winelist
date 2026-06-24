@@ -131,7 +131,12 @@
                 if let tcp = m.tcpMs { Text("tcp: \(tcp) ms") }
                 if let request = m.requestMs { Text("req(send): \(request) ms") }
                 if let response = m.responseMs { Text("resp: \(response) ms") }
+                if let wait = m.waitMs {
+                    Text("wait(server): \(wait) ms")
+                        .foregroundStyle(.yellow)
+                }
                 if let receive = m.receiveMs { Text("recv(server): \(receive) ms") }
+                if let firstWine = m.firstWineMs { Text("first_wine: \(firstWine) ms") }
                 if let ollama = m.ollamaMs { Text("ollama: \(ollama) ms") }
                 if let image = m.imageMs { Text("image: \(image) ms") }
                 if let brave = m.braveSearchMs { Text("brave_search: \(brave) ms") }

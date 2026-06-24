@@ -126,6 +126,7 @@ async def _scan_sse(
     image_tasks: list[asyncio.Task[None]] = []
 
     t_scan_start = time.perf_counter()
+    t_first_wine: float | None = None
     t_extraction_end: float | None = None
     t_phase1_end: float | None = None
 
@@ -133,6 +134,12 @@ async def _scan_sse(
     timing_acc: dict[str, int] = {"brave_search_ms": 0, "image_download_ms": 0}
 
     try:
+        # Flush an SSE comment immediately so the HTTP 200 + first byte leave the
+        # server now, instead of riding out with the first real event (or the 15s
+        # keepalive). This makes the iOS http_ok/ttfb reflect true network time and
+        # exposes Ollama's first-wine latency as the gap to the first wine event.
+        yield ": ready\n\n"
+
         queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
         wines: list[WineObject] = []
         cache_hits = 0
@@ -140,9 +147,11 @@ async def _scan_sse(
         wine_index = 0
 
         async def run_extraction() -> None:
-            nonlocal wine_index, t_extraction_end
+            nonlocal wine_index, t_extraction_end, t_first_wine
             try:
                 async for wine in ollama_client.extract_wines(image_data):
+                    if t_first_wine is None:
+                        t_first_wine = time.perf_counter()
                     await queue.put(("wine", wine))
                     wine_index += 1
             except TimeoutError as exc:
@@ -238,6 +247,11 @@ async def _scan_sse(
                     cache_hits=cache_hits,
                     scan_id=scan_id,
                     receive_ms=receive_ms,
+                    first_wine_ms=(
+                        max(0, int((t_first_wine - t_scan_start) * 1000))
+                        if t_first_wine is not None
+                        else None
+                    ),
                     brave_search_ms=timing_acc["brave_search_ms"],
                     image_download_ms=timing_acc["image_download_ms"],
                 ).model_dump(),
@@ -265,6 +279,9 @@ async def _scan_sse(
 
         t_scan_end = time.perf_counter()
 
+        first_wine_ms = (
+            max(0, int((t_first_wine - t_scan_start) * 1000)) if t_first_wine is not None else None
+        )
         ollama_ms = (
             int((t_extraction_end - t_scan_start) * 1000) if t_extraction_end is not None else None
         )
@@ -280,10 +297,11 @@ async def _scan_sse(
 
         log.info(
             "[scan:%s] complete wines=%d cache_hits=%d"
-            " ollama_ms=%s image_ms=%s sommelier_ms=%s total_ms=%d",
+            " first_wine_ms=%s ollama_ms=%s image_ms=%s sommelier_ms=%s total_ms=%d",
             scan_id,
             len(wines),
             cache_hits,
+            first_wine_ms,
             ollama_ms,
             image_ms,
             sommelier_ms,
@@ -297,6 +315,7 @@ async def _scan_sse(
                 cache_hits=cache_hits,
                 scan_id=scan_id,
                 receive_ms=receive_ms,
+                first_wine_ms=first_wine_ms,
                 ollama_ms=ollama_ms,
                 image_ms=image_ms,
                 sommelier_ms=sommelier_ms,

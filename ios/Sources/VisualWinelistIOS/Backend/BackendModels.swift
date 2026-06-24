@@ -35,6 +35,7 @@ struct CompleteSSEPayload: Decodable, Sendable {
     let cache_hits: Int
     let scan_id: String
     let receive_ms: Int?
+    let first_wine_ms: Int?
     let ollama_ms: Int?
     let image_ms: Int?
     let sommelier_ms: Int?
