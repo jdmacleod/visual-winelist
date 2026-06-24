@@ -98,3 +98,21 @@ async def test_post_telemetry_disabled_returns_404(client):
 async def test_post_telemetry_rejects_bad_outcome(client):
     r = await client.post("/telemetry/scan", json={"scan_id": "bad00001", "outcome": "nope"})
     assert r.status_code == 422
+
+
+async def test_post_telemetry_best_effort_on_db_failure(client):
+    """A DB write failure is swallowed — telemetry never surfaces an error to the client."""
+
+    class _Boom:
+        def __call__(self):
+            raise RuntimeError("db down")
+
+    with patch("backend.routers.telemetry.db_session.SessionLocal", _Boom()):
+        r = await client.post("/telemetry/scan", json=_payload(scan_id="boom0001"))
+    assert r.status_code == 204
+
+    async with db_session.SessionLocal() as s:
+        row = await s.scalar(
+            sa_select(ScanTelemetryRecord).where(ScanTelemetryRecord.scan_id == "boom0001")
+        )
+    assert row is None, "failed write must not persist a partial row"
