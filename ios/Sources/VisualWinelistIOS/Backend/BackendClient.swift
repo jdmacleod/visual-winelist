@@ -117,6 +117,18 @@ struct BackendClient: Sendable {
             forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 300
 
+        // Opt-in scan-image saving (E13). When the user enables it, ask the
+        // backend to persist this photo and prune to the chosen retention count.
+        // Absent header => backend default (off) governs; nothing is sent here.
+        if UserDefaults.standard.bool(forKey: UserDefaultsKey.saveScanImages) {
+            request.setValue("1", forHTTPHeaderField: "X-Save-Scan-Image")
+            // 0 means the user enabled saving but never touched the picker; match
+            // the Preferences default (50) so retention applies from the first scan.
+            let stored = UserDefaults.standard.integer(forKey: UserDefaultsKey.scanImageRetention)
+            let retention = stored > 0 ? stored : 50
+            request.setValue(String(retention), forHTTPHeaderField: "X-Scan-Image-Retention")
+        }
+
         var body = Data()
         body.appendString("--\(boundary)\r\n")
         body.appendString("Content-Disposition: form-data; name=\"image\"; filename=\"scan.jpg\"\r\n")

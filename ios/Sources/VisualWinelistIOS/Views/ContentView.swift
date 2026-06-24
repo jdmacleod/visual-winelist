@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 enum AppPhase {
-    case home, camera, scanning, grid, error(String)
+    case home, camera, scanning, grid, cameraDenied, error(String)
 }
 
 struct ContentView: View {
@@ -25,13 +25,16 @@ struct ContentView: View {
                 scanningView
             case .grid:
                 gridView
+            case .cameraDenied:
+                cameraDeniedView
             case .error(let message):
                 errorView(message)
             }
         }
         .task { await viewModel.checkHealth() }
         .onChange(of: camera.error) { _, err in
-            if let err { phase = .error(err.localizedDescription) }
+            guard let err else { return }
+            phase = err == .permissionDenied ? .cameraDenied : .error(err.localizedDescription)
         }
         .onChange(of: viewModel.errorMessage) { _, msg in
             if let msg { phase = .error(msg) }
@@ -202,6 +205,38 @@ struct ContentView: View {
                     .disabled(viewModel.isScanning)
                     .accessibilityLabel("Clear all wines")
                 }
+            }
+        }
+    }
+
+    // MARK: - Camera permission denied
+
+    private var cameraDeniedView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "camera.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(.wineRed)
+            Text("Camera access is off")
+                .font(.title3.bold())
+            Text("Scanning a wine list needs the camera. Turn it on in Settings, then come back.")
+                .font(.body)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 40)
+            VStack(spacing: 12) {
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.wineRed)
+
+                Button("Home") {
+                    camera.error = nil
+                    phase = .home
+                }
+                .buttonStyle(.bordered)
             }
         }
     }

@@ -46,7 +46,11 @@ struct RootView: View {
 
     var body: some View {
         if let url = backendURL {
+            // Key by the URL string so changing the backend in Preferences rebuilds
+            // ContentView (and its viewModel) against the new server instead of
+            // keeping the stale @State client.
             ContentView(backendURL: url)
+                .id(backendURLString)
         } else {
             SetupView()
         }
