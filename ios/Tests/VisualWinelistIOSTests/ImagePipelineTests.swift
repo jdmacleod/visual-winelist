@@ -12,7 +12,13 @@ import XCTest
 final class ResizeForUploadTests: XCTestCase {
 
     private func makeJPEGData(size: CGSize) -> Data {
-        let renderer = UIGraphicsImageRenderer(size: size)
+        // scale = 1 so `size` is the pixel size, not points. Without this the
+        // renderer uses the simulator's screen scale (3×), turning an 800×600
+        // "undersized" fixture into 2400×1800 px — which resizeForUpload then
+        // correctly downscales, making the passthrough assertion flake by device.
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
         let image = renderer.image { ctx in
             UIColor.red.setFill()
             ctx.fill(CGRect(origin: .zero, size: size))

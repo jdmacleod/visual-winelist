@@ -1,6 +1,11 @@
 import SwiftUI
 import UIKit
 
+#if DEBUG
+    import DebugBridgeCore
+    import DebugBridgeUI
+#endif
+
 private class AppDelegate: NSObject, UIApplicationDelegate {
     func application(
         _ application: UIApplication,

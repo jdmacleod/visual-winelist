@@ -15,6 +15,8 @@
 
 #if DEBUG && canImport(UIKit)
 
+    import DebugBridgeCore
+    import DebugBridgeTouch
     import Foundation
     import SwiftUI
     import UIKit

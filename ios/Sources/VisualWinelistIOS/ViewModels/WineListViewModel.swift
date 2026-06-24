@@ -33,12 +33,16 @@ class WineListViewModel {
     func checkHealth() async {
         do {
             let health = try await backend.checkHealth()
-            if health.isOK {
+            // Defensive: treat a missing dependency as degraded even if the status
+            // string disagrees, so the Home/camera banner is reliable. The backend
+            // already reports status="degraded" when ollama/brave are down, but we
+            // don't want a stale or optimistic status field to hide a real problem.
+            var issues: [String] = []
+            if !health.ollama { issues.append("Ollama not running — run: ollama serve") }
+            if !health.brave_key { issues.append("BRAVE_API_KEY not configured on server") }
+            if issues.isEmpty && health.isOK {
                 backendStatus = .ok
             } else {
-                var issues: [String] = []
-                if !health.ollama { issues.append("Ollama not running — run: ollama serve") }
-                if !health.brave_key { issues.append("BRAVE_API_KEY not configured on server") }
                 backendStatus = .degraded(issues.joined(separator: "\n"))
             }
         } catch {
