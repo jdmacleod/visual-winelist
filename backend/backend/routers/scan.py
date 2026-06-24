@@ -244,7 +244,9 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
             if t_extraction_end is not None and t_phase1_end is not None
             else None
         )
-        sommelier_ms = int((t_scan_end - t_phase1_end) * 1000) if t_phase1_end is not None else None
+        sommelier_ms = (
+            max(0, int((t_scan_end - t_phase1_end) * 1000)) if t_phase1_end is not None else None
+        )
         total_ms = int((t_scan_end - t_scan_start) * 1000)
 
         log.info(

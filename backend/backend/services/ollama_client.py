@@ -178,6 +178,10 @@ async def extract_wines(image_data: bytes) -> AsyncIterator[WineObject]:
         raise ConnectionRefusedError(f"Ollama not reachable at {config.OLLAMA_BASE_URL}") from exc
     except httpx.TimeoutException as exc:
         raise TimeoutError("Ollama extraction timed out after 120s") from exc
+    except httpx.HTTPError as exc:
+        # Mid-stream network errors (RemoteProtocolError, ReadError, etc.) that
+        # are not ConnectError or TimeoutException — treat as Ollama unreachable.
+        raise OSError(f"Ollama stream error: {exc}") from exc
 
 
 async def check_reachable(base_url: str | None = None) -> bool:
