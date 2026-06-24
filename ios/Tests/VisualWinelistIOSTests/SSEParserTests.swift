@@ -163,6 +163,44 @@ final class IOSTestSuite: XCTestCase {
         XCTAssertEqual(payload.pairings, [], "absent pairings key should default to empty array")
     }
 
+    // MARK: - CompleteSSEPayload: decodes receive_ms + timing fields
+
+    func testCompletePayloadDecodesReceiveMsAndTimingFields() {
+        var parser = SSEParser()
+        let json =
+            #"{"wine_count":2,"cache_hits":1,"scan_id":"abc","receive_ms":123,"#
+            + #""first_wine_ms":450,"brave_search_ms":80,"image_download_ms":210}"#
+        _ = parser.feed(line: "event: complete")
+        _ = parser.feed(line: "data: \(json)")
+        let result = parser.feed(line: "")
+        guard case .complete(let payload) = result else {
+            XCTFail("expected .complete, got \(String(describing: result))")
+            return
+        }
+        XCTAssertEqual(payload.receive_ms, 123, "receive_ms must decode from the complete event")
+        XCTAssertEqual(payload.first_wine_ms, 450)
+        XCTAssertEqual(payload.brave_search_ms, 80)
+        XCTAssertEqual(payload.image_download_ms, 210)
+    }
+
+    // MARK: - CompleteSSEPayload: optional timing fields default to nil when absent
+
+    func testCompletePayloadTimingFieldsNilWhenAbsent() {
+        var parser = SSEParser()
+        let json = #"{"wine_count":1,"cache_hits":0,"scan_id":"xyz"}"#
+        _ = parser.feed(line: "event: complete")
+        _ = parser.feed(line: "data: \(json)")
+        let result = parser.feed(line: "")
+        guard case .complete(let payload) = result else {
+            XCTFail("expected .complete, got \(String(describing: result))")
+            return
+        }
+        XCTAssertNil(payload.receive_ms, "absent receive_ms must decode as nil, not fail")
+        XCTAssertNil(payload.first_wine_ms)
+        XCTAssertNil(payload.brave_search_ms)
+        XCTAssertEqual(payload.wine_count, 1)
+    }
+
     // MARK: - IOSScanSession: receives wine event via MockURLProtocol
 
     func testIOSScanSessionReceivesWineEvent() async throws {
