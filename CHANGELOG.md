@@ -5,9 +5,16 @@
 ### Added
 
 - **4-across wine grid** — Grid columns increased from 2 to 4, spacing tightened from 12 to 8 pt. ~8 wines visible per scroll on iPhone 15. Card text simplified to wine name only (caption2, one line, truncated) — vintage removed from card overlay; images become primary at this density.
-- **Full-bottle detail image** — Replaces the 260 pt fixed-height scaledToFill crop (which showed only ~22% of a portrait bottle) with a blur-background + scaledToFit pattern: a darkened blurred fill behind the full bottle image. Label text is now fully readable on the detail screen.
+- **Full-bottle detail image** — Fixed 280 pt image panel with blur-background + scaledToFit: the full wine bottle label is visible without scrolling. Wine name, vintage, price, and section appear in a gradient overlay at the bottom of the image. Tasting notes begin immediately below the fold.
 - **Preferences screen** — Gear icon in the grid toolbar navigates to a native SwiftUI Form with a "Show price on card" toggle (persisted via `@AppStorage`) and an About section showing the app version.
 - **Price overlay badge** — When "Show price on card" is enabled, extracted price appears as a translucent capsule pill at the top-left of each wine card.
+- **Consistent version reporting** — All clients (iOS, macOS, backend `/health`, web) now report the version from the single `VERSION` file at the repo root. Backend `/health` response includes a `version` field.
+
+### Fixed
+
+- **Detail image fallback** — A corrupt or partial image response from the backend no longer replaces the working card thumbnail with a placeholder. The detail view now falls back to the grid thumbnail when the high-resolution fetch is undecodable.
+- **Detail view thumbnail→detail fade** — The cross-fade transition when the high-resolution image loads was silently broken by the detail view refactor (`.transition(.opacity)` was dead code on an always-present ZStack). Fixed by adding `.id()` to drive SwiftUI identity on image change.
+- **Price overlay wrap** — Price text on small cards now truncates to a single line instead of wrapping.
 
 ## v0.2.11.0 (2026-06-23)
 
