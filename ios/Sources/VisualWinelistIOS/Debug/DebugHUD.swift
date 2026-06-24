@@ -7,6 +7,25 @@
         @State private var dragOffset: CGSize = .zero
         @State private var lastDragOffset: CGSize = .zero
 
+        // Computed once: "v<short> (<build>) · <built-at>". The built-at is the app
+        // executable's modification date, which bumps on every compile/install, so
+        // it doubles as a "is this the fresh build?" tell on-device.
+        private static let buildMarker: String = {
+            let info = Bundle.main.infoDictionary
+            let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+            let build = info?["CFBundleVersion"] as? String ?? "?"
+            var builtAt = "?"
+            if let exe = Bundle.main.executableURL,
+                let attrs = try? FileManager.default.attributesOfItem(atPath: exe.path),
+                let date = attrs[.modificationDate] as? Date
+            {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "MMM d HH:mm"
+                builtAt = formatter.string(from: date)
+            }
+            return "v\(version) (\(build)) · \(builtAt)"
+        }()
+
         var body: some View {
             if let m = store.lastScan {
                 Group {
@@ -67,6 +86,12 @@
                 Color.white.opacity(0.3)
                     .frame(height: 1)
                     .padding(.vertical, 1)
+                // Build marker: confirms the running binary is the build you just
+                // made. The timestamp is the app executable's mtime, so it changes
+                // on every rebuild/redeploy — if it's not recent, you're on a stale
+                // install (see /investigate finding on perf-ttfi).
+                Text("build: \(Self.buildMarker)")
+                    .foregroundStyle(.green)
                 Text("url: \(m.backendURL)")
                 if m.origWidth > 0 {
                     Text("orig: \(m.origWidth)×\(m.origHeight)")
