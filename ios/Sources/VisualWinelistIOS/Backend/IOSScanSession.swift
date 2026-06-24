@@ -55,9 +55,18 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
 
     /// Cancel the underlying URLSessionDataTask. Safe to call from any thread or actor.
     func cancel() {
+        #if DEBUG
+            // Only a real interruption (user cancel / view dismiss mid-scan) starts a
+            // new debug generation. Normal completion ALSO routes through here via
+            // continuation.onTermination, but by then the task is already `.completed` —
+            // bumping the generation there would wrongly drop this scan's own
+            // end-of-task transaction metrics (didFinishCollecting fires at completion,
+            // and its MainActor write is gen-guarded). Snapshot state before cancel().
+            let interrupted = dataTask?.state == .running || dataTask?.state == .suspended
+        #endif
         dataTask?.cancel()
         #if DEBUG
-            debugGen &+= 1
+            if interrupted { debugGen &+= 1 }
         #endif
     }
 
