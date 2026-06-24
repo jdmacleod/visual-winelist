@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.2.11.0 (2026-06-23)
+
+### Added
+
+- **Scan pipeline timing HUD** (iOS DEBUG builds only) — a draggable, collapsible translucent overlay displays live instrumentation after each scan: screenshot dimensions and size (KB), `http_ok` latency (TCP+TLS+upload+server queue), TTFB, Ollama extraction wall time (`ollama_ms`), image fetch phase (`image_ms`), sommelier phase (`sommelier_ms`), and total scan duration (`total_ms`). A waterfall bar chart shows per-event timing (`wine[n]`, `image[n]`, `complete`).
+- **Scan timing columns in ScanLog** — the backend `scan_log` table now records `ollama_ms`, `image_ms`, `sommelier_ms`, and `total_ms` for each completed scan. Existing databases are upgraded automatically on next startup via additive `ALTER TABLE` DDL (idempotent; existing rows retain NULL for the new columns).
+- **`image_ms` and `sommelier_ms` in SSE complete event** — all four timing fields now flow from the backend SSE payload through the iOS HUD; the expanded panel shows them individually.
+
+### Infrastructure
+
+- `DebugStore`, `DebugHUD`, `WaterfallView` — new `#if DEBUG`-only Swift types wired to `IOSScanSession` delegate callbacks and `WineListViewModel`. All DebugStore writes from the URLSession delegate queue are dispatched via `Task { @MainActor in }` to respect the `@Observable` main-actor invariant. Stale-task guard via `debugGen` counter prevents cancelled scan metrics from leaking into the next scan's HUD.
+- Migration exception handling narrowed to `OperationalError` (was bare `except Exception`) so non-schema errors (DB locked, disk full) surface at startup rather than silently crippling metric persistence.
+- `ollama_client`: mid-stream httpx errors (`RemoteProtocolError`, `ReadError`, etc.) now re-raised as `OSError` so they reach the `OLLAMA_DOWN` handler rather than surfacing as opaque `INTERNAL_ERROR` responses.
+- `_write_scan_log()` helper extracted — both `INTERNAL_ERROR` and happy-path construction sites now share a single implementation; timing fields are never accidentally omitted on one path.
+
+### Tests
+
+- **Backend**: 184 tests (was 179) — 5 new test functions covering `total_ms` in SSE and ScanLog (happy path + INTERNAL_ERROR + Ollama failure + migration idempotency); existing Ollama-error tests extended with ScanLog persistence and timing assertions.
+
 ## v0.2.10.0 (2026-06-23)
 
 ### Fixed

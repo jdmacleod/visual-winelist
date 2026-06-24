@@ -1,5 +1,8 @@
 import Foundation
 import Observation
+#if DEBUG
+    import ImageIO
+#endif
 
 @Observable
 @MainActor
@@ -84,6 +87,19 @@ class WineListViewModel {
             activeScanSession = nil
         }
 
+        #if DEBUG
+            // Single call site: wineCount is set by recordComplete() for every complete
+            // event (including error paths), so nil means complete was never received.
+            defer {
+                if DebugStore.shared.lastScan?.wineCount == nil {
+                    DebugStore.shared.scanFailed()
+                }
+            }
+        #endif
+
+        #if DEBUG
+            debugBeginScan(photoData: photoData)
+        #endif
         let (stream, scanSession) = backend.scan(photoData: photoData)
         activeScanSession = scanSession
 
@@ -120,6 +136,9 @@ class WineListViewModel {
                     case .complete(let payload):
                         // SSE stream is done — unblock action buttons now. Image
                         // fetch tasks continue in the background via the group.
+                        #if DEBUG
+                            DebugStore.shared.recordComplete(payload: payload)
+                        #endif
                         isScanning = false
                         let hit = payload.cache_hits
                         scanMessage =
@@ -182,6 +201,25 @@ class WineListViewModel {
             }
         }
     }
+
+    #if DEBUG
+        private func debugBeginScan(photoData: Data) {
+            var imgWidth = 0, imgHeight = 0
+            let srcOpts = [kCGImageSourceShouldCache: false] as CFDictionary
+            if let src = CGImageSourceCreateWithData(photoData as CFData, srcOpts),
+                let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]
+            {
+                imgWidth = props[kCGImagePropertyPixelWidth] as? Int ?? 0
+                imgHeight = props[kCGImagePropertyPixelHeight] as? Int ?? 0
+            }
+            DebugStore.shared.beginScan(
+                screenshotBytes: photoData.count,
+                width: imgWidth,
+                height: imgHeight,
+                backendURL: backend.baseURL.absoluteString
+            )
+        }
+    #endif
 
     private func handleNotesEvent(_ payload: NotesSSEPayload) {
         guard let idx = wines.firstIndex(where: { $0.wine.wineId == payload.wine_id }) else { return }

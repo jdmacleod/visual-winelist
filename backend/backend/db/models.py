@@ -54,3 +54,7 @@ class ScanLog(Base):
     )
     wine_count: Mapped[int] = mapped_column(Integer, default=0)
     cache_hits: Mapped[int] = mapped_column(Integer, default=0)
+    ollama_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    image_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sommelier_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)

@@ -24,7 +24,40 @@ final class ResizeForUploadTests: XCTestCase {
         let oversized = makeJPEGData(size: CGSize(width: 4032, height: 3024))
         let result = resizeForUpload(oversized)
         let image = UIImage(data: result)!
-        XCTAssertLessThanOrEqual(max(image.size.width, image.size.height), 1920)
+        let pixelW = Int((image.size.width * image.scale).rounded())
+        let pixelH = Int((image.size.height * image.scale).rounded())
+        XCTAssertLessThanOrEqual(
+            max(pixelW, pixelH), 1920,
+            "Oversized image (\(pixelW)×\(pixelH) px) was not downscaled to ≤1920 px")
+        XCTAssertTrue(result.starts(with: [0xFF, 0xD8]), "Output must be JPEG")
+    }
+
+    // Regression: UIImage.size returns points, not pixels. A photo from a 3× device
+    // has size=(1440,1920) points — so the old guard `max(size.width,size.height)>1920`
+    // evaluated to `1920>1920` (false) and returned the original 4320×5760 data.
+    func testResizeForUpload_3x_device_photo_is_capped_at_1920_pixels() {
+        // Build a UIImage that matches a 4320×5760 iPhone Pro capture:
+        // size=(1440,1920) pts, scale=3 → 4320×5760 pixel JPEG.
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 3
+        let renderer = UIGraphicsImageRenderer(
+            size: CGSize(width: 1440, height: 1920), format: format)
+        let source = renderer.image { ctx in
+            UIColor.blue.setFill()
+            ctx.fill(CGRect(origin: .zero, size: CGSize(width: 1440, height: 1920)))
+        }
+        // Confirm fixture pixel dimensions before asserting on the fix.
+        XCTAssertEqual(Int(source.size.width * source.scale), 4320)
+        XCTAssertEqual(Int(source.size.height * source.scale), 5760)
+
+        let data = source.jpegData(compressionQuality: 0.9)!
+        let result = resizeForUpload(data)
+        let out = UIImage(data: result)!
+        let outPixelW = Int((out.size.width * out.scale).rounded())
+        let outPixelH = Int((out.size.height * out.scale).rounded())
+        XCTAssertLessThanOrEqual(
+            max(outPixelW, outPixelH), 1920,
+            "3× device photo was not downscaled: output is \(outPixelW)×\(outPixelH) px")
         XCTAssertTrue(result.starts(with: [0xFF, 0xD8]), "Output must be JPEG")
     }
 
