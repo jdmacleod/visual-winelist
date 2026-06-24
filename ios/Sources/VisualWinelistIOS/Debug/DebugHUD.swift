@@ -50,9 +50,12 @@
                 .gesture(
                     DragGesture(minimumDistance: 10)
                         .onChanged { value in
+                            // Clamp to <= 0 on both axes. The widget is bottom-right
+                            // anchored, so a positive offset drags it OFF the bottom-right
+                            // edge (unrecoverable); negative moves it up/left into view.
                             dragOffset = CGSize(
-                                width: lastDragOffset.width + value.translation.width,
-                                height: lastDragOffset.height + value.translation.height
+                                width: min(0, lastDragOffset.width + value.translation.width),
+                                height: min(0, lastDragOffset.height + value.translation.height)
                             )
                         }
                         .onEnded { _ in
@@ -87,6 +90,13 @@
                     Spacer()
                     Button {
                         expanded = false
+                        // Re-home the widget so the collapsed pill always returns to the
+                        // bottom-right anchor. dragOffset is shared with the pill and a
+                        // stray drag (the close tap can register as one via the parent
+                        // DragGesture) could otherwise strand the pill off-screen with no
+                        // control left to recover it.
+                        dragOffset = .zero
+                        lastDragOffset = .zero
                     } label: {
                         Image(systemName: "xmark")
                             .imageScale(.small)
