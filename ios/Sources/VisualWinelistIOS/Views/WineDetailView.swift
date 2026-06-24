@@ -24,7 +24,6 @@ struct WineDetailView: View {
             VStack(alignment: .leading, spacing: 0) {
                 bottleImage
                     .frame(maxWidth: .infinity)
-                    .frame(height: 260)
                     .clipped()
                     .overlay(alignment: .bottomTrailing) {
                         if hasImage {
@@ -94,27 +93,34 @@ struct WineDetailView: View {
     @ViewBuilder
     private var bottleImage: some View {
         if localImageCleared {
-            PlaceholderBottle(wine: wine).frame(height: 260)
+            PlaceholderBottle(wine: wine).frame(minHeight: 280)
         } else {
             switch state {
             case .ready(_, let cardData):
-                ZStack {
-                    if let image = UIImage(data: cardData) {
+                let displayData = detailImageData ?? cardData
+                if let image = UIImage(data: displayData) {
+                    ZStack {
+                        // Blurred background fills horizontal whitespace on narrow bottles
                         Image(uiImage: image)
                             .resizable()
                             .scaledToFill()
-                    } else {
-                        PlaceholderBottle(wine: wine).frame(height: 260)
-                    }
-                    if let detailData = detailImageData, let image = UIImage(data: detailData) {
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: 280)
+                            .blur(radius: 24)
+                            .overlay(Color.black.opacity(0.4))
+                        // Full bottle — no cropping
                         Image(uiImage: image)
                             .resizable()
-                            .scaledToFill()
-                            .transition(.opacity)
+                            .scaledToFit()
+                            .frame(maxWidth: .infinity)
+                            .frame(maxHeight: 480)
                     }
+                    .transition(.opacity)
+                } else {
+                    PlaceholderBottle(wine: wine).frame(minHeight: 280)
                 }
             default:
-                PlaceholderBottle(wine: wine).frame(height: 260)
+                PlaceholderBottle(wine: wine).frame(minHeight: 280)
             }
         }
     }

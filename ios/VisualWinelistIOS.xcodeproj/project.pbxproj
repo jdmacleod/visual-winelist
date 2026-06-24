@@ -35,6 +35,7 @@
 		CAFE00000000000000000230 /* DebugStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000130 /* DebugStore.swift */; };
 		CAFE00000000000000000231 /* DebugHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000131 /* DebugHUD.swift */; };
 		CAFE00000000000000000232 /* WaterfallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000132 /* WaterfallView.swift */; };
+		CAFE00000000000000000233 /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000133 /* PreferencesView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -69,6 +70,7 @@
 		CAFE00000000000000000130 /* DebugStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugStore.swift; sourceTree = "<group>"; };
 		CAFE00000000000000000131 /* DebugHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugHUD.swift; sourceTree = "<group>"; };
 		CAFE00000000000000000132 /* WaterfallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterfallView.swift; sourceTree = "<group>"; };
+		CAFE00000000000000000133 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -192,6 +194,7 @@
 				CAFE0000000000000000010F /* WineBottleCard.swift */,
 				CAFE00000000000000000110 /* WineDetailView.swift */,
 				CAFE00000000000000000111 /* WineGridView.swift */,
+			CAFE00000000000000000133 /* PreferencesView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -302,6 +305,7 @@
 				CAFE0000000000000000020F /* WineBottleCard.swift in Sources */,
 				CAFE00000000000000000210 /* WineDetailView.swift in Sources */,
 				CAFE00000000000000000211 /* WineGridView.swift in Sources */,
+				CAFE00000000000000000233 /* PreferencesView.swift in Sources */,
 				CAFE00000000000000000214 /* ScanSettings.swift in Sources */,
 				CAFE00000000000000000220 /* DebugBridgeManager.swift in Sources */,
 				CAFE00000000000000000221 /* StateServer.swift in Sources */,

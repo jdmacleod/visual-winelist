@@ -3,11 +3,15 @@ import UIKit
 
 struct WineBottleCard: View {
     let state: WineState
+    @AppStorage("showPriceOverlay") private var showPriceOverlay = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
             imageLayer
             nameOverlay
+            if showPriceOverlay, let price = state.wine.price {
+                priceOverlay(price)
+            }
             if state.isLowConfidence {
                 uncertaintyBadge
             }
@@ -44,21 +48,26 @@ struct WineBottleCard: View {
             endPoint: .bottom
         )
         .overlay(alignment: .bottom) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(state.wine.name)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                if let vintage = state.wine.vintage {
-                    Text(vintage)
-                        .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.8))
-                }
-            }
-            .padding(8)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            Text(state.wine.name)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .padding(.horizontal, 6)
+                .padding(.bottom, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private func priceOverlay(_ price: String) -> some View {
+        Text(price)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 3)
+            .background(.black.opacity(0.6), in: Capsule())
+            .padding(5)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var uncertaintyBadge: some View {

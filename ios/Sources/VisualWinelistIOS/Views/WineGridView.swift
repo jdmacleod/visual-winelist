@@ -4,8 +4,8 @@ struct WineGridView: View {
     var viewModel: WineListViewModel
     let onScanMore: () -> Void
 
-    private let columnCount = 2
-    private let gridSpacing: CGFloat = 12
+    private let columnCount = 4
+    private let gridSpacing: CGFloat = 8
     private let gridPadding: CGFloat = 16
 
     var body: some View {
