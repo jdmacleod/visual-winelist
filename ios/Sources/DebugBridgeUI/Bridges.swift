@@ -15,8 +15,14 @@
 
 #if DEBUG && canImport(UIKit)
 
-    import DebugBridgeCore
-    import DebugBridgeTouch
+    // Separate modules under SwiftPM; the same app target under the .xcodeproj
+    // (where these symbols need no import). canImport bridges both builds.
+    #if canImport(DebugBridgeCore)
+        import DebugBridgeCore
+    #endif
+    #if canImport(DebugBridgeTouch)
+        import DebugBridgeTouch
+    #endif
     import Foundation
     import SwiftUI
     import UIKit

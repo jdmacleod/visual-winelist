@@ -1,9 +1,17 @@
 import SwiftUI
 import UIKit
 
+// The .xcodeproj (device builds) compiles the DebugBridge sources straight into
+// this app target, so they are NOT separate modules there; the SwiftPM package
+// (simulator / CI / swift test) builds them as real modules that must be
+// imported. canImport satisfies both: import only when the module truly exists.
 #if DEBUG
-    import DebugBridgeCore
-    import DebugBridgeUI
+    #if canImport(DebugBridgeCore)
+        import DebugBridgeCore
+    #endif
+    #if canImport(DebugBridgeUI)
+        import DebugBridgeUI
+    #endif
 #endif
 
 private class AppDelegate: NSObject, UIApplicationDelegate {
