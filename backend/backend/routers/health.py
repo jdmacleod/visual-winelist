@@ -11,4 +11,9 @@ async def health() -> dict:
     ollama_ok = await ollama_client.check_reachable()
     brave_ok = bool(config.BRAVE_API_KEY)
     status = "ok" if (ollama_ok and brave_ok) else "degraded"
-    return {"status": status, "ollama": ollama_ok, "brave_key": brave_ok}
+    return {
+        "status": status,
+        "ollama": ollama_ok,
+        "brave_key": brave_ok,
+        "version": config.APP_VERSION,
+    }
