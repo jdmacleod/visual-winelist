@@ -11,6 +11,7 @@
 		CAFE00000000000000000202 /* StartupValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000102 /* StartupValidator.swift */; };
 		CAFE00000000000000000203 /* BackendClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000103 /* BackendClient.swift */; };
 		CAFE00000000000000000204 /* BackendModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000104 /* BackendModels.swift */; };
+		CAFE00000000000000000242 /* ScanTelemetryReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000142 /* ScanTelemetryReporter.swift */; };
 		CAFE00000000000000000205 /* IOSScanSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000105 /* IOSScanSession.swift */; };
 		CAFE00000000000000000206 /* SSEParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000106 /* SSEParser.swift */; };
 		CAFE00000000000000000207 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000107 /* CameraManager.swift */; };
@@ -46,6 +47,7 @@
 		CAFE00000000000000000102 /* StartupValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupValidator.swift; sourceTree = "<group>"; };
 		CAFE00000000000000000103 /* BackendClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendClient.swift; sourceTree = "<group>"; };
 		CAFE00000000000000000104 /* BackendModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendModels.swift; sourceTree = "<group>"; };
+		CAFE00000000000000000142 /* ScanTelemetryReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanTelemetryReporter.swift; sourceTree = "<group>"; };
 		CAFE00000000000000000105 /* IOSScanSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSScanSession.swift; sourceTree = "<group>"; };
 		CAFE00000000000000000106 /* SSEParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEParser.swift; sourceTree = "<group>"; };
 		CAFE00000000000000000107 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
@@ -136,6 +138,7 @@
 			children = (
 				CAFE00000000000000000103 /* BackendClient.swift */,
 				CAFE00000000000000000104 /* BackendModels.swift */,
+				CAFE00000000000000000142 /* ScanTelemetryReporter.swift */,
 				CAFE00000000000000000105 /* IOSScanSession.swift */,
 				CAFE00000000000000000106 /* SSEParser.swift */,
 			);
@@ -314,6 +317,7 @@
 				CAFE00000000000000000202 /* StartupValidator.swift in Sources */,
 				CAFE00000000000000000203 /* BackendClient.swift in Sources */,
 				CAFE00000000000000000204 /* BackendModels.swift in Sources */,
+				CAFE00000000000000000242 /* ScanTelemetryReporter.swift in Sources */,
 				CAFE00000000000000000205 /* IOSScanSession.swift in Sources */,
 				CAFE00000000000000000206 /* SSEParser.swift in Sources */,
 				CAFE00000000000000000207 /* CameraManager.swift in Sources */,
