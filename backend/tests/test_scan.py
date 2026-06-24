@@ -161,7 +161,7 @@ async def test_scan_lock_released_on_generator_close():
     import backend.routers.scan as scan_mod
     from backend.routers.scan import _scan_sse
 
-    async def _no_wines(_image_data: bytes) -> AsyncIterator[WineObject]:
+    async def _no_wines(_image_data: bytes, on_first_token=None) -> AsyncIterator[WineObject]:
         return
         yield  # makes this an async generator function
 
@@ -248,7 +248,9 @@ async def test_scan_happy_path(client):
 
 
 async def test_scan_ollama_down(client):
-    async def raise_connection_error(image_data: bytes) -> AsyncIterator[WineObject]:
+    async def raise_connection_error(
+        image_data: bytes, on_first_token=None
+    ) -> AsyncIterator[WineObject]:
         raise ConnectionRefusedError("Ollama not running")
         yield  # pragma: no cover
 
@@ -345,7 +347,7 @@ async def test_event_complete_has_scan_id(client):
 async def test_scan_ollama_timeout(client):
     """TimeoutError from Ollama extraction → SSE error event with OLLAMA_TIMEOUT code."""
 
-    async def raise_timeout(image_data: bytes) -> AsyncIterator[WineObject]:
+    async def raise_timeout(image_data: bytes, on_first_token=None) -> AsyncIterator[WineObject]:
         raise TimeoutError("Ollama extraction timed out")
         yield  # pragma: no cover
 
@@ -644,7 +646,9 @@ async def test_init_db_migration_idempotent():
 async def test_scan_ollama_error_timing_fields_in_complete(client):
     """complete event after Ollama failure includes total_ms as a non-negative integer."""
 
-    async def raise_connection_error(image_data: bytes) -> AsyncIterator[WineObject]:
+    async def raise_connection_error(
+        image_data: bytes, on_first_token=None
+    ) -> AsyncIterator[WineObject]:
         raise ConnectionRefusedError("Ollama not running")
         yield  # pragma: no cover
 
@@ -929,6 +933,39 @@ async def test_scan_complete_includes_first_wine_ms(client):
     assert "first_wine_ms" in complete
     assert isinstance(complete["first_wine_ms"], int)
     assert complete["first_wine_ms"] >= 0
+
+
+async def test_scan_emits_analyzing_status_on_first_ollama_token(client):
+    """First Ollama token fires on_first_token → a 'status: analyzing' event precedes wines."""
+
+    async def _extract(image_data: bytes, on_first_token=None) -> AsyncIterator[WineObject]:
+        if on_first_token is not None:
+            on_first_token()
+        yield MARGAUX
+
+    with (
+        patch("backend.routers.scan.ollama_client.extract_wines", side_effect=_extract),
+        patch(
+            "backend.routers.scan.brave_client.fetch_image",
+            new=AsyncMock(return_value=(None, 0, 0)),
+        ),
+        patch(
+            "backend.routers.scan.sommelier.get_notes",
+            new=AsyncMock(side_effect=lambda w: NotesEvent(wine_id=w.wine_id)),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        async with client.stream(
+            "POST",
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+        ) as r:
+            body = await r.aread()
+
+    events = _collect_sse(body.decode())
+    types = [e for e, _ in events]
+    assert ("status", "analyzing") in events, f"expected analyzing status; got {events}"
+    assert types.index("status") < types.index("wine"), "analyzing must precede the first wine"
 
 
 async def test_scan_first_wine_ms_none_when_no_wines(client):

@@ -223,7 +223,7 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
                 label = "complete"
             case .error:
                 label = "error"
-            case .ping, .parseError, .notes:
+            case .ping, .parseError, .notes, .status:
                 return
             }
             let gen = debugGen

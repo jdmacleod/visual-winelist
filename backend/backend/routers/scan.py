@@ -148,8 +148,17 @@ async def _scan_sse(
 
         async def run_extraction() -> None:
             nonlocal wine_index, t_extraction_end, t_first_wine
+
+            def _on_first_token() -> None:
+                # First byte from Ollama → analysis is now underway (vs still
+                # loading the model / encoding the image). Drives the client's
+                # "Getting ready…" → "Analyzing…" transition.
+                queue.put_nowait(("analyzing", None))
+
             try:
-                async for wine in ollama_client.extract_wines(image_data):
+                async for wine in ollama_client.extract_wines(
+                    image_data, on_first_token=_on_first_token
+                ):
                     if t_first_wine is None:
                         t_first_wine = time.perf_counter()
                     await queue.put(("wine", wine))
@@ -221,6 +230,9 @@ async def _scan_sse(
                 elif event_type == "image":
                     img_event: ImageEvent = data
                     yield _sse("image", img_event.model_dump())
+
+                elif event_type == "analyzing":
+                    yield _sse("status", "analyzing")
 
                 elif event_type == "image_done":
                     pending_images -= 1

@@ -6,6 +6,7 @@ enum SSEEvent: Sendable {
     case notes(NotesSSEPayload)
     case error(ErrorSSEPayload)
     case complete(CompleteSSEPayload)
+    case status(String)
     case ping
     case parseError(String)
 }
@@ -40,6 +41,7 @@ struct SSEParser {
             case "notes": return .notes(try decoder.decode(NotesSSEPayload.self, from: jsonData))
             case "error": return .error(try decoder.decode(ErrorSSEPayload.self, from: jsonData))
             case "complete": return .complete(try decoder.decode(CompleteSSEPayload.self, from: jsonData))
+            case "status": return .status(data)  // plain string stage marker, not JSON
             default: return nil
             }
         } catch {

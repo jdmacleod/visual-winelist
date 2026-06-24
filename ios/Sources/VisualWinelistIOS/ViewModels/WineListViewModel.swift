@@ -109,6 +109,7 @@ class WineListViewModel {
         do {
             var extractedCount = 0
             var notesReceived = 0
+            var sawAnalyzing = false
 
             try await withThrowingTaskGroup(of: Void.self) { group in
                 for try await event in stream {
@@ -154,11 +155,20 @@ class WineListViewModel {
                             "\(payload.wine_count) wine\(payload.wine_count == 1 ? "" : "s")"
                             + (hit > 0 ? " · \(hit) from cache" : "")
 
+                    case .status(let stage):
+                        // First token back from Ollama: analysis is actively running.
+                        if stage == "analyzing", wines.isEmpty {
+                            sawAnalyzing = true
+                            scanMessage = "Analyzing the wine list…"
+                        }
+
                     case .ping:
-                        // First byte from the backend (the ": ready" flush) confirms the
-                        // upload landed and AI extraction is now running — this is the
-                        // ~15s wait, so label it accurately instead of "Sending photo…".
-                        if wines.isEmpty { scanMessage = "Analyzing the wine list…" }
+                        // First byte (the ": ready" flush) confirms the upload landed and
+                        // the backend is spinning Ollama up — but no model output yet.
+                        // Stay on "Getting ready…" until the analyzing status arrives.
+                        if wines.isEmpty && !sawAnalyzing {
+                            scanMessage = "Getting ready to analyze…"
+                        }
 
                     case .parseError:
                         print("[SSE] parse error — malformed event from backend")
