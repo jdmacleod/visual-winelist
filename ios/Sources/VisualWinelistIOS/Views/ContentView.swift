@@ -156,28 +156,14 @@ struct ContentView: View {
     // MARK: - Scanning view
 
     private var scanningView: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            VStack(spacing: 20) {
-                ProgressView()
-                    .scaleEffect(1.5)
-                    .tint(.white)
-                Text(viewModel.scanMessage.isEmpty ? "Scanning wine list…" : viewModel.scanMessage)
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .animation(.default, value: viewModel.scanMessage)
-                    .padding(.horizontal, 32)
-
-                Button("Cancel") {
-                    viewModel.cancelScan()
-                    phase = .home
-                }
-                .buttonStyle(.bordered)
-                .tint(.white)
-                .padding(.top, 12)
+        ScanningView(
+            progress: viewModel.scanProgress,
+            message: viewModel.scanMessage,
+            onCancel: {
+                viewModel.cancelScan()
+                phase = .home
             }
-        }
+        )
     }
 
     // MARK: - Grid view
