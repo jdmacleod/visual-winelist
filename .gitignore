@@ -21,6 +21,10 @@ ios/VisualWinelistIOS.xcodeproj/project.xcworkspace/
 image-cache/
 data/
 
+# Coverage reports
+.coverage
+coverage/
+
 # Local environment variables
 .env
 .gstack/
