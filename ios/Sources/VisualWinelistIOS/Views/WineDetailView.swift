@@ -62,7 +62,6 @@ struct WineDetailView: View {
                     }
 
                 VStack(alignment: .leading, spacing: 20) {
-                    header
                     if let note = wine.tastingNote {
                         tastingNoteSection(note)
                     } else if isScanning {
@@ -93,35 +92,70 @@ struct WineDetailView: View {
     @ViewBuilder
     private var bottleImage: some View {
         if localImageCleared {
-            PlaceholderBottle(wine: wine).frame(minHeight: 280)
+            PlaceholderBottle(wine: wine).frame(height: 280)
         } else {
             switch state {
             case .ready(_, let cardData):
                 let displayData = detailImageData ?? cardData
                 if let image = UIImage(data: displayData) {
                     ZStack {
-                        // Blurred background fills horizontal whitespace on narrow bottles
                         Image(uiImage: image)
                             .resizable()
                             .scaledToFill()
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: 280)
                             .blur(radius: 24)
                             .overlay(Color.black.opacity(0.4))
-                        // Full bottle — no cropping
                         Image(uiImage: image)
                             .resizable()
                             .scaledToFit()
-                            .frame(maxWidth: .infinity)
-                            .frame(maxHeight: 480)
                     }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 280)
+                    .clipped()
+                    .overlay(alignment: .bottom) { imageNameOverlay }
                     .transition(.opacity)
                 } else {
-                    PlaceholderBottle(wine: wine).frame(minHeight: 280)
+                    PlaceholderBottle(wine: wine).frame(height: 280)
                 }
             default:
-                PlaceholderBottle(wine: wine).frame(minHeight: 280)
+                PlaceholderBottle(wine: wine).frame(height: 280)
             }
+        }
+    }
+
+    private var imageNameOverlay: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0.0),
+                .init(color: .black.opacity(0.5), location: 0.55),
+                .init(color: .black.opacity(0.82), location: 1.0),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(height: 120)
+        .overlay(alignment: .bottom) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(wine.name)
+                    .font(.title3.bold())
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
+                if wine.vintage != nil || wine.price != nil || wine.listSection != nil {
+                    HStack(spacing: 10) {
+                        if let vintage = wine.vintage { Text(vintage) }
+                        if let price = wine.price { Text(price) }
+                        if let section = wine.listSection { Text(section.uppercased()).opacity(0.75) }
+                    }
+                    .font(.caption.bold())
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 14)
+            .padding(.trailing, 60)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -135,34 +169,6 @@ struct WineDetailView: View {
             withAnimation { flagToast = false }
         } catch {
             // silent — image still shows if request failed
-        }
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(wine.name)
-                .font(.title2.bold())
-            if let vintage = wine.vintage {
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(vintage)
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                    Text("vintage")
-                        .font(.caption.bold())
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            if let price = wine.price {
-                Text(price)
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-            }
-            if let section = wine.listSection {
-                Text(section.uppercased())
-                    .font(.caption.bold())
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, 2)
-            }
         }
     }
 
