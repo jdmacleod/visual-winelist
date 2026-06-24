@@ -100,8 +100,10 @@ struct WineDetailView: View {
         } else {
             switch state {
             case .ready(_, let cardData):
-                let displayData = detailImageData ?? cardData
-                if let image = UIImage(data: displayData) {
+                // Try detail image first; fall back to card thumbnail so a corrupt detail
+                // response never silently replaces a working grid image with a placeholder.
+                let image = detailImageData.flatMap { UIImage(data: $0) } ?? UIImage(data: cardData)
+                if let image {
                     ZStack {
                         Image(uiImage: image)
                             .resizable()
