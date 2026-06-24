@@ -29,6 +29,13 @@ enum WineState: Identifiable, Sendable {
 
     var isLowConfidence: Bool { wine.confidence < 0.7 }
 
+    /// True once the sommelier tasting note has streamed in for this wine. Drives
+    /// the per-card "notes ready" indicator so the streaming pass is visible.
+    var hasNotes: Bool {
+        guard let note = wine.tastingNote else { return false }
+        return !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     func withUpdatedWine(_ wine: WineObject) -> WineState {
         switch self {
         case .extracting: return .extracting(wine)
