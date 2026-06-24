@@ -89,10 +89,14 @@ struct WineDetailView: View {
         }
     }
 
+    private var placeholderBottle: some View {
+        PlaceholderBottle(wine: wine).frame(height: 280)
+    }
+
     @ViewBuilder
     private var bottleImage: some View {
         if localImageCleared {
-            PlaceholderBottle(wine: wine).frame(height: 280)
+            placeholderBottle
         } else {
             switch state {
             case .ready(_, let cardData):
@@ -112,12 +116,13 @@ struct WineDetailView: View {
                     .frame(height: 280)
                     .clipped()
                     .overlay(alignment: .bottom) { imageNameOverlay }
+                    .id(detailImageData == nil ? 0 : 1)
                     .transition(.opacity)
                 } else {
-                    PlaceholderBottle(wine: wine).frame(height: 280)
+                    placeholderBottle
                 }
             default:
-                PlaceholderBottle(wine: wine).frame(height: 280)
+                placeholderBottle
             }
         }
     }

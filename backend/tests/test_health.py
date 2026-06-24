@@ -14,6 +14,7 @@ async def test_health_ollama_down(client):
     assert body["ollama"] is False
     assert body["brave_key"] is True
     assert body["version"]
+    assert "." in body["version"]
 
 
 async def test_health_all_ok(client):
@@ -28,3 +29,4 @@ async def test_health_all_ok(client):
     assert body["status"] == "ok"
     assert body["ollama"] is True
     assert body["version"]
+    assert "." in body["version"]

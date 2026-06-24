@@ -2,7 +2,10 @@ import os
 from pathlib import Path
 
 _VERSION_FILE = Path(__file__).parents[2] / "VERSION"
-APP_VERSION: str = _VERSION_FILE.read_text().strip() if _VERSION_FILE.exists() else "0.0.0"
+try:
+    APP_VERSION: str = _VERSION_FILE.read_text("utf-8").strip() or "0.0.0"
+except OSError:
+    APP_VERSION = "0.0.0"
 
 BRAVE_API_KEY: str = os.environ.get("BRAVE_API_KEY", "")
 OLLAMA_BASE_URL: str = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")

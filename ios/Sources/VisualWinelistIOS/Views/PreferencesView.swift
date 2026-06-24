@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PreferencesView: View {
-    @AppStorage("showPriceOverlay") private var showPriceOverlay = false
+    @AppStorage(UserDefaultsKey.showPriceOverlay) private var showPriceOverlay = false
 
     var body: some View {
         Form {

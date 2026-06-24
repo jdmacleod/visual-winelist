@@ -20,3 +20,7 @@ extension Bundle {
         infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
     }
 }
+
+enum UserDefaultsKey {
+    static let showPriceOverlay = "showPriceOverlay"
+}
