@@ -63,6 +63,7 @@ struct WineBottleCard: View {
         Text(price)
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.white)
+            .lineLimit(1)
             .padding(.horizontal, 5)
             .padding(.vertical, 3)
             .background(.black.opacity(0.6), in: Capsule())
