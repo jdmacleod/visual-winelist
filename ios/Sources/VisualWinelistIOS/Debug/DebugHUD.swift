@@ -72,10 +72,20 @@
                     Text("orig: \(m.origWidth)×\(m.origHeight)")
                 }
                 Text("img: \(m.screenshotWidth)×\(m.screenshotHeight) · \(m.screenshotBytes / 1024) KB")
+                if m.uploadMaxSide > 0 {
+                    Text("upload_cfg: \(m.uploadMaxSide)px q\(String(format: "%.2f", m.uploadJPEGQuality))")
+                }
                 Text("http_ok: \(m.uploadMs) ms")
                 Text("ttfb: \(m.ttfbMs) ms")
+                if let dns = m.dnsMs { Text("dns: \(dns) ms") }
+                if let tcp = m.tcpMs { Text("tcp: \(tcp) ms") }
+                if let request = m.requestMs { Text("req(send): \(request) ms") }
+                if let response = m.responseMs { Text("resp: \(response) ms") }
+                if let receive = m.receiveMs { Text("recv(server): \(receive) ms") }
                 if let ollama = m.ollamaMs { Text("ollama: \(ollama) ms") }
                 if let image = m.imageMs { Text("image: \(image) ms") }
+                if let brave = m.braveSearchMs { Text("brave_search: \(brave) ms") }
+                if let dl = m.imageDownloadMs { Text("img_download: \(dl) ms") }
                 if let sommelier = m.sommelierMs { Text("sommelier: \(sommelier) ms") }
                 if let total = m.totalMs { Text("total: \(total) ms") }
                 if let count = m.wineCount { Text("wines: \(count)") }

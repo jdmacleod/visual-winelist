@@ -22,6 +22,7 @@ from backend.models.wine import (
     ScanSummary,
     WineObject,
 )
+from backend.routers.wines import _generate_variant
 from backend.services import brave_client, cache, ollama_client, sommelier
 
 log = logging.getLogger(__name__)
@@ -70,9 +71,14 @@ async def _fetch_image_to_queue(
     wine: WineObject,
     queue: asyncio.Queue,
     scan_id: str,
+    timing_acc: dict[str, int],
 ) -> None:
     try:
-        result = await brave_client.fetch_image(wine)
+        result, search_ms, download_ms = await brave_client.fetch_image(wine)
+        # timing_acc is shared across all per-wine fetch tasks; mutation is safe
+        # without a lock because they all run on the single event-loop thread.
+        timing_acc["brave_search_ms"] += search_ms
+        timing_acc["image_download_ms"] += download_ms
         if result is not None:
             # Persist to cache so future scans skip Brave for this wine.
             image_path = os.path.join(config.IMAGE_CACHE_DIR, f"{wine.wine_id}.jpg")
@@ -80,6 +86,19 @@ async def _fetch_image_to_queue(
                 await cache.write(wine, image_path, None, [])
             except Exception:
                 log.warning("cache.write failed for %s", wine.wine_id, exc_info=True)
+            # Pre-generate the card variant now so the iOS image fetch hits an
+            # existing file (immediate FileResponse) instead of triggering
+            # on-demand WebP generation inside get_wine_image. Non-fatal on
+            # failure: get_wine_image still falls back to on-demand generation.
+            variant_path = os.path.join(config.IMAGE_CACHE_DIR, f"{wine.wine_id}_card.webp")
+            try:
+                await asyncio.to_thread(
+                    _generate_variant, image_path, variant_path, config.IMAGE_CARD_WIDTH
+                )
+            except Exception:
+                log.warning(
+                    "card variant pre-generation failed for %s", wine.wine_id, exc_info=True
+                )
             await queue.put(("image", result))
         else:
             placeholder = ImageEvent(
@@ -99,7 +118,9 @@ async def _fetch_image_to_queue(
         await queue.put(("image_done", None))
 
 
-async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
+async def _scan_sse(
+    image_data: bytes, scan_id: str, receive_ms: int | None = None
+) -> AsyncIterator[str]:
     global _scanning
     extraction_task: asyncio.Task[None] | None = None
     image_tasks: list[asyncio.Task[None]] = []
@@ -107,6 +128,9 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
     t_scan_start = time.perf_counter()
     t_extraction_end: float | None = None
     t_phase1_end: float | None = None
+
+    # Shared accumulator for per-wine Brave timing, summed across all fetch tasks.
+    timing_acc: dict[str, int] = {"brave_search_ms": 0, "image_download_ms": 0}
 
     try:
         queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
@@ -180,7 +204,9 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
                         yield _sse("wine", wine.model_dump_with_id())
                         pending_images += 1
                         image_tasks.append(
-                            asyncio.ensure_future(_fetch_image_to_queue(wine, queue, scan_id))
+                            asyncio.ensure_future(
+                                _fetch_image_to_queue(wine, queue, scan_id, timing_acc)
+                            )
                         )
 
                 elif event_type == "image":
@@ -211,6 +237,9 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
                     wine_count=len(wines),
                     cache_hits=cache_hits,
                     scan_id=scan_id,
+                    receive_ms=receive_ms,
+                    brave_search_ms=timing_acc["brave_search_ms"],
+                    image_download_ms=timing_acc["image_download_ms"],
                 ).model_dump(),
             )
             await _write_scan_log(scan_id=scan_id, wine_count=len(wines), cache_hits=cache_hits)
@@ -267,10 +296,13 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
                 wine_count=len(wines),
                 cache_hits=cache_hits,
                 scan_id=scan_id,
+                receive_ms=receive_ms,
                 ollama_ms=ollama_ms,
                 image_ms=image_ms,
                 sommelier_ms=sommelier_ms,
                 total_ms=total_ms,
+                brave_search_ms=timing_acc["brave_search_ms"],
+                image_download_ms=timing_acc["image_download_ms"],
             ).model_dump(),
         )
         await _write_scan_log(
@@ -305,9 +337,14 @@ async def scan(image: UploadFile, request: Request) -> StreamingResponse:
             detail={"code": "INVALID_CONTENT_TYPE", "message": "JPEG required"},
         )
 
+    # receive_ms measures how long the request body takes to arrive. In ASGI the
+    # body streams lazily from the socket via receive() events, so on a slow
+    # connection this correlates with network transfer time (not just a buffer copy).
+    t_receive_start = time.perf_counter()
     image_data = await image.read()
+    receive_ms = max(0, int((time.perf_counter() - t_receive_start) * 1000))
     magic = " ".join(f"{b:02X}" for b in image_data[:4])
-    log.info("/scan: received %d bytes, magic=%s", len(image_data), magic)
+    log.info("/scan: received %d bytes in %d ms, magic=%s", len(image_data), receive_ms, magic)
     if image_data[:2] != b"\xff\xd8":
         raise HTTPException(
             status_code=415,
@@ -335,7 +372,7 @@ async def scan(image: UploadFile, request: Request) -> StreamingResponse:
 
     scan_id = uuid.uuid4().hex[:8]
     return StreamingResponse(
-        _scan_sse(image_data, scan_id),
+        _scan_sse(image_data, scan_id, receive_ms),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

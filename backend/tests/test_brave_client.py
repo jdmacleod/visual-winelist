@@ -196,7 +196,7 @@ async def test_content_length_too_large_skipped(tmp_path):
         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
         _with_transport(transport),
     ):
-        result = await brave_client.fetch_image(_make_wine())
+        result, _search_ms, _download_ms = await brave_client.fetch_image(_make_wine())
 
     # Candidate skipped due to Content-Length — no image found
     assert result is None
@@ -215,7 +215,7 @@ async def test_content_length_within_limit_succeeds(tmp_path):
         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
         _with_transport(transport),
     ):
-        result = await brave_client.fetch_image(_make_wine())
+        result, _search_ms, _download_ms = await brave_client.fetch_image(_make_wine())
 
     assert result is not None
     assert result.placeholder is False
@@ -238,7 +238,7 @@ async def test_stream_abort_no_content_length(tmp_path):
         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
         _with_transport(transport),
     ):
-        result = await brave_client.fetch_image(_make_wine())
+        result, _search_ms, _download_ms = await brave_client.fetch_image(_make_wine())
 
     assert result is None
 
@@ -301,7 +301,7 @@ async def test_fetch_image_success_returns_image_event(tmp_path):
         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
         _with_transport(transport),
     ):
-        result = await brave_client.fetch_image(_make_wine())
+        result, _search_ms, _download_ms = await brave_client.fetch_image(_make_wine())
 
     assert result is not None
     assert result.placeholder is False
@@ -353,7 +353,7 @@ async def test_fetch_image_sends_api_key(tmp_path):
 
 async def test_fetch_image_no_api_key():
     with patch("backend.config.BRAVE_API_KEY", ""):
-        result = await brave_client.fetch_image(_make_wine())
+        result, _search_ms, _download_ms = await brave_client.fetch_image(_make_wine())
     assert result is None
 
 
@@ -364,7 +364,7 @@ async def test_fetch_image_brave_returns_empty_results(tmp_path):
         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
         _with_transport(transport),
     ):
-        result = await brave_client.fetch_image(_make_wine())
+        result, _search_ms, _download_ms = await brave_client.fetch_image(_make_wine())
     assert result is None
 
 
@@ -375,7 +375,7 @@ async def test_fetch_image_brave_non_200(tmp_path):
         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
         _with_transport(transport),
     ):
-        result = await brave_client.fetch_image(_make_wine())
+        result, _search_ms, _download_ms = await brave_client.fetch_image(_make_wine())
     assert result is None
 
 
@@ -395,7 +395,7 @@ async def test_fetch_image_all_candidates_fail_returns_none(tmp_path):
         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
         _with_transport(transport),
     ):
-        result = await brave_client.fetch_image(_make_wine())
+        result, _search_ms, _download_ms = await brave_client.fetch_image(_make_wine())
 
     assert result is None
     # Should have tried up to 8 candidates
@@ -430,7 +430,7 @@ async def test_fetch_image_picks_portrait_over_landscape(tmp_path):
             side_effect=lambda timeout: httpx.AsyncClient(transport=_OrderedTransport()),
         ),
     ):
-        result = await brave_client.fetch_image(_make_wine())
+        result, _search_ms, _download_ms = await brave_client.fetch_image(_make_wine())
 
     wine = _make_wine()
     cached_path = tmp_path / f"{wine.wine_id}.jpg"
@@ -456,7 +456,7 @@ async def test_download_image_png_converted_to_jpeg(tmp_path):
         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
         _with_transport(transport),
     ):
-        result = await brave_client.fetch_image(wine)
+        result, _search_ms, _download_ms = await brave_client.fetch_image(wine)
 
     assert result is not None
     cached = (tmp_path / f"{wine.wine_id}.jpg").read_bytes()
@@ -475,7 +475,7 @@ async def test_download_image_webp_converted_to_jpeg(tmp_path):
         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
         _with_transport(transport),
     ):
-        result = await brave_client.fetch_image(wine)
+        result, _search_ms, _download_ms = await brave_client.fetch_image(wine)
 
     assert result is not None
     cached = (tmp_path / f"{wine.wine_id}.jpg").read_bytes()
@@ -492,7 +492,7 @@ async def test_download_image_unreadable_bytes_returns_none(tmp_path):
         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
         _with_transport(transport),
     ):
-        result = await brave_client.fetch_image(_make_wine())
+        result, _search_ms, _download_ms = await brave_client.fetch_image(_make_wine())
 
     assert result is None
 
@@ -686,7 +686,7 @@ async def test_fetch_image_brave_network_exception(tmp_path):
             side_effect=lambda timeout: httpx.AsyncClient(transport=_FailTransport()),
         ),
     ):
-        result = await brave_client.fetch_image(_make_wine())
+        result, _search_ms, _download_ms = await brave_client.fetch_image(_make_wine())
     assert result is None
 
 
@@ -698,7 +698,7 @@ async def test_fetch_image_brave_json_decode_error(tmp_path):
         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
         _with_transport(transport),
     ):
-        result = await brave_client.fetch_image(_make_wine())
+        result, _search_ms, _download_ms = await brave_client.fetch_image(_make_wine())
     assert result is None
 
 
@@ -723,7 +723,7 @@ async def test_fetch_image_skips_candidate_without_thumb_url(tmp_path):
         patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
         _with_transport(transport),
     ):
-        result = await brave_client.fetch_image(_make_wine())
+        result, _search_ms, _download_ms = await brave_client.fetch_image(_make_wine())
 
     assert result is not None  # second candidate succeeded
 
@@ -754,7 +754,7 @@ async def test_fetch_image_oserror_on_save_tries_next_candidate(tmp_path):
         _with_transport(transport),
         patch("builtins.open", side_effect=_flaky_open),
     ):
-        result = await brave_client.fetch_image(_make_wine())
+        result, _search_ms, _download_ms = await brave_client.fetch_image(_make_wine())
 
     # Second candidate should succeed after the first write fails
     assert result is not None

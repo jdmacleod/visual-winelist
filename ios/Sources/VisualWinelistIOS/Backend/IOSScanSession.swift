@@ -170,6 +170,31 @@ final class IOSScanSession: NSObject, URLSessionDataDelegate, @unchecked Sendabl
     }
 
     #if DEBUG
+        func urlSession(
+            _ session: URLSession,
+            task: URLSessionTask,
+            didFinishCollecting metrics: URLSessionTaskMetrics
+        ) {
+            // Use the last transaction — earlier ones may be redirects; the last is
+            // the one that delivered the response. Phase dates are optional: a reused
+            // TCP connection reports nil DNS/connect dates, which we surface as nil.
+            guard let tx = metrics.transactionMetrics.last else { return }
+            func ms(_ start: Date?, _ end: Date?) -> Int? {
+                guard let start, let end else { return nil }
+                return Int(end.timeIntervalSince(start) * 1000)
+            }
+            let dns = ms(tx.domainLookupStartDate, tx.domainLookupEndDate)
+            let tcp = ms(tx.connectStartDate, tx.connectEndDate)
+            let request = ms(tx.requestStartDate, tx.requestEndDate)
+            let response = ms(tx.responseStartDate, tx.responseEndDate)
+            let gen = debugGen
+            Task { @MainActor [weak self] in
+                guard self?.debugGen == gen else { return }
+                DebugStore.shared.recordTransactionMetrics(
+                    dns: dns, tcp: tcp, request: request, response: response)
+            }
+        }
+
         private func recordDebugEvent(_ event: SSEEvent) {
             guard let t0 = debugT0 else { return }
             let ms = Int(Date().timeIntervalSince(t0) * 1000)

@@ -62,10 +62,13 @@ class CompleteEvent(BaseModel):
     wine_count: int
     cache_hits: int
     scan_id: str
+    receive_ms: int | None = None
     ollama_ms: int | None = None
     image_ms: int | None = None
     sommelier_ms: int | None = None
     total_ms: int | None = None
+    brave_search_ms: int | None = None
+    image_download_ms: int | None = None
 
 
 # Curator / search response models

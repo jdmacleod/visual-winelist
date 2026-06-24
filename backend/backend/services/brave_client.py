@@ -13,6 +13,7 @@ D3 — Content-Length pre-check:
 import asyncio
 import logging
 import os
+import time
 from io import BytesIO
 from typing import Any
 
@@ -41,6 +42,11 @@ _last_search_time: float = 0.0
 def _make_http_client(timeout: float) -> httpx.AsyncClient:
     """Thin factory so tests can inject a mock transport without patching httpx globally."""
     return httpx.AsyncClient(timeout=timeout)
+
+
+def _elapsed_ms(start: float) -> int:
+    """Milliseconds since a perf_counter() start, clamped to >= 0."""
+    return max(0, int((time.perf_counter() - start) * 1000))
 
 
 async def _wait_for_rate_limit() -> None:
@@ -186,18 +192,27 @@ async def fetch_image_candidates(
     return candidates, used_query
 
 
-async def fetch_image(wine: WineObject) -> ImageEvent | None:
+async def fetch_image(wine: WineObject) -> tuple[ImageEvent | None, int, int]:
     """
     Search Brave Image Search for a bottle image, download it, save to disk cache,
-    and return an ImageEvent URL reference (D10). Returns None on total failure.
+    and return ``(ImageEvent | None, search_ms, download_ms)`` (D10).
+
+    ``search_ms`` covers the rate-limit wait plus the Brave search request — the
+    stall the user experiences before any download begins (the 1 req/sec free-tier
+    limit dominates here for multi-wine scans). ``download_ms`` is the summed time
+    across every download attempt for this wine. Both are 0 when the corresponding
+    work is skipped (e.g. missing Brave key). ImageEvent is None on total failure.
     """
     if not config.BRAVE_API_KEY:
-        return None
-
-    await _wait_for_rate_limit()
+        return None, 0, 0
 
     query = _build_query(wine)
     log.debug("[Brave] query='%s'", query)
+
+    # search_ms includes the rate-limit wait — that stall is the dominant Brave
+    # latency for multi-wine scans, so it belongs in the search bucket.
+    t_search_start = time.perf_counter()
+    await _wait_for_rate_limit()
 
     try:
         async with _make_http_client(10.0) as client:
@@ -211,22 +226,24 @@ async def fetch_image(wine: WineObject) -> ImageEvent | None:
             )
     except Exception as exc:
         log.warning("[Brave] search request failed for '%s': %s", query, exc)
-        return None
+        return None, _elapsed_ms(t_search_start), 0
+
+    search_ms = _elapsed_ms(t_search_start)
 
     if r.status_code != 200:
         log.warning("[Brave] HTTP %d for '%s'", r.status_code, query)
-        return None
+        return None, search_ms, 0
 
     try:
         body = r.json()
     except Exception:
         log.warning("[Brave] could not decode JSON for '%s'", query)
-        return None
+        return None, search_ms, 0
 
     results: list[dict[str, Any]] = body.get("results") or []
     if not results:
         log.debug("[Brave] 0 results for '%s'", query)
-        return None
+        return None, search_ms, 0
 
     ranked = sorted(results, key=_portrait_score, reverse=True)
     log.debug(
@@ -240,12 +257,15 @@ async def fetch_image(wine: WineObject) -> ImageEvent | None:
     cache_dir = config.IMAGE_CACHE_DIR
     cache_path = os.path.join(cache_dir, f"{wine_id}.jpg")
 
+    download_ms = 0
     for idx, candidate in enumerate(ranked[:_CANDIDATE_LIMIT]):
         thumb_url = (candidate.get("thumbnail") or {}).get("src") or ""
         if not thumb_url:
             continue
 
+        t_download_start = time.perf_counter()
         image_data = await _download_image(thumb_url)
+        download_ms += _elapsed_ms(t_download_start)
         if image_data is None:
             log.debug("[Brave] candidate %d download failed: %s", idx, thumb_url)
             continue
@@ -264,10 +284,14 @@ async def fetch_image(wine: WineObject) -> ImageEvent | None:
             len(image_data),
             idx + 1,
         )
-        return ImageEvent(
-            wine_id=wine_id,
-            url=f"/wines/{wine_id}/image",
-            placeholder=False,
+        return (
+            ImageEvent(
+                wine_id=wine_id,
+                url=f"/wines/{wine_id}/image",
+                placeholder=False,
+            ),
+            search_ms,
+            download_ms,
         )
 
     log.debug(
@@ -276,4 +300,4 @@ async def fetch_image(wine: WineObject) -> ImageEvent | None:
         len(results),
         min(len(ranked), _CANDIDATE_LIMIT),
     )
-    return None
+    return None, search_ms, download_ms

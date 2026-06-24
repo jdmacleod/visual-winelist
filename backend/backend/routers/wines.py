@@ -109,6 +109,11 @@ _VARIANT_SIZES = {
     "detail": lambda: config.IMAGE_DETAIL_WIDTH,
 }
 
+# Per-wine_id locks serialize on-demand variant generation so two concurrent
+# requests for the same wine don't both generate (and double-write) the variant.
+# Created lazily; for a personal-scale cache the unbounded growth is negligible.
+_variant_locks: dict[str, asyncio.Lock] = {}
+
 
 def _generate_all_variants(source_path: str, wine_id: str) -> None:
     """Pre-generate thumb/card/detail WebP variants to eliminate thundering-herd on first serve."""
@@ -259,13 +264,19 @@ async def get_wine_image(
     variant_path = os.path.join(config.IMAGE_CACHE_DIR, f"{wine_id}_{size}.webp")
 
     variant_generated = False
-    if not os.path.exists(variant_path):
-        try:
-            await asyncio.to_thread(_generate_variant, source_path, variant_path, width)
-            variant_generated = True
-        except OSError as exc:
-            log.warning("variant write failed wine_id=%s size=%s: %s", wine_id, size, exc)
-            raise HTTPException(status_code=500, detail="variant_write_failed") from exc
+    # Double-checked locking: re-test existence inside the lock so a request that
+    # waited on a concurrent generation serves the now-existing file instead of
+    # regenerating it. `async with` guarantees the lock releases even if Pillow
+    # raises (the critical try/finally guarantee — no permanently-held lock).
+    lock = _variant_locks.setdefault(wine_id, asyncio.Lock())
+    async with lock:
+        if not os.path.exists(variant_path):
+            try:
+                await asyncio.to_thread(_generate_variant, source_path, variant_path, width)
+                variant_generated = True
+            except OSError as exc:
+                log.warning("variant write failed wine_id=%s size=%s: %s", wine_id, size, exc)
+                raise HTTPException(status_code=500, detail="variant_write_failed") from exc
 
     try:
         variant_size = await asyncio.to_thread(os.path.getsize, variant_path)
