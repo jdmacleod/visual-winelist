@@ -2,13 +2,13 @@ import SwiftUI
 import UIKit
 
 enum AppPhase {
-    case camera, scanning, grid, error(String)
+    case home, camera, scanning, grid, error(String)
 }
 
 struct ContentView: View {
     @State private var camera = CameraManager()
     @State private var viewModel: WineListViewModel
-    @State private var phase: AppPhase = .camera
+    @State private var phase: AppPhase = .home
 
     init(backendURL: URL) {
         _viewModel = State(initialValue: WineListViewModel(backendURL: backendURL))
@@ -17,6 +17,8 @@ struct ContentView: View {
     var body: some View {
         Group {
             switch phase {
+            case .home:
+                homeView
             case .camera:
                 cameraView
             case .scanning:
@@ -27,7 +29,6 @@ struct ContentView: View {
                 errorView(message)
             }
         }
-        .task { await camera.startSession() }
         .task { await viewModel.checkHealth() }
         .onChange(of: camera.error) { _, err in
             if let err { phase = .error(err.localizedDescription) }
@@ -52,6 +53,16 @@ struct ContentView: View {
                 DebugHUD()
             }
         #endif
+    }
+
+    // MARK: - Home view
+
+    private var homeView: some View {
+        HomeView(
+            viewModel: viewModel,
+            onScan: { phase = .camera },
+            onViewResults: { phase = .grid }
+        )
     }
 
     // MARK: - Camera view
@@ -113,19 +124,33 @@ struct ContentView: View {
             }
         }
         .overlay(alignment: .topLeading) {
-            if !viewModel.wines.isEmpty {
+            HStack(spacing: 12) {
                 Button {
-                    phase = .grid
+                    camera.stopSession()
+                    phase = .home
                 } label: {
-                    Label("Results", systemImage: "list.bullet")
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: .cornerRadiusMedium))
+                    Image(systemName: "xmark")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(.ultraThinMaterial, in: Circle())
                 }
-                .padding()
+                .accessibilityLabel("Close camera, return home")
+
+                if !viewModel.wines.isEmpty {
+                    Button {
+                        phase = .grid
+                    } label: {
+                        Label("Results", systemImage: "list.bullet")
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: .cornerRadiusMedium))
+                    }
+                }
             }
+            .padding()
         }
-        .onAppear { camera.resumeSession() }
+        .task { await camera.startSession() }
     }
 
     // MARK: - Scanning view
@@ -146,7 +171,7 @@ struct ContentView: View {
 
                 Button("Cancel") {
                     viewModel.cancelScan()
-                    phase = .camera
+                    phase = .home
                 }
                 .buttonStyle(.bordered)
                 .tint(.white)
@@ -166,6 +191,14 @@ struct ContentView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        phase = .home
+                    } label: {
+                        Image(systemName: "house")
+                    }
+                    .accessibilityLabel("Home")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink {
                         PreferencesView()
                     } label: {
@@ -176,7 +209,7 @@ struct ContentView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(role: .destructive) {
                         viewModel.clear()
-                        phase = .camera
+                        phase = .home
                     } label: {
                         Image(systemName: "trash")
                     }
@@ -199,11 +232,20 @@ struct ContentView: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 40)
-            Button("Try again") {
-                viewModel.errorMessage = nil
-                phase = .camera
+            VStack(spacing: 12) {
+                Button("Try again") {
+                    viewModel.errorMessage = nil
+                    phase = .camera
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.wineRed)
+
+                Button("Home") {
+                    viewModel.errorMessage = nil
+                    phase = .home
+                }
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(.borderedProminent)
         }
         .onAppear { UINotificationFeedbackGenerator().notificationOccurred(.error) }
     }
