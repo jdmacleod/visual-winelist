@@ -40,12 +40,36 @@ def _sse(event: str, data: Any) -> str:
     return f"event: {event}\ndata: {payload}\n\n"
 
 
-def _write_scan_image(image_data: bytes, scan_id: str) -> None:
-    """Persist the uploaded scan photo to scans/{scan_id}.jpg for later inspection."""
+def _write_scan_image(image_data: bytes, scan_id: str, retention: int | None = None) -> None:
+    """Persist the uploaded scan photo to scans/{scan_id}.jpg for later inspection.
+
+    When `retention` is a positive int, prune the scans dir to the newest N files
+    (E13) so opt-in saving doesn't grow disk without bound.
+    """
     scans_dir = os.path.join(config.IMAGE_CACHE_DIR, "scans")
     os.makedirs(scans_dir, exist_ok=True)
     with open(os.path.join(scans_dir, f"{scan_id}.jpg"), "wb") as f:
         f.write(image_data)
+    if retention is not None and retention > 0:
+        _prune_scan_images(scans_dir, retention)
+
+
+def _prune_scan_images(scans_dir: str, keep: int) -> None:
+    """Delete the oldest scan photos beyond the newest `keep` (by mtime)."""
+    try:
+        entries = [
+            os.path.join(scans_dir, name) for name in os.listdir(scans_dir) if name.endswith(".jpg")
+        ]
+    except OSError:
+        return
+    if len(entries) <= keep:
+        return
+    entries.sort(key=lambda path: os.path.getmtime(path), reverse=True)
+    for stale in entries[keep:]:
+        try:
+            os.remove(stale)
+        except OSError:
+            log.warning("scan-image prune failed for %s", stale, exc_info=True)
 
 
 async def _write_scan_log(
@@ -127,7 +151,11 @@ async def _fetch_image_to_queue(
 
 
 async def _scan_sse(
-    image_data: bytes, scan_id: str, receive_ms: int | None = None
+    image_data: bytes,
+    scan_id: str,
+    receive_ms: int | None = None,
+    save_image: bool = False,
+    retention: int | None = None,
 ) -> AsyncIterator[str]:
     global _scanning
     extraction_task: asyncio.Task[None] | None = None
@@ -152,9 +180,9 @@ async def _scan_sse(
 
         # Optionally persist the raw scan photo (keyed by scan_id) so telemetry rows
         # can be correlated to what the model actually saw. Non-fatal on failure.
-        if config.SAVE_SCAN_IMAGES:
+        if config.SAVE_SCAN_IMAGES or save_image:
             try:
-                await asyncio.to_thread(_write_scan_image, image_data, scan_id)
+                await asyncio.to_thread(_write_scan_image, image_data, scan_id, retention)
             except Exception:
                 log.warning("save_scan_image failed for %s", scan_id, exc_info=True)
 
@@ -448,9 +476,16 @@ async def scan(image: UploadFile, request: Request) -> StreamingResponse:
     # GeneratorExit on client disconnect).
     _scanning = True
 
+    # Per-request opt-in scan-image saving (E13), set by the iOS Preferences toggle.
+    save_image = request.headers.get("X-Save-Scan-Image", "").strip() in ("1", "true", "yes")
+    retention: int | None = None
+    raw_retention = request.headers.get("X-Scan-Image-Retention", "").strip()
+    if raw_retention.isdigit():
+        retention = int(raw_retention)
+
     scan_id = uuid.uuid4().hex[:8]
     return StreamingResponse(
-        _scan_sse(image_data, scan_id, receive_ms),
+        _scan_sse(image_data, scan_id, receive_ms, save_image=save_image, retention=retention),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

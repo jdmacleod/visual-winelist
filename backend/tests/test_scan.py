@@ -513,6 +513,79 @@ async def test_scan_id_in_response_header(client):
     )
 
 
+async def test_scan_saves_image_when_header_set(client, tmp_path):
+    """X-Save-Scan-Image header opts this request into persisting the photo (E13)."""
+    with (
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        patch("backend.config.SAVE_SCAN_IMAGES", False),
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        r = await client.post(
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+            headers={"X-Save-Scan-Image": "1"},
+        )
+        assert r.status_code == 200
+    saved = list((tmp_path / "scans").glob("*.jpg"))
+    assert len(saved) == 1, "header should persist exactly one scan photo"
+
+
+async def test_scan_does_not_save_without_header_or_config(client, tmp_path):
+    """No header and SAVE_SCAN_IMAGES off => nothing is written."""
+    with (
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        patch("backend.config.SAVE_SCAN_IMAGES", False),
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        r = await client.post(
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+        )
+        assert r.status_code == 200
+    assert not (tmp_path / "scans").exists() or not list((tmp_path / "scans").glob("*.jpg"))
+
+
+async def test_scan_image_retention_prunes_oldest(client, tmp_path):
+    """X-Scan-Image-Retention keeps only the newest N photos (oldest pruned)."""
+    import os
+
+    scans_dir = tmp_path / "scans"
+    scans_dir.mkdir()
+    # Three pre-existing photos with strictly increasing mtimes.
+    for i, name in enumerate(["old1.jpg", "old2.jpg", "old3.jpg"]):
+        path = scans_dir / name
+        path.write_bytes(b"x")
+        os.utime(path, (1000 + i, 1000 + i))
+
+    with (
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        patch("backend.config.SAVE_SCAN_IMAGES", False),
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        r = await client.post(
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+            headers={"X-Save-Scan-Image": "1", "X-Scan-Image-Retention": "2"},
+        )
+        assert r.status_code == 200
+
+    remaining = {p.name for p in scans_dir.glob("*.jpg")}
+    assert len(remaining) == 2, f"retention=2 must keep 2 photos, got {remaining}"
+    assert "old1.jpg" not in remaining, "oldest photo must be pruned"
+
+
 async def test_recent_scans_empty(client):
     """GET /scans/recent returns empty list and null hit_rate when no scans logged."""
     r = await client.get("/scans/recent")
