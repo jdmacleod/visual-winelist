@@ -1,7 +1,7 @@
 # Visual Winelist
 
 [![CI](https://github.com/jdmacleod/visual-winelist/actions/workflows/ci.yml/badge.svg)](https://github.com/jdmacleod/visual-winelist/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/release-v0.2.10.0-blue.svg)](https://github.com/jdmacleod/visual-winelist/releases)
+[![Latest release](https://img.shields.io/badge/release-v0.2.12.0-blue.svg)](https://github.com/jdmacleod/visual-winelist/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform: macOS 14+ · iOS 16+](https://img.shields.io/badge/platform-macOS%2014%2B%20%C2%B7%20iOS%2016%2B-lightgrey.svg)](https://github.com/jdmacleod/visual-winelist)
 [![Swift 5.9+](https://img.shields.io/badge/swift-5.9%2B-orange.svg)](https://swift.org)
@@ -127,10 +127,11 @@ See [web/README.md](web/README.md) for more options.
 
 1. Grant camera access when prompted.
 2. Point the camera at a wine list and tap to capture.
-3. Watch bottle images fill the grid as wines are identified. Tasting notes and pairings appear after the initial pass.
-4. Tap any bottle for full details: tasting note, pairings, producer, region, confidence score.
+3. Watch bottle images fill the 4-column grid as wines are identified. Tasting notes and pairings appear after the initial pass.
+4. Tap any bottle for full details: full-bottle image, tasting note, pairings, producer, region, confidence score.
 5. Use **Scan more** to photograph additional pages (new wines are appended; duplicates by name+vintage are skipped). Use **Clear** to start over.
-6. Open the React curator (`http://localhost:5173`) to search the cache and mark images as verified.
+6. Tap the gear icon (top-left) to open Preferences — toggle "Show price on card" to display extracted prices as a badge on each wine card.
+7. Open the React curator (`http://localhost:5173`) to search the cache and mark images as verified.
 
 ## Documentation
 

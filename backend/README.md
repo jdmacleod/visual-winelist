@@ -49,7 +49,7 @@ The API is available at `http://localhost:8000`. Check `GET /health`.
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/scan` | Upload a JPEG, receive wines + images via SSE. Returns HTTP 415 `{"code":"INVALID_IMAGE"}` if the file is not a valid JPEG (magic bytes checked). |
-| `GET` | `/health` | Backend and Ollama status |
+| `GET` | `/health` | Backend and Ollama status. Returns `{status, ollama, brave_key, version}`. |
 | `GET` | `/wines/search` | Paginated wine search (`?q=&page=&page_size=&sort=&order=&status=`) |
 | `GET` | `/wines/{id}/image` | Serve cached bottle image |
 | `DELETE` | `/wines/{id}` | Remove a wine from the cache |

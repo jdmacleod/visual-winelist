@@ -14,3 +14,13 @@ extension Color {
 extension ShapeStyle where Self == Color {
     static var wineRed: Color { .wineRed }
 }
+
+extension Bundle {
+    var appVersionString: String {
+        infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+    }
+}
+
+enum UserDefaultsKey {
+    static let showPriceOverlay = "showPriceOverlay"
+}

@@ -38,7 +38,8 @@ light/dark mode automatically — do not swap for custom RGBA equivalents.
 | `.orange.opacity(0.85)` | Degraded backend alert banner background |
 | `.orange.opacity(0.1)` | Confidence warning card background |
 | `.black.opacity(0.4)` | Camera hint pill background |
-| `.black.opacity(0.75)` | Wine card name gradient bottom anchor |
+| `.black.opacity(0.6)` | Price overlay pill background on wine card |
+| `.black.opacity(0.82)` | Detail view image gradient bottom anchor |
 | `.secondary.opacity(0.15)` | Pairing chip background |
 | `.secondary.opacity(0.1)` | Notes incomplete card background |
 | `.ultraThinMaterial` | Translucent overlays (results button, scan-more bar) |
@@ -69,16 +70,17 @@ fixed sizes for readable content.
 
 | Style | Usage |
 |---|---|
-| `.caption2` | Secondary metadata — vintage on card, uncertainty badge label |
+| `.caption2` | Secondary metadata — uncertainty badge label |
+| `.caption2.weight(.semibold)` | Wine name on card (single line, truncated) |
 | `.caption` | Inline hints, camera instructions, setup prose |
-| `.caption.bold()` / `.caption.weight(.semibold)` | Section headings (TASTING NOTE, FOOD PAIRINGS, FROM THE LIST), wine name on card |
+| `.caption.bold()` / `.caption.weight(.semibold)` | Section headings (TASTING NOTE, FOOD PAIRINGS, FROM THE LIST) |
 | `.body` | Primary readable content — tasting notes, descriptions |
 | `.subheadline` | Metadata rows, wine count label, form field labels |
 | `.subheadline.bold()` | Action button labels, form section headings |
 | `.callout` | Setup view descriptive subtitle |
 | `.headline` | Scanning state progress message |
-| `.title3` | Secondary detail headers — vintage, price, setup tagline |
-| `.title2.bold()` | Wine name in detail view |
+| `.title3` | Setup tagline, secondary headers (vintage/price moved to image gradient overlay in detail view) |
+| `.title3.bold()` | Wine name in detail view image overlay |
 
 ### Fixed sizes (decorative icons only)
 
@@ -98,13 +100,16 @@ elements — they should not scale with surrounding text.
 
 | Context | Value |
 |---|---|
-| Grid cell gap | 12 pt |
+| Grid cell gap | 8 pt |
 | Grid edge padding | 16 pt |
 | Wine detail content padding | 20 pt |
 | Wine detail section spacing | 20 pt |
 | Setup view edge padding | 24 pt |
 | Setup view section spacing | 28 pt |
-| Card name overlay padding | 8 pt |
+| Card name overlay padding (horizontal) | 6 pt |
+| Card name overlay padding (bottom) | 6 pt |
+| Price overlay pill padding (horizontal) | 5 pt |
+| Price overlay pill padding (vertical) | 3 pt |
 | Scan-more bar horizontal padding | 16 pt |
 | Scan-more bar vertical padding | 12 pt |
 
@@ -116,6 +121,7 @@ elements — they should not scale with surrounding text.
   `Label("…", systemImage:)`.
 - Camera shutter: `.accessibilityLabel("Capture wine list")`
 - Trash toolbar button: `.accessibilityLabel("Clear all wines")`
+- Preferences toolbar button: `.accessibilityLabel("Preferences")`
 - Wine grid cards: dynamic label via `cardLabel(for:)` — includes name,
   vintage, and low-confidence flag.
 - Haptic feedback: medium impact on shutter tap; success notification when

@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
 
-app = FastAPI(title="visual-winelist backend", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="visual-winelist backend", version=config.APP_VERSION, lifespan=lifespan)
 
 app.include_router(scan.router)
 app.include_router(health.router)
