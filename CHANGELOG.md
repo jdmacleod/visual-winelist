@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.2.13.0 (2026-06-24)
+
+### Added
+
+- **Stage-accurate scan progress** — the scanning screen now names each phase as it happens: "Sending photo…" → "Getting ready to analyze…" → "Analyzing the wine list…" → "Found N wines…" → "Getting tasting notes… (3/19)". The phases are driven by real backend signals (an immediate readiness flush and a first-token marker from the model), so "Sending photo…" no longer lingers for the entire analysis. The tasting-notes counter lives in the always-visible bottom bar instead of scrolling out of view.
+- **Opt-in scan diagnostics** — a "Send Diagnostics?" toggle (off by default, in Preferences and iOS Settings) posts per-scan timing to the backend at `POST /telemetry/scan` (completed, cancelled, or errored scans). `GET /telemetry/scans` lists recent reports for inspection. No photo or wine data is sent — timing only. Stored in a new `scan_telemetry` table, keyed by scan id.
+- **Scan-image capture for inspection** — optional `SAVE_SCAN_IMAGES` backend setting (off by default) persists each uploaded photo to `scans/{scan_id}.jpg`, so a telemetry row can be tied to exactly what the model saw.
+- **Faster first bottle image** — the backend now pre-generates the card-size image while the scan is still running, so the gallery fills without a second on-demand resize round-trip.
+- **Deeper scan timing (perf HUD, DEBUG)** — the overlay decomposes the request into DNS / TCP / upload / server-wait phases, adds server-side receive time, time-to-first-wine, and per-wine Brave search vs download timing, a build marker (version + git SHA + build time), a malformed-SSE counter, and a tunable upload size.
+
+### Fixed
+
+- **Image variant race** — concurrent requests for the same wine image no longer double-generate the resized WebP (per-wine generation lock; the lock releases even if image decoding fails).
+- **Perf HUD recoverable** — closing the debug overlay with the ✕ no longer strands it off-screen; it re-homes to the corner and the drag is clamped so it can't be lost.
+- **Dropped end-of-scan timing** — the transaction-metrics rows (DNS/TCP/upload) were being discarded on normal scan completion; they now record correctly.
+
 ## v0.2.12.0 (2026-06-23)
 
 ### Added

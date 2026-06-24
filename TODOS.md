@@ -62,6 +62,24 @@ before committing — if round-trips are <100ms on LAN, skip this.
 
 ---
 
+## E12: Telemetry endpoint hardening (P3)
+
+`POST /telemetry/scan` is unauthenticated with no payload size cap (`event_timeline` is an
+unbounded list). Consistent with the existing LAN-only posture (`/scan` accepts 25 MB, `/wines`
+is open), so it's fine for self-host on a trusted network. Before exposing the backend beyond a
+trusted LAN, add: a `max_length` on `event_timeline`, a request body size guard, and
+auth/rate-limiting on the telemetry routes. Shipped unhardened in v0.2.13.0.
+
+---
+
+## E13: Scan-image retention policy (P3)
+
+`SAVE_SCAN_IMAGES` (added v0.2.13.0, default off) writes every uploaded photo to
+`scans/{scan_id}.jpg` with no rotation or cleanup — unbounded disk growth while enabled. Add a
+retention cap (max count or age-based prune) before leaving it on for any length of time.
+
+---
+
 ## E7: Web design system documentation
 
 Document the web curator's emergent color/typography/component system in DESIGN.md alongside the existing iOS tokens. New contributors currently derive web patterns from reading App.tsx/WineCard.tsx rather than a spec, which risks drift.
