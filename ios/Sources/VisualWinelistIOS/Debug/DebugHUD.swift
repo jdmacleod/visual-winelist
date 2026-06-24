@@ -7,9 +7,11 @@
         @State private var dragOffset: CGSize = .zero
         @State private var lastDragOffset: CGSize = .zero
 
-        // Computed once: "v<short> (<build>) · <built-at>". The built-at is the app
-        // executable's modification date, which bumps on every compile/install, so
-        // it doubles as a "is this the fresh build?" tell on-device.
+        // Computed once: "v<short> (<build>) · <git-sha> · <built-at>". The git SHA
+        // is injected at build time by the "Generate GitSHA source" phase
+        // (GeneratedBuildInfo.gitSHA); built-at is the executable's mtime, which
+        // bumps every compile/install. Together they make "is this the fresh build,
+        // and from which commit?" unambiguous on-device.
         private static let buildMarker: String = {
             let info = Bundle.main.infoDictionary
             let version = info?["CFBundleShortVersionString"] as? String ?? "?"
@@ -23,7 +25,16 @@
                 formatter.dateFormat = "MMM d HH:mm"
                 builtAt = formatter.string(from: date)
             }
-            return "v\(version) (\(build)) · \(builtAt)"
+            // GeneratedBuildInfo is emitted by the Xcode "Generate GitSHA source"
+            // phase only. `swift build` (SwiftPM/CI) doesn't run that phase, so the
+            // symbol is absent there — GITSHA_GENERATED is defined only in the Xcode
+            // target, keeping the package build green with a "dev" placeholder.
+            #if GITSHA_GENERATED
+                let sha = GeneratedBuildInfo.gitSHA
+            #else
+                let sha = "dev"
+            #endif
+            return "v\(version) (\(build)) · \(sha) · \(builtAt)"
         }()
 
         var body: some View {
