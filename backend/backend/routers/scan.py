@@ -132,7 +132,7 @@ async def _scan_sse(image_data: bytes, scan_id: str) -> AsyncIterator[str]:
                         ),
                     )
                 )
-            except Exception as exc:
+            except (ConnectionRefusedError, OSError) as exc:
                 await queue.put(
                     (
                         "error",
