@@ -23,4 +23,5 @@ extension Bundle {
 
 enum UserDefaultsKey {
     static let showPriceOverlay = "showPriceOverlay"
+    static let sendDiagnostics = "sendDiagnostics"
 }

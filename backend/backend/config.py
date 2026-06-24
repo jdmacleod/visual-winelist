@@ -19,6 +19,17 @@ DATABASE_URL: str = os.environ.get(
 )
 MAX_UPLOAD_SIZE: int = int(os.environ.get("MAX_UPLOAD_SIZE", str(25 * 1024 * 1024)))
 
+
+def _bool_env(name: str, default: str) -> bool:
+    return os.environ.get(name, default).strip().lower() in ("1", "true", "yes", "on")
+
+
+# Accept opt-in scan telemetry from the iOS client at POST /telemetry/scan.
+TELEMETRY_ENABLED: bool = _bool_env("TELEMETRY_ENABLED", "true")
+# Persist the uploaded scan photo to scans/{scan_id}.jpg for content inspection.
+# Off by default — it stores raw photos. Correlates to telemetry + ScanLog by scan_id.
+SAVE_SCAN_IMAGES: bool = _bool_env("SAVE_SCAN_IMAGES", "false")
+
 # Image variant dimensions (px, longest side) — tune via env vars for experiments.
 IMAGE_THUMB_WIDTH: int = int(os.environ.get("IMAGE_THUMB_WIDTH", "120"))
 IMAGE_CARD_WIDTH: int = int(os.environ.get("IMAGE_CARD_WIDTH", "320"))

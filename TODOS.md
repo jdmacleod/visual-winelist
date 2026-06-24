@@ -28,9 +28,57 @@ Share wine card via iOS share sheet / AirDrop.
 
 
 
+## E10: Upload size reduction experiment
+
+After collecting 10+ scan baselines with the new ScanSettings tuning capability (v0.2.13.0+),
+benchmark `uploadMaxSide=1280` + `uploadJPEGQuality=0.75` vs current defaults (1920px / 0.85).
+Check HUD `receive_ms` for upload speed improvement and `ollamaMs` for accuracy regression.
+If accuracy is unchanged (Ollama reads wine labels equally well at 1280px), reduce the defaults
+to cut upload size ~50-70%.
+
+**Depends on:** TTFI instrumentation PR (T1+T2+T5 from perf-ttfi plan). Blocked on baseline data.
+
+---
+
+## E11: Inline base64 images in SSE stream for cached wines
+
+Instead of returning an `ImageEvent` URL and requiring a separate `GET /wines/{id}/image`
+round-trip per cached wine, embed the card-size WebP bytes as a base64 field directly in the
+SSE `image` event. iOS decodes and displays without a second HTTP call. For a scan with 5
+cached wines, eliminates 5 round-trips.
+
+Requires: SSE protocol change (new optional `data_b64` field in ImageEvent), iOS decode,
+size limit guard (~50KB per wine card at 320px WebP, safe), and a backend size check to avoid
+streaming multi-MB originals. Measure current per-image round-trip time with URLSessionTaskMetrics
+before committing — if round-trips are <100ms on LAN, skip this.
+
+**Depends on:** URLSessionTaskTransactionMetrics implementation (T2 from perf-ttfi plan).
+
+---
+
 ## E9: Scan stats endpoint + curator chart (Phase 4 instrumentation)
 
 `GET /scan/stats` returning per-phase timing aggregates (p50/p95 for `ollama_ms`, `image_ms`, `sommelier_ms`, `total_ms`). Curator header chart showing scan duration trend. Deferred until 50+ scans have accumulated in `scan_log` to establish a meaningful baseline. Foundation (ScanLog timing columns) shipped in v0.2.11.0.
+
+---
+
+## E12: Telemetry endpoint hardening (P3)
+
+`POST /telemetry/scan` is unauthenticated with no payload size cap (`event_timeline` is an
+unbounded list). Consistent with the existing LAN-only posture (`/scan` accepts 25 MB, `/wines`
+is open), so it's fine for self-host on a trusted network. Before exposing the backend beyond a
+trusted LAN, add: a `max_length` on `event_timeline`, a request body size guard, a `scan_id`
+charset/length validator (it is a client-controlled upsert key), and auth/rate-limiting on the
+telemetry routes. Shipped unhardened in v0.2.13.0; the `GET` listing now mirrors the
+`TELEMETRY_ENABLED` gate and tolerates a corrupt row (v0.2.13.0), but the rest remain open.
+
+---
+
+## E13: Scan-image retention policy (P3)
+
+`SAVE_SCAN_IMAGES` (added v0.2.13.0, default off) writes every uploaded photo to
+`scans/{scan_id}.jpg` with no rotation or cleanup — unbounded disk growth while enabled. Add a
+retention cap (max count or age-based prune) before leaving it on for any length of time.
 
 ---
 

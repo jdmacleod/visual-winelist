@@ -285,8 +285,7 @@ async def test_scan_cache_hit_skips_brave(client):
         }
     )
 
-    async def _fake_extract(image_data: bytes):  # type: ignore[override]
-
+    async def _fake_extract(image_data: bytes, on_first_token=None):  # type: ignore[override]
         yield WineObject.model_validate_json(_WINE_JSON)
 
     with (

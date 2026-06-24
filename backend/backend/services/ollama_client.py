@@ -23,7 +23,7 @@ re-pull qwen3-vl:8b to restore extraction.
 import base64
 import json
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from io import BytesIO
 
 import httpx
@@ -85,12 +85,18 @@ def _make_health_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(timeout=3.0)
 
 
-async def extract_wines(image_data: bytes) -> AsyncIterator[WineObject]:
+async def extract_wines(
+    image_data: bytes, on_first_token: Callable[[], None] | None = None
+) -> AsyncIterator[WineObject]:
     """
     Stream WineObjects from a JPEG wine list photo via Ollama JSONL.
 
     Mirrors OllamaClient.swift:extractWines — same token buffer logic,
     same pre-fill trick, same 120s timeout.
+
+    on_first_token fires once, when the first content token arrives from Ollama
+    (before any complete wine is parsed). Used to tell the client that analysis
+    has started — the boundary between "getting ready" and "analyzing".
     """
     image_data = _resize_for_model(image_data)
     magic = " ".join(f"{b:02X}" for b in image_data[:4])
@@ -142,6 +148,8 @@ async def extract_wines(image_data: bytes) -> AsyncIterator[WineObject]:
                     # Guard against future Ollama builds that echo the pre-fill
                     # in streamed tokens (would produce "{{..." and break JSON).
                     if first_token:
+                        if on_first_token is not None:
+                            on_first_token()
                         if not token.startswith("{"):
                             token = "{" + token
                         first_token = False

@@ -34,10 +34,14 @@ struct CompleteSSEPayload: Decodable, Sendable {
     let wine_count: Int
     let cache_hits: Int
     let scan_id: String
+    let receive_ms: Int?
+    let first_wine_ms: Int?
     let ollama_ms: Int?
     let image_ms: Int?
     let sommelier_ms: Int?
     let total_ms: Int?
+    let brave_search_ms: Int?
+    let image_download_ms: Int?
 }
 
 struct HealthResponse: Decodable, Sendable {

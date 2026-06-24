@@ -41,6 +41,8 @@ The API is available at `http://localhost:8000`. Check `GET /health`.
 | `OLLAMA_MODEL` | `qwen3-vl:8b` | Vision model to use for extraction |
 | `IMAGE_CACHE_DIR` | `./image-cache` | Directory for cached bottle images |
 | `MAX_UPLOAD_SIZE` | `26214400` (25 MB) | Max photo upload size in bytes |
+| `TELEMETRY_ENABLED` | `true` | Accept opt-in scan diagnostics at `POST /telemetry/scan` (the iOS "Send Diagnostics?" toggle) |
+| `SAVE_SCAN_IMAGES` | `false` | Persist each uploaded scan photo to `image-cache/scans/{scan_id}.jpg` for inspection (stores raw photos) |
 
 > **Why Ollama runs natively (not in Docker):** Docker Desktop on macOS does not support GPU passthrough. Ollama's inference degrades severely without Metal/GPU access. See [technical-notes.md](../technical-notes.md).
 

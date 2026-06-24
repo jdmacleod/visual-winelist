@@ -217,14 +217,12 @@ struct ContentView: View {
         do {
             let photoData = try await camera.capturePhoto()
             camera.stopSession()
-            #if DEBUG
-                if let origImg = UIImage(data: photoData) {
-                    DebugStore.shared.stageOriginalSize(
-                        width: Int(origImg.size.width * origImg.scale),
-                        height: Int(origImg.size.height * origImg.scale)
-                    )
-                }
-            #endif
+            if let origImg = UIImage(data: photoData) {
+                DebugStore.shared.stageOriginalSize(
+                    width: Int(origImg.size.width * origImg.scale),
+                    height: Int(origImg.size.height * origImg.scale)
+                )
+            }
             let uploadData = await Task.detached(priority: .userInitiated) {
                 resizeForUpload(photoData)
             }.value

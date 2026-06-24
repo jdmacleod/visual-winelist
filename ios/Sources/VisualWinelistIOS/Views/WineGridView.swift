@@ -38,16 +38,6 @@ struct WineGridView: View {
                     }
                 }
                 .padding(gridPadding)
-
-                if viewModel.isScanning {
-                    HStack(spacing: 8) {
-                        ProgressView().scaleEffect(0.7)
-                        Text(viewModel.scanMessage)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.bottom, 16)
-                }
             }
             .safeAreaInset(edge: .bottom) {
                 scanMoreBar
@@ -63,10 +53,21 @@ struct WineGridView: View {
     }
 
     private var scanMoreBar: some View {
-        HStack {
-            Text("\(viewModel.wines.count) wine\(viewModel.wines.count == 1 ? "" : "s")")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        HStack(spacing: 8) {
+            if viewModel.isScanning {
+                // Always-visible stage progress (Analyzing… / Found N wines… /
+                // Getting tasting notes (k/N)) so it doesn't scroll out of view.
+                ProgressView().scaleEffect(0.7)
+                Text(viewModel.scanMessage)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            } else {
+                Text("\(viewModel.wines.count) wine\(viewModel.wines.count == 1 ? "" : "s")")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
             Spacer()
             Button(action: onScanMore) {
                 Label("Scan more", systemImage: "camera.viewfinder")

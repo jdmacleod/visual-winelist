@@ -135,6 +135,41 @@ async def test_extract_wines_happy_path():
     assert wines[1].vintage == "2019"
 
 
+async def test_extract_wines_fires_on_first_token_once(tmp_path):
+    """on_first_token fires exactly once, at the real first content token, before any wine."""
+    calls: list[int] = []
+    wines_at_first_call: list[int] = []
+
+    def _cb() -> None:
+        calls.append(1)
+        wines_at_first_call.append(len(collected))
+
+    collected: list = []
+    transport = _MockTransport(body=_jsonl_response(_MARGAUX, _OPUS))
+    with _with_transport(transport):
+        async for w in ollama_client.extract_wines(b"fake-jpeg", on_first_token=_cb):
+            collected.append(w)
+
+    assert sum(calls) == 1, "on_first_token must fire exactly once"
+    assert wines_at_first_call == [0], "callback must fire before the first wine is parsed"
+    assert len(collected) == 2
+
+
+async def test_extract_wines_no_callback_when_zero_tokens():
+    """A done-only stream (no content tokens) never fires on_first_token."""
+    calls: list[int] = []
+    transport = _MockTransport(body=b'{"done":true}\n')
+    with _with_transport(transport):
+        _ = [
+            w
+            async for w in ollama_client.extract_wines(
+                b"fake-jpeg", on_first_token=lambda: calls.append(1)
+            )
+        ]
+
+    assert calls == [], "no content token → callback must not fire"
+
+
 async def test_extract_wines_single_no_trailing_newline():
     """Wine JSON without a trailing \\n is parsed via the flush path."""
     content = json.dumps(_MARGAUX)[1:]  # strip "{" — pre-fill provides it
