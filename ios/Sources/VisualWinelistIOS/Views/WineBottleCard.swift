@@ -3,7 +3,7 @@ import UIKit
 
 struct WineBottleCard: View {
     let state: WineState
-    @AppStorage(UserDefaultsKey.showPriceOverlay) private var showPriceOverlay = false
+    let showPriceOverlay: Bool
 
     var body: some View {
         ZStack(alignment: .bottom) {

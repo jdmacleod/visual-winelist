@@ -3,6 +3,7 @@ import SwiftUI
 struct WineGridView: View {
     var viewModel: WineListViewModel
     let onScanMore: () -> Void
+    @AppStorage(UserDefaultsKey.showPriceOverlay) private var showPriceOverlay = false
 
     private let columnCount = 4
     private let gridSpacing: CGFloat = 8
@@ -30,7 +31,7 @@ struct WineGridView: View {
                                 backendClient: viewModel.backendClient
                             )
                         } label: {
-                            WineBottleCard(state: state)
+                            WineBottleCard(state: state, showPriceOverlay: showPriceOverlay)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(cardLabel(for: state))
