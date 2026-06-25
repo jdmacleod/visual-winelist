@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.3.2.0 (2026-06-25)
+
+### Added
+
+- **iOS coverage gate (E16).** CI now measures iOS line coverage (`xcodebuild test -enableCodeCoverage` + `xcrun xccov`) and enforces a 50% floor on the logic core (Backend / Models / ViewModels / StartupValidator), via `Scripts/ios-coverage-gate.sh`. This replaces the line-coverage gate lost when the macOS mirror was deleted in E15, recalibrated to the iOS tree that the XCTest suite actually exercises (UI, camera, and debug code are excluded). A regression can no longer silently drop logic coverage.
+
+### Changed
+
+- **Telemetry listing is indexed (E14).** `GET /telemetry/scans` sorts by `timestamp` and can filter by `outcome`; both are now indexed (a standalone `timestamp` index for the default newest-first listing, a composite `(outcome, timestamp)` for the filtered path). Keeps the recent-diagnostics view fast as the telemetry table grows. Indexes are added idempotently on startup, so existing databases pick them up automatically.
+
+### Docs
+
+- **Documentation rewritten for the iOS + backend split (E17).** The explanation and reference docs that still described the old in-app monolith now describe the real system: `architecture.md` (data-flow diagram, SSE event protocol, backend extraction/image/sommelier), `configuration.md` (backend env vars + iOS runtime settings), `wine-schema.md` (canonical `shared/wine-schema.json` + backend parse path), and `evaluate-extraction.md` (the backend `/scan` integration eval). Fixed dangling references to the deleted macOS `BraveSearchClient.swift` in `design-decisions.md` and `validate-brave-hitrate.md`.
+
 ## v0.3.1.1 (2026-06-25)
 
 ### Changed

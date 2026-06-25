@@ -1,6 +1,6 @@
 # How-to: validate Brave image search hit rate
 
-`Scripts/validate-brave-hitrate.swift` queries Brave Image Search for 20 known wines (flagship, regional, and obscure tiers) and reports how often a usable bottle photo comes back. Run it before relying on Brave as the bottle-image source, or after changing the query format or ranking logic in `BraveSearchClient`.
+`Scripts/validate-brave-hitrate.swift` is a standalone script (it queries Brave directly, independent of the backend) that checks 20 known wines (flagship, regional, and obscure tiers) and reports how often a usable bottle photo comes back. Run it before relying on Brave as the bottle-image source, or after changing the query format or ranking logic in the backend's `brave_client.py`.
 
 ## Run it
 
@@ -28,4 +28,4 @@ The totals section reports three percentages:
 
 Target is ≥70% portrait hit rate for v1 viability. If portrait rate is low but dimension-data rate is high, the filter threshold may be too strict. If dimension data itself is sparse, check the Brave API tier/params. If even raw results are sparse, Brave coverage may be insufficient and a fallback image source should be considered.
 
-Note: this script tests the simple `count=5` + hard portrait filter from before the production fixes in `BraveSearchClient.swift` (which raised `count` to 20, replaced the hard filter with a ranked score, and added a `User-Agent` header). Use it as a rough signal on tier-by-tier Brave coverage rather than an exact mirror of the app's current behavior — see [Explanation: design decisions](../explanation/design-decisions.md) for what changed and why.
+Note: this standalone script is a pre-backend-split mirror. It tests the simple `count=5` + hard portrait filter from before the production fixes now in `backend/backend/services/brave_client.py` (which raised `count` to 20, replaced the hard filter with a ranked score, and added a `User-Agent` header). Use it as a rough signal on tier-by-tier Brave coverage rather than an exact mirror of the backend's current behavior — see [Explanation: design decisions](../explanation/design-decisions.md) for what changed and why.
