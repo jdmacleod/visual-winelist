@@ -127,7 +127,7 @@ Add arrow-key navigation (←→↑↓) between candidates in the expanded 3x3 p
 
 ## Completed
 
-- **E15** — iOS dual-tree divergence resolved: deleted the macOS mirror (`Sources/`, `Tests/`, root `Package.swift`, entitlements) — iOS is now the only Swift client — and adopted XcodeGen. `ios/VisualWinelistIOS.xcodeproj` is generated from `ios/project.yml` (git-ignored), so a new source file can no longer be forgotten from a hand-maintained pbxproj file list (the bug that broke device builds twice). CI installs XcodeGen + generates before building; `make project` for local dev. Follow-ups filed as E16 (coverage gate) and E17 (doc rot). **Completed:** `feature/ios-e15-build-unification` (2026-06-24; version set at ship)
+- **E15** — iOS dual-tree divergence resolved: deleted the macOS mirror (`Sources/`, `Tests/`, root `Package.swift`, entitlements) — iOS is now the only Swift client — and adopted XcodeGen. `ios/VisualWinelistIOS.xcodeproj` is generated from `ios/project.yml` (git-ignored), so a new source file can no longer be forgotten from a hand-maintained pbxproj file list (the bug that broke device builds twice). CI installs XcodeGen + generates before building; `make project` for local dev. Follow-ups filed as E16 (coverage gate) and E17 (doc rot). **Completed:** v0.3.1.0 (2026-06-24)
 - **E13** — Scan-image retention policy: per-request opt-in save + `X-Scan-Image-Retention` prune, always bounded by `SCAN_IMAGE_RETENTION_DEFAULT` so "save" can't grow disk without end. **Completed:** v0.3.0.0 (2026-06-24)
 - **v0.2.4.2** — SSE: iOS UTF-8 chunk boundary fix (`IOSScanSession.swift` → `Data`-based `lineBuffer`)
 - **v0.2.4.2** — Security: JPEG magic-byte validation on image upload (`data.startswith(b"\xff\xd8")`)
