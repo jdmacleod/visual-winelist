@@ -6,7 +6,8 @@ struct PreferencesView: View {
     @AppStorage(UserDefaultsKey.showPriceOverlay) private var showPriceOverlay = false
     @AppStorage(UserDefaultsKey.sendDiagnostics) private var sendDiagnostics = false
     @AppStorage(UserDefaultsKey.saveScanImages) private var saveScanImages = false
-    @AppStorage(UserDefaultsKey.scanImageRetention) private var scanImageRetention = 50
+    @AppStorage(UserDefaultsKey.scanImageRetention) private var scanImageRetention =
+        UserDefaultsKey.scanImageRetentionDefault
     @AppStorage("BACKEND_URL") private var backendURL = ""
 
     @State private var cameraStatus = AVCaptureDevice.authorizationStatus(for: .video)
@@ -14,12 +15,7 @@ struct PreferencesView: View {
     @State private var showClearTelemetryConfirm = false
     @State private var clearResult: String?
 
-    private var validBackendURL: URL? {
-        guard let url = URL(string: backendURL), let scheme = url.scheme?.lowercased(),
-            scheme == "http" || scheme == "https"
-        else { return nil }
-        return url
-    }
+    private var validBackendURL: URL? { StartupValidator.validHTTPURL(backendURL) }
 
     var body: some View {
         Form {
@@ -232,10 +228,7 @@ private struct BackendURLEditor: View {
     }
 
     private func commit() {
-        let raw = input.trimmingCharacters(in: .whitespaces)
-        guard let url = URL(string: raw),
-            let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https"
-        else {
+        guard let url = StartupValidator.validHTTPURL(input) else {
             error = "Enter a valid http(s) URL"
             return
         }

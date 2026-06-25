@@ -207,8 +207,9 @@ class WineListViewModel {
     }
 
     /// Maps a thrown scan error to a user-facing message (nil = show nothing, e.g.
-    /// a user/URLSession cancellation) and a telemetry outcome.
-    private static func classifyScanError(_ error: Error) -> (message: String?, outcome: String) {
+    /// a user/URLSession cancellation) and a telemetry outcome. Internal (not
+    /// private) so unit tests can pin each branch via @testable import.
+    static func classifyScanError(_ error: Error) -> (message: String?, outcome: String) {
         switch error {
         case is CancellationError:
             return (nil, "cancelled")  // user cancelled — leave wines as-is

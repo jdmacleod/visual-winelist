@@ -85,6 +85,8 @@ struct TelemetryReportsView: View {
             reports = try await BackendClient(baseURL: backendURL).fetchTelemetryReports()
         } catch is CancellationError {
             // view dismissed mid-load
+        } catch BackendError.telemetryDisabled {
+            self.error = "Telemetry is disabled on the server."
         } catch {
             self.error = "Couldn't load reports. Check the backend connection."
         }

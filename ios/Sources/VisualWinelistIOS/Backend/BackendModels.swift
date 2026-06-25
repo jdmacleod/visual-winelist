@@ -58,10 +58,8 @@ struct TelemetryReport: Decodable, Sendable, Identifiable {
     let outcome: String
     let received_at: String
     let total_ms: Int?
-    let first_wine_ms: Int?
     let wine_count: Int?
     let device_model: String?
-    let app_version: String?
 
     var id: String { scan_id + received_at }
 }
@@ -69,4 +67,9 @@ struct TelemetryReport: Decodable, Sendable, Identifiable {
 struct TelemetryListResponse: Decodable, Sendable {
     let scans: [TelemetryReport]
     let count: Int
+}
+
+/// Response from DELETE /telemetry/scans: how many rows were removed.
+struct TelemetryDeleteResponse: Decodable, Sendable {
+    let deleted: Int
 }

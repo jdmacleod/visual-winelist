@@ -4,6 +4,7 @@ enum BackendError: Error, LocalizedError, Sendable {
     case unreachable(String)
     case scannerBusy
     case invalidImage
+    case telemetryDisabled
     case httpError(Int)
 
     var errorDescription: String? {
@@ -14,6 +15,8 @@ enum BackendError: Error, LocalizedError, Sendable {
             return "The scanner is busy — another scan is in progress"
         case .invalidImage:
             return "Image format not supported — use JPEG. Try taking a photo directly rather than importing."
+        case .telemetryDisabled:
+            return "Telemetry is disabled on the server."
         case .httpError(let code):
             return "Backend error (HTTP \(code))"
         }
@@ -115,9 +118,9 @@ struct BackendClient: Sendable {
         components.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
         do {
             let (data, response) = try await session.data(from: components.url!)
-            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-                throw BackendError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
-            }
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if code == 404 { throw BackendError.telemetryDisabled }
+            guard (200...299).contains(code) else { throw BackendError.httpError(code) }
             return try JSONDecoder().decode(TelemetryListResponse.self, from: data).scans
         } catch let urlError as URLError where urlError.code == .cancelled {
             throw CancellationError()
@@ -135,11 +138,10 @@ struct BackendClient: Sendable {
         request.httpMethod = "DELETE"
         do {
             let (data, response) = try await session.data(for: request)
-            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-                throw BackendError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
-            }
-            struct Deleted: Decodable { let deleted: Int }
-            return (try? JSONDecoder().decode(Deleted.self, from: data).deleted) ?? 0
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if code == 404 { throw BackendError.telemetryDisabled }
+            guard (200...299).contains(code) else { throw BackendError.httpError(code) }
+            return (try? JSONDecoder().decode(TelemetryDeleteResponse.self, from: data).deleted) ?? 0
         } catch let urlError as URLError where urlError.code == .cancelled {
             throw CancellationError()
         } catch is URLError {
@@ -168,7 +170,7 @@ struct BackendClient: Sendable {
             // 0 means the user enabled saving but never touched the picker; match
             // the Preferences default (50) so retention applies from the first scan.
             let stored = UserDefaults.standard.integer(forKey: UserDefaultsKey.scanImageRetention)
-            let retention = stored > 0 ? stored : 50
+            let retention = stored > 0 ? stored : UserDefaultsKey.scanImageRetentionDefault
             request.setValue(String(retention), forHTTPHeaderField: "X-Scan-Image-Retention")
         }
 
