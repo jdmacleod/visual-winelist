@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.3.3.0 (2026-06-25)
+
+### Fixed
+
+- **Scan photos now save reliably.** With "Save scan photos on server" on, the photo was written inside the SSE stream after the first byte, so dismissing the result or starting another scan (the app cancels the connection) could drop it before it landed — newer scans went missing. The write now runs on a detached task scheduled when the request arrives, decoupled from the connection, so every accepted scan is persisted exactly once. First-byte latency is unchanged (the write isn't awaited before streaming starts), and a failed write is now logged instead of silently swallowed.
+- **Tasting notes appear on the detail card as they arrive.** Opening a wine before its note streamed in froze the card on its gray placeholder until you backed out and reopened. The detail view captured a snapshot of the wine at tap time; it now reads the live state from the view model by id, so a note (and its food pairings) fills in the moment the sommelier returns it.
+
+### Added
+
+- **Notes-ready outline on the grid.** Once a wine's tasting note arrives, its card gets a wine-red outline in the gallery — a second, peripheral cue alongside the corner badge, so you can see at a glance which cards are ready as the sommelier pass fills them in.
+
 ## v0.3.2.1 (2026-06-25)
 
 ### Added
