@@ -224,6 +224,21 @@ jobs:
         run: ./Scripts/ios-coverage-gate.sh "$RUNNER_TEMP/VWLTests.xcresult"
 
   # ---------------------------------------------------------------------------
+  # Version sync — every store (VERSION, pyproject, package.json, lockfile,
+  # ios MARKETING_VERSION, README badge) must agree. Catches a bump that forgot
+  # a client. Stdlib-only; runs on the preinstalled python3, no setup step.
+  # ---------------------------------------------------------------------------
+  version-sync:
+    name: Version sync
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check all version stores agree
+        run: python3 Scripts/version_sync.py check
+
+  # ---------------------------------------------------------------------------
   # Security — gitleaks secret scan (full history on every push/PR)
   # ---------------------------------------------------------------------------
   gitleaks:

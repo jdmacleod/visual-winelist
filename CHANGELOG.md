@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.3.4.0 (2026-06-25)
+
+### Fixed
+
+- **App version is consistent across every client again.** The version lived in seven places (`VERSION`, `backend/pyproject.toml`, `backend/uv.lock`, `web/package.json`, `web/package-lock.json`, the iOS `MARKETING_VERSION`, and the README badge) but only `VERSION` was bumped on release, so the rest drifted. The iOS app reported `0.2.12` for eleven releases, and every opt-in scan-telemetry row was stamped with that stale `app_version` — mislabeling which build produced each scan since the feature shipped in v0.2.13.0. All seven stores are now synced, so the iOS About screen, DebugHUD, and telemetry report the build you actually shipped. (The backend `/health` version was always correct — it reads `VERSION` at runtime.)
+
+### Added
+
+- **One-command version bumps with a CI guard.** `Scripts/version_sync.py` makes `VERSION` the enforced single source of truth: `set <X.Y.Z.W>` propagates to all seven stores (handling the 3-part vs 4-part formats and the lockfiles' duplicate entries, with patterns anchored so no dependency version is ever touched), and `check` asserts they all agree. `./Scripts/bump-version.sh <ver>` wraps it for releases, and a new `version-sync` CI job runs `check` on every PR, so a future bump that forgets a client fails loudly instead of drifting silently. Covered by `backend/tests/test_version_sync.py`; the release steps in `CONTRIBUTING.md` now point at the one command.
+
 ## v0.3.3.0 (2026-06-25)
 
 ### Fixed
