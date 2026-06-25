@@ -279,6 +279,27 @@ final class WineListViewModelTests: XCTestCase {
         XCTAssertTrue(vm.wines[0].hasNotes, "a streamed tasting note must flip hasNotes true")
     }
 
+    func testNotesResolveByStableIdForDetailView() async {
+        // WineDetailView resolves live state by snapshot.id so a card opened before
+        // its tasting note streams in still updates (the snapshot itself never does).
+        // That contract holds only if attaching a note preserves the wine's id — pin
+        // it: capture the id, then prove the lookup surfaces the streamed note.
+        let body = sse([
+            ("wine", #"{"name":"Opus One","confidence":0.9,"wine_id":"w1"}"#),
+            ("notes", #"{"wine_id":"w1","tasting_note":"Rich and dark.","pairings":["Steak"]}"#),
+            ("complete", #"{"wine_count":1,"cache_hits":1,"scan_id":"s1"}"#),
+        ])
+        let vm = makeViewModel()
+        await runScan(body, on: vm)
+
+        let snapshotId = vm.wines[0].id
+        let live = vm.wines.first(where: { $0.id == snapshotId })
+        XCTAssertEqual(
+            live?.wine.tastingNote, "Rich and dark.",
+            "live lookup by snapshot id must surface the streamed note")
+        XCTAssertTrue(live?.hasNotes ?? false, "resolved live state must report hasNotes")
+    }
+
     func testClearResetsWinesSelectionAndError() async {
         let body = sse([
             ("wine", #"{"name":"Opus One","confidence":0.9,"wine_id":"w1"}"#),

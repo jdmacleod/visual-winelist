@@ -2,14 +2,24 @@ import SwiftUI
 import UIKit
 
 struct WineDetailView: View {
-    let state: WineState
-    var isScanning: Bool = false
-    var backendClient: BackendClient?
+    var viewModel: WineListViewModel
+    let snapshot: WineState
 
     @State private var showFlagAlert = false
     @State private var flagToast = false
     @State private var localImageCleared = false
     @State private var detailImageData: Data?
+
+    /// Live card state resolved from the observable view model by id. Tasting notes
+    /// and the bottle image stream in AFTER the user opens this view, so rendering
+    /// the snapshot captured at navigation time would freeze the card on its
+    /// loading placeholder. Falling back to the snapshot covers a wine that has
+    /// left the list (e.g. after clear()).
+    private var state: WineState {
+        viewModel.wines.first(where: { $0.id == snapshot.id }) ?? snapshot
+    }
+    private var isScanning: Bool { viewModel.isScanning }
+    private var backendClient: BackendClient? { viewModel.backendClient }
 
     private var wine: WineObject { state.wine }
 
