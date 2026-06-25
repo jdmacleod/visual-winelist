@@ -13,12 +13,12 @@
 #   min_percent defaults to $IOS_COVERAGE_MIN or the value below.
 set -euo pipefail
 
-# Floor is set just under the measured logic-core coverage at the time of E16
-# (52.1% pooled across Backend/Models/ViewModels/StartupValidator). It's a
-# regression ratchet: raise it as the suite grows (WineListViewModel is the main
-# gap at ~15%), but never let coverage silently fall below this.
+# Floor is set just under the measured logic-core coverage. It's a regression
+# ratchet: raise it as the suite grows, never let coverage silently fall below.
+# History: 50% at E16 (52.1% measured); raised to 80% at E18 after adding the
+# WineListViewModel scan-loop tests took the pool to 85.4%.
 RESULT_BUNDLE="${1:?usage: ios-coverage-gate.sh <result.xcresult> [min_percent]}"
-MIN="${2:-${IOS_COVERAGE_MIN:-50}}"
+MIN="${2:-${IOS_COVERAGE_MIN:-80}}"
 
 # Files/dirs excluded from the gate: UI, device-bound, generated, and debug code
 # that unit tests cannot meaningfully cover. Everything else under the app target

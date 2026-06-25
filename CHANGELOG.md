@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.3.2.1 (2026-06-25)
+
+### Added
+
+- **WineListViewModel scan-loop tests (E18).** 13 tests drive `scan()` through mocked SSE streams, covering wine/image/notes/error/complete/status/ping handling, deduplication, the no-wines fallback, the image placeholder and ready paths, `clear()`, and the degraded-health branch. `WineListViewModel` line coverage went from 14.6% to 92.1%, lifting the iOS logic-core pool from 52.1% to 85.4%.
+
+### Changed
+
+- **iOS coverage gate floor raised 50% → 80% (E18).** With the view-model now well covered, the regression ratchet from E16 is tightened to lock in the gain.
+
 ## v0.3.2.0 (2026-06-25)
 
 ### Added
