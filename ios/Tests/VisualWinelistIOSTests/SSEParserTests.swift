@@ -539,3 +539,74 @@ final class IOSTestSuite: XCTestCase {
         }
     }
 }
+
+// MARK: - Telemetry client + URL validation
+
+@MainActor
+final class BackendTelemetryTests: XCTestCase {
+
+    override func tearDown() async throws {
+        await MockProtocolRegistry.shared.reset()
+        try await super.tearDown()
+    }
+
+    private func makeClient() -> BackendClient {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        return BackendClient(
+            baseURL: URL(string: "http://localhost:8000")!,
+            session: URLSession(configuration: config))
+    }
+
+    private func respond(_ status: Int, _ body: Data) async {
+        await MockProtocolRegistry.shared.setHandler { _ in
+            let response = HTTPURLResponse(
+                url: URL(string: "http://localhost:8000")!,
+                statusCode: status, httpVersion: nil, headerFields: nil)!
+            return (response, body)
+        }
+    }
+
+    func testFetchTelemetryReportsDecodes() async throws {
+        let report =
+            #"{"scan_id":"a","outcome":"completed","received_at":"2026-06-24T22:00:00","#
+            + #""total_ms":1800,"wine_count":5,"device_model":"iPhone16,1"}"#
+        let json = Data(#"{"scans":["# + report + #"],"count":1}"#.utf8)
+        await respond(200, json)
+        let reports = try await makeClient().fetchTelemetryReports()
+        XCTAssertEqual(reports.count, 1)
+        XCTAssertEqual(reports.first?.outcome, "completed")
+        XCTAssertEqual(reports.first?.wine_count, 5)
+    }
+
+    func testFetchTelemetryReports404IsTelemetryDisabled() async {
+        await respond(404, Data())
+        do {
+            _ = try await makeClient().fetchTelemetryReports()
+            XCTFail("expected BackendError.telemetryDisabled")
+        } catch BackendError.telemetryDisabled {
+            // pass
+        } catch {
+            XCTFail("expected telemetryDisabled, got \(error)")
+        }
+    }
+
+    func testClearTelemetryReturnsDeletedCount() async throws {
+        await respond(200, Data(#"{"deleted":3}"#.utf8))
+        let deleted = try await makeClient().clearTelemetry()
+        XCTAssertEqual(deleted, 3)
+    }
+
+    func testValidHTTPURLAcceptsHTTPAndHTTPS() {
+        XCTAssertNotNil(StartupValidator.validHTTPURL("http://192.168.1.1:8000"))
+        XCTAssertNotNil(StartupValidator.validHTTPURL("https://host"))
+        XCTAssertNotNil(StartupValidator.validHTTPURL("  http://host  "), "trims whitespace")
+    }
+
+    func testValidHTTPURLRejectsNonHTTP() {
+        XCTAssertNil(StartupValidator.validHTTPURL("not-a-url:::"))
+        XCTAssertNil(StartupValidator.validHTTPURL("ftp://host"))
+        XCTAssertNil(StartupValidator.validHTTPURL(""))
+        XCTAssertNil(StartupValidator.validHTTPURL("   "))
+    }
+}

@@ -79,4 +79,32 @@ final class WineListViewModelTests: XCTestCase {
             message.contains("ollama serve"),
             "Degraded message must mention 'ollama serve'; got: \(message)")
     }
+
+    // MARK: - classifyScanError
+
+    func testClassifyScanErrorCancellationHasNoMessage() {
+        let result = WineListViewModel.classifyScanError(CancellationError())
+        XCTAssertNil(result.message, "user cancellation must not surface an error")
+        XCTAssertEqual(result.outcome, "cancelled")
+    }
+
+    func testClassifyScanErrorURLCancelledHasNoMessage() {
+        let result = WineListViewModel.classifyScanError(URLError(.cancelled))
+        XCTAssertNil(result.message, "URLSession cancel must not surface an error")
+        XCTAssertEqual(result.outcome, "cancelled")
+    }
+
+    func testClassifyScanErrorBackendCasesMapToError() {
+        for err in [BackendError.scannerBusy, .invalidImage, .unreachable("http://x")] {
+            let result = WineListViewModel.classifyScanError(err)
+            XCTAssertNotNil(result.message, "\(err) must surface a message")
+            XCTAssertEqual(result.outcome, "error")
+        }
+    }
+
+    func testClassifyScanErrorGenericFailureSurfacesMessage() {
+        let result = WineListViewModel.classifyScanError(URLError(.timedOut))
+        XCTAssertEqual(result.outcome, "error")
+        XCTAssertTrue(result.message?.contains("Scan failed") ?? false)
+    }
 }

@@ -227,14 +227,17 @@ jobs:
             -destination "generic/platform=iOS" \
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
-          # 2) SwiftPM package — the simulator/test path. The xcodeproj shadows the
-          #    package for xcodebuild, so move it aside, build, then restore.
+          # 2) SwiftPM package — run the iOS XCTest suite (it only builds/runs via
+          #    the package, not the xcodeproj). The xcodeproj shadows the package
+          #    for xcodebuild, so move it aside, test, then restore. This gates the
+          #    iOS tests in CI; root `swift test` only covers the macOS mirror.
           cd ios
           mv VisualWinelistIOS.xcodeproj /tmp/_vwl_xcodeproj
           trap 'mv /tmp/_vwl_xcodeproj VisualWinelistIOS.xcodeproj' EXIT
-          xcodebuild build \
+          DEVICE=$(xcrun simctl list devices available | grep -oE 'iPhone 1[5-9][^(]*' | head -1 | xargs)
+          xcodebuild test \
             -scheme VisualWinelistIOS \
-            -destination "generic/platform=iOS Simulator" \
+            -destination "platform=iOS Simulator,name=${DEVICE:-iPhone 16}" \
             CODE_SIGNING_ALLOWED=NO
 
   # ---------------------------------------------------------------------------
