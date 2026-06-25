@@ -51,3 +51,22 @@ struct HealthResponse: Decodable, Sendable {
 
     var isOK: Bool { status == "ok" }
 }
+
+/// One stored telemetry report from GET /telemetry/scans (subset shown in-app).
+struct TelemetryReport: Decodable, Sendable, Identifiable {
+    let scan_id: String
+    let outcome: String
+    let received_at: String
+    let total_ms: Int?
+    let first_wine_ms: Int?
+    let wine_count: Int?
+    let device_model: String?
+    let app_version: String?
+
+    var id: String { scan_id + received_at }
+}
+
+struct TelemetryListResponse: Decodable, Sendable {
+    let scans: [TelemetryReport]
+    let count: Int
+}

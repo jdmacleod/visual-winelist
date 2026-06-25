@@ -3,7 +3,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import desc, select
+from sqlalchemy import delete, desc, func, select
 
 from backend import config
 from backend.db import session as db_session
@@ -76,3 +76,17 @@ async def list_scan_telemetry(
             continue
         scans.append({**parsed, "received_at": r.timestamp.isoformat()})
     return {"scans": scans, "count": len(scans)}
+
+
+@router.delete("/telemetry/scans")
+async def clear_scan_telemetry() -> dict[str, int]:
+    """Delete all stored telemetry reports. Backs the iOS 'Clear telemetry data'
+    control so a user can wipe what was collected. Gated like the other routes."""
+    if not config.TELEMETRY_ENABLED:
+        raise HTTPException(status_code=404, detail="telemetry disabled")
+
+    async with db_session.SessionLocal() as s:
+        count = await s.scalar(select(func.count()).select_from(ScanTelemetryRecord)) or 0
+        await s.execute(delete(ScanTelemetryRecord))
+        await s.commit()
+    return {"deleted": int(count)}

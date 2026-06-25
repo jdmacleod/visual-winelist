@@ -11,6 +11,15 @@ struct PreferencesView: View {
 
     @State private var cameraStatus = AVCaptureDevice.authorizationStatus(for: .video)
     @State private var showBackendEditor = false
+    @State private var showClearTelemetryConfirm = false
+    @State private var clearResult: String?
+
+    private var validBackendURL: URL? {
+        guard let url = URL(string: backendURL), let scheme = url.scheme?.lowercased(),
+            scheme == "http" || scheme == "https"
+        else { return nil }
+        return url
+    }
 
     var body: some View {
         Form {
@@ -86,6 +95,7 @@ struct PreferencesView: View {
         }
     }
 
+    @ViewBuilder
     private var diagnosticsSection: some View {
         Section {
             Toggle("Send Diagnostics?", isOn: $sendDiagnostics)
@@ -100,10 +110,45 @@ struct PreferencesView: View {
                     .foregroundStyle(.secondary)
                 }
             }
+            if let url = validBackendURL {
+                NavigationLink {
+                    TelemetryReportsView(backendURL: url)
+                } label: {
+                    Text("View recent reports")
+                }
+                Button(role: .destructive) {
+                    showClearTelemetryConfirm = true
+                } label: {
+                    Text("Clear telemetry data")
+                }
+            }
+            if let clearResult {
+                Text(clearResult).font(.caption).foregroundStyle(.secondary)
+            }
         } header: {
             Text("Diagnostics")
         } footer: {
             Text("Helps diagnose scan performance against your backend. Off by default.")
+        }
+        .confirmationDialog(
+            "Delete all stored telemetry reports from the backend?",
+            isPresented: $showClearTelemetryConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete all", role: .destructive) {
+                Task { await clearTelemetry() }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    private func clearTelemetry() async {
+        guard let url = validBackendURL else { return }
+        do {
+            let deleted = try await BackendClient(baseURL: url).clearTelemetry()
+            clearResult = "Cleared \(deleted) report\(deleted == 1 ? "" : "s")."
+        } catch {
+            clearResult = "Couldn't clear telemetry. Check the backend connection."
         }
     }
 

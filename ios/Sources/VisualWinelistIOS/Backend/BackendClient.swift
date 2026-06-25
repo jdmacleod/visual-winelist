@@ -104,6 +104,49 @@ struct BackendClient: Sendable {
         }
     }
 
+    // MARK: - Telemetry
+
+    /// Recent opt-in telemetry reports for the in-app diagnostics viewer.
+    func fetchTelemetryReports(limit: Int = 20) async throws -> [TelemetryReport] {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("telemetry").appendingPathComponent("scans"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
+        do {
+            let (data, response) = try await session.data(from: components.url!)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                throw BackendError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
+            }
+            return try JSONDecoder().decode(TelemetryListResponse.self, from: data).scans
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            throw CancellationError()
+        } catch is URLError {
+            throw BackendError.unreachable(baseURL.absoluteString)
+        }
+    }
+
+    /// Delete all stored telemetry; returns how many rows the server removed.
+    @discardableResult
+    func clearTelemetry() async throws -> Int {
+        var request = URLRequest(
+            url: baseURL.appendingPathComponent("telemetry").appendingPathComponent("scans")
+        )
+        request.httpMethod = "DELETE"
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                throw BackendError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
+            }
+            struct Deleted: Decodable { let deleted: Int }
+            return (try? JSONDecoder().decode(Deleted.self, from: data).deleted) ?? 0
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            throw CancellationError()
+        } catch is URLError {
+            throw BackendError.unreachable(baseURL.absoluteString)
+        }
+    }
+
     // MARK: - Private
 
     private func buildScanRequest(photoData: Data) -> URLRequest {
