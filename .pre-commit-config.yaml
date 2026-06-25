@@ -75,7 +75,7 @@ repos:
         name: swiftlint
         # Explicit paths mirror the CI step — Scripts/ is excluded (eval scripts
         # use scripting conventions that differ from library code).
-        entry: swiftlint lint --config .swiftlint.yml Sources Tests ios/Sources ios/Tests
+        entry: swiftlint lint --config .swiftlint.yml ios/Sources ios/Tests
         language: system
         files: \.swift$
         pass_filenames: false

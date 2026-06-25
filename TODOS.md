@@ -85,14 +85,31 @@ table grows. Surfaced by the v0.3.0.0 pre-landing performance review.
 
 ---
 
-## E15: iOS dual-tree divergence (P2)
+## E16: iOS coverage gate baseline (P2)
 
-The repo carries two parallel Swift trees: `Sources/VisualWinelist` (macOS mirror, what CI's
-root `swift build`/`swift test` exercises) and `ios/Sources/VisualWinelistIOS` (the real iOS
-app + xcodeproj). v0.3.0.0's Home/cameraDenied phases, ScanningView, and note indicator landed
-only in the iOS tree, so the macOS mirror now diverges in navigation model with nothing flagging
-the gap. Decide explicitly: either keep the mirror in sync, or freeze/remove it and adopt a
-generated xcodeproj (XcodeGen) so new files can't be forgotten from the hand-maintained pbxproj.
+E15 deleted the macOS mirror, and with it the root `swift test` 70% line-coverage gate. That
+gate measured the mirror's shared-logic subset (Backend, Models, SSEParser, StartupValidator);
+the iOS tree's filtered coverage with the same exclusions is ~33% because it adds Debug/Design/
+telemetry files that were never gated and `WineListViewModel` grew (now ~15%). The iOS XCTest
+suite is the hard gate (must pass); re-introduce a *percentage* gate once either (a) the suite is
+expanded to a fair baseline, or (b) the exclusion set is recalibrated to the shared core. Extract
+coverage from the simulator `xcodebuild test` run via `xcrun xccov view --report --json`.
+
+---
+
+## E17: Pre-backend-split documentation rot (P3)
+
+Several docs predate the FastAPI backend extraction and describe an old monolithic Swift client
+that no longer exists: `docs/tutorial/first-scan.md` (`swift build`/`swift run`, `BRAVE_API_KEY`
+read at app launch, "Setup Required" screen), `docs/explanation/architecture.md` (in-app
+`OllamaClient`/`BraveSearchClient`/`ImageCache` data-flow diagram), and the upper rows of
+`docs/reference/configuration.md` (hardcoded Ollama/Brave client settings). Also affected:
+`docs/explanation/design-decisions.md` (line ~19, `Sources/VisualWinelist/Brave/BraveSearchClient.swift`),
+`docs/how-to/evaluate-extraction.md` and `docs/reference/wine-schema.md` (both cite an in-app
+`OllamaClient` / `Sources/VisualWinelist/Ollama/WineExtractionPrompt.swift` — the prompt now lives
+in the Python backend). These paths were already dangling before E15 (they never existed in the
+thin client); E15 fixed only the references it would otherwise have newly broken. These need a
+dedicated rewrite to the backend-split + iOS-only reality.
 
 ---
 
@@ -110,6 +127,7 @@ Add arrow-key navigation (←→↑↓) between candidates in the expanded 3x3 p
 
 ## Completed
 
+- **E15** — iOS dual-tree divergence resolved: deleted the macOS mirror (`Sources/`, `Tests/`, root `Package.swift`, entitlements) — iOS is now the only Swift client — and adopted XcodeGen. `ios/VisualWinelistIOS.xcodeproj` is generated from `ios/project.yml` (git-ignored), so a new source file can no longer be forgotten from a hand-maintained pbxproj file list (the bug that broke device builds twice). CI installs XcodeGen + generates before building; `make project` for local dev. Follow-ups filed as E16 (coverage gate) and E17 (doc rot). **Completed:** v0.3.1.0 (2026-06-24)
 - **E13** — Scan-image retention policy: per-request opt-in save + `X-Scan-Image-Retention` prune, always bounded by `SCAN_IMAGE_RETENTION_DEFAULT` so "save" can't grow disk without end. **Completed:** v0.3.0.0 (2026-06-24)
 - **v0.2.4.2** — SSE: iOS UTF-8 chunk boundary fix (`IOSScanSession.swift` → `Data`-based `lineBuffer`)
 - **v0.2.4.2** — Security: JPEG magic-byte validation on image upload (`data.startswith(b"\xff\xd8")`)

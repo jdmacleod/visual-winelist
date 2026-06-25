@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.3.1.0 (2026-06-24)
+
+### Removed
+
+- **macOS client** — the app is now iOS-only. The macOS SwiftUI client had drifted out of sync with the iOS app and is removed along with its tests and package. iOS keeps every capability; nothing the iPhone app does changes.
+
+### Changed
+
+- **iOS Xcode project is now generated, not hand-maintained.** `ios/VisualWinelistIOS.xcodeproj` is produced from `ios/project.yml` by [XcodeGen](https://github.com/yonaskolb/XcodeGen) and is no longer committed. New source files are picked up automatically, so a file can no longer be left out of the build by accident — the gap that broke device builds during the v0.3.0.0 work. Run `make project` after cloning or when adding/renaming/removing a file. CI installs XcodeGen and regenerates the project before building.
+
+### Fixed
+
+- The pre-commit SwiftLint hook still pointed at the removed macOS source paths; retargeted it to the iOS sources so the next Swift commit lints the right tree.
+
 ## v0.3.0.0 (2026-06-24)
 
 ### Added

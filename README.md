@@ -3,11 +3,11 @@
 [![CI](https://github.com/jdmacleod/visual-winelist/actions/workflows/ci.yml/badge.svg)](https://github.com/jdmacleod/visual-winelist/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/badge/release-v0.2.12.0-blue.svg)](https://github.com/jdmacleod/visual-winelist/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Platform: macOS 14+ · iOS 16+](https://img.shields.io/badge/platform-macOS%2014%2B%20%C2%B7%20iOS%2016%2B-lightgrey.svg)](https://github.com/jdmacleod/visual-winelist)
+[![Platform: iOS 17+](https://img.shields.io/badge/platform-iOS%2017%2B-lightgrey.svg)](https://github.com/jdmacleod/visual-winelist)
 [![Swift 5.9+](https://img.shields.io/badge/swift-5.9%2B-orange.svg)](https://swift.org)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://python.org)
 
-Point a camera at a restaurant wine list and watch bottle images appear — one by one as each wine is identified — on your Mac or iPhone.
+Point your iPhone camera at a restaurant wine list and watch bottle images appear — one by one as each wine is identified.
 
 ## What this is
 
@@ -41,8 +41,7 @@ SwiftUI grid: bottles appear as they're found
 
 ```
 backend/   FastAPI service — extraction, image search, cache, sommelier
-Sources/   macOS SwiftUI client (Swift package at repo root)
-ios/       iOS SwiftUI client
+ios/       iOS SwiftUI client (.xcodeproj generated from project.yml via XcodeGen)
 web/       React/TypeScript curator UI
 docs/      Documentation (tutorial, how-to, reference, explanation)
 Scripts/   Standalone eval scripts (Swift)
@@ -60,12 +59,10 @@ Your wine list photo is sent to **your self-hosted backend server** — not a th
 - [Ollama](https://ollama.com) running natively with `qwen3-vl:8b` pulled
 - A [Brave Search API](https://brave.com/search/api/) key (free tier)
 
-**macOS client:**
-- macOS 14+
-
 **iOS client:**
-- iOS 16+ (physical device recommended — camera required)
+- iOS 17+ (physical device recommended — camera required)
 - Backend reachable over local Wi-Fi
+- Xcode 15+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`) to build
 
 **React curator:**
 - Node.js 22+ for development; any web browser to use
@@ -86,22 +83,18 @@ Verify: `curl http://localhost:8000/health` → `{"status":"ok",...}`.
 
 See [backend/README.md](backend/README.md) for full configuration options and running without Docker.
 
-### 2. macOS client
+### 2. iOS client
 
 ```bash
-export BACKEND_URL=http://localhost:8000
-swift run
+make project          # generate the Xcode project (installs XcodeGen if needed)
+open ios/VisualWinelistIOS.xcodeproj
 ```
-
-Or open `Package.swift` in Xcode and run the `VisualWinelist` scheme.
-
-### 3. iOS client
 
 On first launch, enter your Mac's LAN IP as the backend URL (e.g. `http://192.168.1.100:8000`). Find it on the Mac with `ipconfig getifaddr en0`. Both devices must be on the same Wi-Fi network.
 
 See [ios/README.md](ios/README.md) for build instructions.
 
-### 4. React curator
+### 3. React curator
 
 **With Docker (recommended):**
 
@@ -158,19 +151,26 @@ uv run pytest -m "not integration"        # unit tests
 uv run pytest -m integration -v -s        # requires live backend + Ollama
 ```
 
-### macOS client (Swift)
-
-```bash
-swift build
-swift test
-swift format lint -r --configuration .swift-format Sources Tests Scripts
-```
-
 ### iOS client (Swift)
 
+The `.xcodeproj` is generated from `ios/project.yml` by [XcodeGen](https://github.com/yonaskolb/XcodeGen) and is not committed — regenerate it whenever you add, rename, or remove a source file.
+
 ```bash
+make project          # cd ios && xcodegen generate
+
+# Compile for a device (no signing):
 cd ios
-swift build --sdk $(xcrun --sdk iphonesimulator --show-sdk-path) --triple arm64-apple-ios16.0-simulator
+xcodebuild build -project VisualWinelistIOS.xcodeproj -scheme VisualWinelistIOS \
+  -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO
+
+# Run the XCTest suite via the SwiftPM package on a simulator. The xcodeproj
+# shadows the package for xcodebuild, so move it aside first:
+mv VisualWinelistIOS.xcodeproj /tmp/_vwl && \
+  xcodebuild test -scheme VisualWinelistIOS \
+    -destination "platform=iOS Simulator,name=iPhone 16" CODE_SIGNING_ALLOWED=NO; \
+  mv /tmp/_vwl VisualWinelistIOS.xcodeproj
+
+swift format lint -r --configuration .swift-format ios/Sources ios/Tests Scripts
 ```
 
 ### React curator (TypeScript)

@@ -25,10 +25,11 @@ These aren't currently exposed as configuration but are the values you'd change 
 | Image cache location | `ImageCache.init` | `~/.visual-winelist/image-cache/` | Keyed by SHA256(name+vintage), `.jpg` files |
 | Low-confidence threshold | `WineState.isLowConfidence` | `< 0.7` | Drives the "?" badge and detail-view warning |
 
-## Required entitlements / permissions
+## Required permissions (iOS)
 
-Declared in `VisualWinelist.entitlements` and `Sources/VisualWinelist/Resources/Info.plist`:
+Declared in `ios/Sources/VisualWinelistIOS/Info.plist`:
 
-- Camera access (`com.apple.security.device.camera`, `NSCameraUsageDescription`) — for capturing wine list photos
-- Network client (`com.apple.security.network.client`) — for Brave Search API and local Ollama
-- Read/write access to `~/.visual-winelist/` (`com.apple.security.temporary-exception.files.home-relative-path.read-write`) — for the image cache
+- `NSCameraUsageDescription` — for capturing wine list photos
+- `NSMicrophoneUsageDescription` — required by AVFoundation when accessing the camera
+
+> Note: the rows above this section describe the original monolithic Swift client. Image extraction (Ollama), image search (Brave), and the image cache now live in the FastAPI backend — see [backend/README.md](../../backend/README.md) for their current configuration.

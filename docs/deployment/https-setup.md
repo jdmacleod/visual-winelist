@@ -130,8 +130,7 @@ certbot renew --dry-run
 
 ## Step 7 — Update client URLs
 
-- **iOS app**: Go to Settings → Visual Winelist → Backend URL → set `https://YOUR_DOMAIN`
-- **macOS app**: `export BACKEND_URL=https://YOUR_DOMAIN` in your shell profile
+- **iOS app**: Go to Settings → Visual Winelist → Backend URL → set `https://YOUR_DOMAIN` (or enter it on the in-app setup screen)
 
 ## Security notes
 
