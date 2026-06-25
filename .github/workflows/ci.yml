@@ -154,9 +154,10 @@ jobs:
 
       # The macOS client (Sources/VisualWinelist) was removed in E15 — iOS is now
       # the only Swift client, so there is no root `swift build`/`swift test`. The
-      # iOS XCTest suite below is the Swift test gate. (The old 70% line-coverage
-      # gate measured the macOS mirror's shared-logic subset; re-establishing a
-      # fair iOS coverage baseline is tracked separately — see TODOS E16.)
+      # iOS XCTest suite below is the Swift test gate, and the "iOS coverage gate"
+      # step enforces a line-coverage floor on the logic core (E16: the old 70%
+      # gate measured the deleted macOS mirror; the iOS gate recalibrates the
+      # exclusion set to Backend/Models/ViewModels — see Scripts/ios-coverage-gate.sh).
 
       - name: Format check (swift-format)
         # swift format lint exits 0 even with warnings — use format+diff instead.
@@ -208,10 +209,19 @@ jobs:
           mv VisualWinelistIOS.xcodeproj /tmp/_vwl_xcodeproj
           trap 'mv /tmp/_vwl_xcodeproj VisualWinelistIOS.xcodeproj' EXIT
           DEVICE=$(xcrun simctl list devices available | grep -oE 'iPhone 1[5-9][^(]*' | head -1 | xargs)
+          rm -rf "$RUNNER_TEMP/VWLTests.xcresult"
           xcodebuild test \
             -scheme VisualWinelistIOS \
             -destination "platform=iOS Simulator,name=${DEVICE:-iPhone 16}" \
+            -enableCodeCoverage YES \
+            -resultBundlePath "$RUNNER_TEMP/VWLTests.xcresult" \
             CODE_SIGNING_ALLOWED=NO
+
+      - name: iOS coverage gate (E16)
+        # Enforce a line-coverage floor on the logic core (Backend/Models/ViewModels).
+        # Reads the result bundle from the test step above. See the script header and
+        # Scripts/ios_coverage_gate.py for the recalibrated exclusion set + rationale.
+        run: ./Scripts/ios-coverage-gate.sh "$RUNNER_TEMP/VWLTests.xcresult"
 
   # ---------------------------------------------------------------------------
   # Security — gitleaks secret scan (full history on every push/PR)
