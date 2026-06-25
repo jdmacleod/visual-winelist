@@ -69,16 +69,30 @@ unbounded list). Consistent with the existing LAN-only posture (`/scan` accepts 
 is open), so it's fine for self-host on a trusted network. Before exposing the backend beyond a
 trusted LAN, add: a `max_length` on `event_timeline`, a request body size guard, a `scan_id`
 charset/length validator (it is a client-controlled upsert key), and auth/rate-limiting on the
-telemetry routes. Shipped unhardened in v0.2.13.0; the `GET` listing now mirrors the
-`TELEMETRY_ENABLED` gate and tolerates a corrupt row (v0.2.13.0), but the rest remain open.
+telemetry routes. `GET` and (v0.3.0.0) `DELETE /telemetry/scans` mirror the `TELEMETRY_ENABLED`
+gate and `GET` tolerates a corrupt row; the new unauthenticated `DELETE` (bulk wipe) is part of
+the accepted LAN posture but is the most destructive verb here — gate it first when exposing
+the backend beyond a trusted LAN.
 
 ---
 
-## E13: Scan-image retention policy (P3)
+## E14: Telemetry listing index (P3)
 
-`SAVE_SCAN_IMAGES` (added v0.2.13.0, default off) writes every uploaded photo to
-`scans/{scan_id}.jpg` with no rotation or cleanup — unbounded disk growth while enabled. Add a
-retention cap (max count or age-based prune) before leaving it on for any length of time.
+`GET /telemetry/scans` orders by `ScanTelemetryRecord.timestamp`, which is not indexed (only
+`outcome` is). Each listing does a full scan + sort. Negligible at personal volume; add
+`index=True` on `timestamp` (or a composite `(outcome, timestamp)`) with a migration before the
+table grows. Surfaced by the v0.3.0.0 pre-landing performance review.
+
+---
+
+## E15: iOS dual-tree divergence (P2)
+
+The repo carries two parallel Swift trees: `Sources/VisualWinelist` (macOS mirror, what CI's
+root `swift build`/`swift test` exercises) and `ios/Sources/VisualWinelistIOS` (the real iOS
+app + xcodeproj). v0.3.0.0's Home/cameraDenied phases, ScanningView, and note indicator landed
+only in the iOS tree, so the macOS mirror now diverges in navigation model with nothing flagging
+the gap. Decide explicitly: either keep the mirror in sync, or freeze/remove it and adopt a
+generated xcodeproj (XcodeGen) so new files can't be forgotten from the hand-maintained pbxproj.
 
 ---
 
@@ -96,6 +110,7 @@ Add arrow-key navigation (←→↑↓) between candidates in the expanded 3x3 p
 
 ## Completed
 
+- **E13** — Scan-image retention policy: per-request opt-in save + `X-Scan-Image-Retention` prune, always bounded by `SCAN_IMAGE_RETENTION_DEFAULT` so "save" can't grow disk without end. **Completed:** v0.3.0.0 (2026-06-24)
 - **v0.2.4.2** — SSE: iOS UTF-8 chunk boundary fix (`IOSScanSession.swift` → `Data`-based `lineBuffer`)
 - **v0.2.4.2** — Security: JPEG magic-byte validation on image upload (`data.startswith(b"\xff\xd8")`)
 - **v0.2.4.2** — Backend: `BackendClient.scan()` inner Task cancellation (`continuation.onTermination`)
