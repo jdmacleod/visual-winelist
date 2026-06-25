@@ -571,7 +571,8 @@ final class BackendTelemetryTests: XCTestCase {
         let report =
             #"{"scan_id":"a","outcome":"completed","received_at":"2026-06-24T22:00:00","#
             + #""total_ms":1800,"wine_count":5,"device_model":"iPhone16,1"}"#
-        let json = Data(#"{"scans":["# + report + #"],"count":1}"#.utf8)
+        let body = #"{"scans":["# + report + #"],"count":1}"#
+        let json = Data(body.utf8)
         await respond(200, json)
         let reports = try await makeClient().fetchTelemetryReports()
         XCTAssertEqual(reports.count, 1)
