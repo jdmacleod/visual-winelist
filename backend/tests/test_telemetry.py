@@ -3,9 +3,17 @@ from typing import Any
 from unittest.mock import patch
 
 from sqlalchemy import select as sa_select
+from sqlalchemy import text
 
 from backend.db import session as db_session
 from backend.db.models import ScanTelemetryRecord
+from backend.db.session import init_db
+
+
+async def _telemetry_index_names() -> set[str]:
+    async with db_session.engine.begin() as conn:
+        rows = await conn.execute(text("PRAGMA index_list('scan_telemetry')"))
+        return {row[1] for row in rows.fetchall()}
 
 
 def _payload(scan_id: str = "abc12345", **over: Any) -> dict[str, Any]:
@@ -161,3 +169,59 @@ async def test_post_telemetry_best_effort_on_db_failure(client):
             sa_select(ScanTelemetryRecord).where(ScanTelemetryRecord.scan_id == "boom0001")
         )
     assert row is None, "failed write must not persist a partial row"
+
+
+# --- E14: scan_telemetry listing indexes ---
+
+
+async def test_fresh_db_has_telemetry_listing_indexes():
+    """A DB built by create_all (the autouse fixture) carries the timestamp +
+    composite indexes that back GET /telemetry/scans, and not the old standalone
+    outcome index (folded into the composite's leading column)."""
+    names = await _telemetry_index_names()
+    assert "ix_scan_telemetry_timestamp" in names
+    assert "ix_scan_telemetry_outcome_timestamp" in names
+    assert "ix_scan_telemetry_outcome" not in names
+
+
+async def test_init_db_creates_telemetry_indexes_on_existing_db():
+    """init_db() adds the listing indexes to a DB that predates E14."""
+    async with db_session.engine.begin() as conn:
+        await conn.execute(text("DROP INDEX IF EXISTS ix_scan_telemetry_timestamp"))
+        await conn.execute(text("DROP INDEX IF EXISTS ix_scan_telemetry_outcome_timestamp"))
+
+    await init_db()
+
+    names = await _telemetry_index_names()
+    assert "ix_scan_telemetry_timestamp" in names
+    assert "ix_scan_telemetry_outcome_timestamp" in names
+
+
+async def test_init_db_drops_redundant_outcome_index():
+    """An old standalone outcome index is dropped (redundant with the composite),
+    and the migration is idempotent across repeated runs."""
+    async with db_session.engine.begin() as conn:
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_scan_telemetry_outcome ON scan_telemetry (outcome)")
+        )
+    assert "ix_scan_telemetry_outcome" in await _telemetry_index_names()
+
+    await init_db()
+    await init_db()  # idempotent: second run must not raise
+
+    names = await _telemetry_index_names()
+    assert "ix_scan_telemetry_outcome" not in names
+    assert "ix_scan_telemetry_outcome_timestamp" in names
+
+
+async def test_filtered_listing_still_works_with_new_indexes(client):
+    """Functional guard: the outcome-filtered listing returns the right rows after
+    the index reshape (the composite must still serve WHERE outcome = X)."""
+    await client.post("/telemetry/scan", json=_payload(scan_id="idx00001", outcome="completed"))
+    await client.post("/telemetry/scan", json=_payload(scan_id="idx00002", outcome="cancelled"))
+
+    r = await client.get("/telemetry/scans", params={"outcome": "cancelled"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["count"] == 1
+    assert body["scans"][0]["scan_id"] == "idx00002"
