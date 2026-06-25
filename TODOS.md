@@ -100,16 +100,23 @@ coverage from the simulator `xcodebuild test` run via `xcrun xccov view --report
 ## E17: Pre-backend-split documentation rot (P3)
 
 Several docs predate the FastAPI backend extraction and describe an old monolithic Swift client
-that no longer exists: `docs/tutorial/first-scan.md` (`swift build`/`swift run`, `BRAVE_API_KEY`
-read at app launch, "Setup Required" screen), `docs/explanation/architecture.md` (in-app
-`OllamaClient`/`BraveSearchClient`/`ImageCache` data-flow diagram), and the upper rows of
-`docs/reference/configuration.md` (hardcoded Ollama/Brave client settings). Also affected:
-`docs/explanation/design-decisions.md` (line ~19, `Sources/VisualWinelist/Brave/BraveSearchClient.swift`),
-`docs/how-to/evaluate-extraction.md` and `docs/reference/wine-schema.md` (both cite an in-app
-`OllamaClient` / `Sources/VisualWinelist/Ollama/WineExtractionPrompt.swift` — the prompt now lives
-in the Python backend). These paths were already dangling before E15 (they never existed in the
-thin client); E15 fixed only the references it would otherwise have newly broken. These need a
-dedicated rewrite to the backend-split + iOS-only reality.
+that no longer exists. **Partially addressed in v0.3.1.1** (the macOS-removal conforming pass):
+`docs/tutorial/first-scan.md` was rewritten to the iOS + backend flow (no more `swift build`/`swift
+run`), and the camera-capture sections of `docs/explanation/architecture.md` and
+`docs/explanation/design-decisions.md` dropped the macOS-only Continuity Camera retry rationale.
+
+Still pending a dedicated rewrite to the backend-split reality:
+- `docs/explanation/architecture.md` — the "Extraction: Ollama streaming" section still describes an
+  in-app `OllamaClient` POSTing to a local Ollama server; extraction now lives in the Python backend.
+- `docs/reference/configuration.md` — the upper rows still document hardcoded in-app `OllamaClient`/
+  `BraveSearchClient` settings (the closing note flags this, but the table itself is stale).
+- `docs/explanation/design-decisions.md` (line ~19) — cites `Sources/VisualWinelist/Brave/BraveSearchClient.swift`.
+- `docs/how-to/evaluate-extraction.md` and `docs/reference/wine-schema.md` — both cite an in-app
+  `OllamaClient` / `Sources/VisualWinelist/Ollama/WineExtractionPrompt.swift`; the prompt now lives
+  in the Python backend.
+
+These paths were already dangling before E15 (they never existed in the thin client); E15 fixed
+only the references it would otherwise have newly broken.
 
 ---
 

@@ -25,10 +25,6 @@ The fix (see `Sources/VisualWinelist/Brave/BraveSearchClient.swift`) was to:
 
 `Scripts/validate-brave-hitrate.swift` predates these fixes and still exercises the old count=5 + hard-filter logic standalone — useful for measuring raw per-tier Brave coverage, but not a live mirror of the production client's current ranking behavior.
 
-## Why camera capture retries instead of fixing the root cause
-
-Captured frames are occasionally corrupted by macOS Continuity Camera's "Reactions" video-effects renderer (visible as `VFXNode` errors in the console) — a system-level issue outside this app's control. Rather than disabling Continuity Camera features (which the user may want for other apps) or surfacing a capture error to the user on the first glitch, `CameraManager.capturePhoto` retries up to 3 times with a short delay, since the underlying issue is transient and the next frame is reliably clean.
-
 ## Why a single `AppPhase` state machine instead of separate views/navigation
 
 The app is fundamentally one continuous loop — point camera, capture, wait, browse results, maybe capture again — not a set of independently navigable screens. Modeling it as one `ContentView` switching over an `AppPhase` enum keeps the camera session, view model, and transition logic in one place and avoids the overhead of a navigation stack for a flow that never needs back-stack semantics beyond "return to camera."

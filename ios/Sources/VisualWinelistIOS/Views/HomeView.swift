@@ -51,7 +51,7 @@ struct HomeView: View {
             VStack(spacing: 6) {
                 Text("Visual Wine List")
                     .font(.largeTitle.bold())
-                Text("Point at a wine list. Get bottles and tasting notes.")
+                Text("Scan a wine list. See bottles and tasting notes.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

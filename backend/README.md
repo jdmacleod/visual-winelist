@@ -1,6 +1,6 @@
 # visual-winelist backend
 
-FastAPI service that handles wine list extraction (Ollama/Qwen3-VL), bottle image search (Brave), and shared caching. macOS and iOS clients POST a JPEG and receive wines + images via a Server-Sent Events stream.
+FastAPI service that handles wine list extraction (Ollama/Qwen3-VL), bottle image search (Brave), and shared caching. The iOS app POSTs a JPEG and receives wines + images via a Server-Sent Events stream.
 
 ## Requirements
 

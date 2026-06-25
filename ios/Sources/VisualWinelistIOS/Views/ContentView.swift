@@ -98,7 +98,7 @@ struct ContentView: View {
                 VStack(spacing: 16) {
                     Group {
                         if camera.isSessionRunning {
-                            Text("Point at wine list and tap to scan")
+                            Text("Tap to scan a wine list")
                         } else {
                             HStack(spacing: 6) {
                                 ProgressView().scaleEffect(0.7).tint(.white)
