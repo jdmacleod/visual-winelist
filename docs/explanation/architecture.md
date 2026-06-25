@@ -35,7 +35,7 @@
 
 `CameraManager` (`ios/Sources/VisualWinelistIOS/Camera/CameraManager.swift`) wraps `AVCaptureSession`. It's `@MainActor` for UI-observable state (`isSessionRunning`, `error`) but holds the session and photo output as `nonisolated let` so the preview layer (`CameraPreviewView`) and background configuration work can touch them off the main actor.
 
-`capturePhoto()` retries up to 3 times with a 250ms gap. This isn't defensive programming for a hypothetical failure — macOS Continuity Camera's "Reactions" video-effects renderer intermittently corrupts a single captured frame (visible as `VFXNode... patching invalid duplicated core entity handle` in the console), and the next frame is reliably clean. Diagnostic logging in the `AVCapturePhotoCaptureDelegate` callback exists to make any future recurrence diagnosable without re-deriving this from scratch.
+`capturePhoto()` takes a single frame, bridging the delegate-based `AVCapturePhotoOutput` API to async/await through a checked continuation. A capture error surfaces as `CameraError.captureError` instead of being swallowed or retried, and diagnostic logging in the `AVCapturePhotoCaptureDelegate` callback makes any future capture failure diagnosable without re-deriving it from scratch. (The earlier 3-retry workaround was specific to the now-removed macOS client, where Continuity Camera's "Reactions" renderer could corrupt a frame; the iPhone's native camera has no such failure mode.)
 
 ## Extraction: Ollama streaming
 

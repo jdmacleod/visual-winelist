@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.3.1.1 (2026-06-25)
+
+### Changed
+
+- **Capture copy says "scan," not "point at."** The home screen and the camera prompt now read "Scan a wine list" / "Tap to scan a wine list" instead of "Point at a wine list," matching what you actually do — take a photo. README and the getting-started tutorial use the same language.
+
+### Docs
+
+- **Conforming cleanup after the macOS client removal.** The README badge, the architecture diagram, and prose no longer imply a Mac client ("iPhone / Mac camera" and "native clients" are now iPhone-only). The camera-capture write-ups (architecture, design-decisions) dropped the macOS-only Continuity Camera retry rationale, which never applied to the iPhone's native camera.
+- **Getting-started tutorial rewritten for the iOS + backend split.** `docs/tutorial/first-scan.md` no longer tells you to `swift build && swift run` a local monolith (that code is gone). It now walks through starting the backend, finding its LAN IP, generating and running the iOS app in Xcode, and pointing the app at the backend.
+
 ## v0.3.1.0 (2026-06-24)
 
 ### Removed

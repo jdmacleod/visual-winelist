@@ -1,20 +1,20 @@
 # Visual Winelist
 
 [![CI](https://github.com/jdmacleod/visual-winelist/actions/workflows/ci.yml/badge.svg)](https://github.com/jdmacleod/visual-winelist/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/release-v0.2.12.0-blue.svg)](https://github.com/jdmacleod/visual-winelist/releases)
+[![Latest release](https://img.shields.io/badge/release-v0.3.1.0-blue.svg)](https://github.com/jdmacleod/visual-winelist/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform: iOS 17+](https://img.shields.io/badge/platform-iOS%2017%2B-lightgrey.svg)](https://github.com/jdmacleod/visual-winelist)
 [![Swift 5.9+](https://img.shields.io/badge/swift-5.9%2B-orange.svg)](https://swift.org)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://python.org)
 
-Point your iPhone camera at a restaurant wine list and watch bottle images appear — one by one as each wine is identified.
+Scan a restaurant wine list with your iPhone and watch bottle images appear — one by one as each wine is identified.
 
 ## What this is
 
-A service-architecture wine scanner. A FastAPI backend handles the heavy lifting (Qwen3-VL extraction via Ollama, Brave image search, shared caching), and native clients send a photo and stream results back:
+A service-architecture wine scanner. A FastAPI backend handles the heavy lifting (Qwen3-VL extraction via Ollama, Brave image search, shared caching), and the iOS app sends a photo and streams results back:
 
 ```
-iPhone / Mac camera
+iPhone camera
         │
         │  POST /scan (JPEG)
         ▼
@@ -119,7 +119,7 @@ See [web/README.md](web/README.md) for more options.
 ## Usage
 
 1. Grant camera access when prompted.
-2. Point the camera at a wine list and tap to capture.
+2. Scan a wine list: frame it in the camera and tap to capture.
 3. Watch bottle images fill the 4-column grid as wines are identified. Tasting notes and pairings appear after the initial pass.
 4. Tap any bottle for full details: full-bottle image, tasting note, pairings, producer, region, confidence score.
 5. Use **Scan more** to photograph additional pages (new wines are appended; duplicates by name+vintage are skipped). Use **Clear** to start over.
