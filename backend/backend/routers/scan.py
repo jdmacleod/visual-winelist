@@ -181,8 +181,15 @@ async def _scan_sse(
         # Optionally persist the raw scan photo (keyed by scan_id) so telemetry rows
         # can be correlated to what the model actually saw. Non-fatal on failure.
         if config.SAVE_SCAN_IMAGES or save_image:
+            # Always bound disk: if no valid per-request retention was given, fall
+            # back to the server default so "save" can't mean "keep forever".
+            effective_retention = (
+                retention
+                if retention is not None and retention > 0
+                else config.SCAN_IMAGE_RETENTION_DEFAULT
+            )
             try:
-                await asyncio.to_thread(_write_scan_image, image_data, scan_id, retention)
+                await asyncio.to_thread(_write_scan_image, image_data, scan_id, effective_retention)
             except Exception:
                 log.warning("save_scan_image failed for %s", scan_id, exc_info=True)
 
@@ -240,22 +247,27 @@ async def _scan_sse(
             # Run this concurrently with the still-in-flight Brave image fetches
             # (HTTP, no Ollama) instead of waiting for them — notes start sooner.
             nonlocal t_sommelier_end
-            for note_wine in target_wines:
-                try:
-                    notes = await sommelier.get_notes(note_wine)
-                    await queue.put(("notes", notes))
+            # finally guarantees sommelier_done even if the body raises (symmetric
+            # with run_extraction): otherwise the drain loop would spin on keepalive
+            # pings forever, holding the _scanning lock until the client disconnects.
+            try:
+                for note_wine in target_wines:
                     try:
-                        await cache.write(note_wine, None, notes.tasting_note, notes.pairings)
+                        notes = await sommelier.get_notes(note_wine)
+                        await queue.put(("notes", notes))
+                        try:
+                            await cache.write(note_wine, None, notes.tasting_note, notes.pairings)
+                        except Exception:
+                            log.warning(
+                                "cache.write (notes) failed for %s",
+                                note_wine.wine_id,
+                                exc_info=True,
+                            )
                     except Exception:
-                        log.warning(
-                            "cache.write (notes) failed for %s",
-                            note_wine.wine_id,
-                            exc_info=True,
-                        )
-                except Exception:
-                    await queue.put(("notes", NotesEvent(wine_id=note_wine.wine_id)))
-            t_sommelier_end = time.perf_counter()
-            await queue.put(("sommelier_done", None))
+                        await queue.put(("notes", NotesEvent(wine_id=note_wine.wine_id)))
+            finally:
+                t_sommelier_end = time.perf_counter()
+                await queue.put(("sommelier_done", None))
 
         extraction_task = asyncio.ensure_future(run_extraction())
 

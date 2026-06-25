@@ -534,6 +534,39 @@ async def test_scan_saves_image_when_header_set(client, tmp_path):
     assert len(saved) == 1, "header should persist exactly one scan photo"
 
 
+async def test_scan_save_without_retention_applies_server_default(client, tmp_path):
+    """Saving with no per-request retention must still prune to the server default,
+    so 'save' can never mean 'keep forever' (adversarial finding)."""
+    import os
+
+    scans_dir = tmp_path / "scans"
+    scans_dir.mkdir()
+    for i, name in enumerate(["a.jpg", "b.jpg", "c.jpg"]):
+        path = scans_dir / name
+        path.write_bytes(b"x")
+        os.utime(path, (1000 + i, 1000 + i))
+
+    with (
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        patch("backend.config.SAVE_SCAN_IMAGES", False),
+        patch("backend.config.SCAN_IMAGE_RETENTION_DEFAULT", 2),
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        r = await client.post(
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+            headers={"X-Save-Scan-Image": "1"},  # no retention header
+        )
+        assert r.status_code == 200
+
+    remaining = {p.name for p in scans_dir.glob("*.jpg")}
+    assert len(remaining) == 2, f"default retention must bound disk, got {remaining}"
+
+
 async def test_scan_does_not_save_without_header_or_config(client, tmp_path):
     """No header and SAVE_SCAN_IMAGES off => nothing is written."""
     with (
