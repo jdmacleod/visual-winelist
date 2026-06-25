@@ -209,6 +209,37 @@ jobs:
           fi
           swiftlint lint --config .swiftlint.yml Sources Tests ios/Sources ios/Tests
 
+      - name: Build iOS client (Xcode project + SwiftPM)
+        # The root `swift build` above only builds the macOS mirror
+        # (Sources/VisualWinelist). The iOS client has two build worlds with
+        # OPPOSITE module rules that root build never exercises:
+        #   - ios/VisualWinelistIOS.xcodeproj: one app target, DebugBridge sources
+        #     compiled in directly (NO module imports, hand-maintained file list).
+        #   - ios/Package.swift: DebugBridge* are separate modules (imports required).
+        # canImport() bridges both. Build each so a missing pbxproj file entry or an
+        # unguarded import can't break device builds while CI stays green.
+        run: |
+          set -euo pipefail
+          # 1) Xcode project — the device-build path (compile only, no signing).
+          xcodebuild build \
+            -project ios/VisualWinelistIOS.xcodeproj \
+            -scheme VisualWinelistIOS \
+            -destination "generic/platform=iOS" \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+          # 2) SwiftPM package — run the iOS XCTest suite (it only builds/runs via
+          #    the package, not the xcodeproj). The xcodeproj shadows the package
+          #    for xcodebuild, so move it aside, test, then restore. This gates the
+          #    iOS tests in CI; root `swift test` only covers the macOS mirror.
+          cd ios
+          mv VisualWinelistIOS.xcodeproj /tmp/_vwl_xcodeproj
+          trap 'mv /tmp/_vwl_xcodeproj VisualWinelistIOS.xcodeproj' EXIT
+          DEVICE=$(xcrun simctl list devices available | grep -oE 'iPhone 1[5-9][^(]*' | head -1 | xargs)
+          xcodebuild test \
+            -scheme VisualWinelistIOS \
+            -destination "platform=iOS Simulator,name=${DEVICE:-iPhone 16}" \
+            CODE_SIGNING_ALLOWED=NO
+
   # ---------------------------------------------------------------------------
   # Security — gitleaks secret scan (full history on every push/PR)
   # ---------------------------------------------------------------------------

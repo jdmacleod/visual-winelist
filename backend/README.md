@@ -43,6 +43,7 @@ The API is available at `http://localhost:8000`. Check `GET /health`.
 | `MAX_UPLOAD_SIZE` | `26214400` (25 MB) | Max photo upload size in bytes |
 | `TELEMETRY_ENABLED` | `true` | Accept opt-in scan diagnostics at `POST /telemetry/scan` (the iOS "Send Diagnostics?" toggle) |
 | `SAVE_SCAN_IMAGES` | `false` | Persist each uploaded scan photo to `image-cache/scans/{scan_id}.jpg` for inspection (stores raw photos) |
+| `SCAN_IMAGE_RETENTION_DEFAULT` | `50` | When scan-image saving is on but no per-request retention is sent, keep at most this many newest photos (0 disables pruning) |
 
 > **Why Ollama runs natively (not in Docker):** Docker Desktop on macOS does not support GPU passthrough. Ollama's inference degrades severely without Metal/GPU access. See [technical-notes.md](../technical-notes.md).
 

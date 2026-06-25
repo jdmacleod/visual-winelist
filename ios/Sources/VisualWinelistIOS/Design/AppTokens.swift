@@ -24,4 +24,10 @@ extension Bundle {
 enum UserDefaultsKey {
     static let showPriceOverlay = "showPriceOverlay"
     static let sendDiagnostics = "sendDiagnostics"
+    static let saveScanImages = "saveScanImages"
+    static let scanImageRetention = "scanImageRetention"
+
+    /// Default kept-photo count when scan-image saving is on but the user hasn't
+    /// picked a retention. Shared by the Preferences picker and BackendClient.
+    static let scanImageRetentionDefault = 50
 }

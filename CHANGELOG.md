@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.3.0.0 (2026-06-24)
+
+### Added
+
+- **Home screen** — the app now opens to a hub with a large "Scan a Wine List" button, a "View last results" shortcut when you have wines, and Settings. Cancelling a scan and closing the camera return here instead of dumping you back on the camera. The backend-setup banner lives here too.
+- **Branded waiting screen** — the black scanning screen is replaced by a wine-bottle silhouette on a warm background that fills with the app's wine red as the scan progresses (sending → analyzing → found → notes). Respects Reduce Motion. Stage text and Cancel remain.
+- **Tasting notes appear on cards as they arrive** — each card shows a small "notes ready" mark the moment its tasting note streams in, and the backend now generates notes concurrently with bottle-image fetching so the first note arrives sooner.
+- **Expanded Preferences** — a real Settings screen: camera-permission status with a one-tap jump to iOS Settings when access is off, a "Save scan photos on server" toggle with a retention limit (20/50/100), a diagnostics "what's sent" disclosure, an in-app viewer for recent diagnostic reports with a "Clear telemetry data" action, and the ability to change the backend URL without reinstalling.
+- **Camera-permission screen** — denying the camera now shows a clear explanation with an "Open Settings" button instead of a generic error.
+
+### Changed
+
+- Scan-image saving is opt-in per request from the app and always bounded by a retention limit, so saving photos can't grow disk without end.
+- The camera now starts when you open it (not at launch), so the permission prompt appears on your first scan.
+
+### Fixed
+
+- **iOS device builds** — the app failed to build to a device because the debug-bridge modules were imported unconditionally and new screens weren't registered in the Xcode project. Fixed with conditional imports and project registration; CI now builds both the Xcode-project (device) and Swift-package paths and runs the iOS test suite so this can't regress.
+- Backend `GET /telemetry/scans` is reliable: it honors the telemetry on/off setting and skips a single corrupt stored row instead of failing the whole listing.
+
 ## v0.2.13.0 (2026-06-24)
 
 ### Added

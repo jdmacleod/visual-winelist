@@ -15,7 +15,11 @@ struct WineBottleCard: View {
             if state.isLowConfidence {
                 uncertaintyBadge
             }
+            if state.hasNotes {
+                notesBadge
+            }
         }
+        .animation(.easeIn(duration: 0.25), value: state.hasNotes)
         .aspectRatio(3 / 5, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: .cornerRadiusCard))
         .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
@@ -69,6 +73,18 @@ struct WineBottleCard: View {
             .background(.black.opacity(0.6), in: Capsule())
             .padding(5)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var notesBadge: some View {
+        Image(systemName: "text.quote")
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(.white)
+            .padding(5)
+            .background(.wineRed, in: Circle())
+            .padding(5)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            .transition(.opacity)
+            .accessibilityHidden(true)
     }
 
     private var uncertaintyBadge: some View {

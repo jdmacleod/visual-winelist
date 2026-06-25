@@ -8,6 +8,9 @@ class WineListViewModel {
     var wines: [WineState] = []
     var isScanning = false
     var scanMessage = ""
+    /// Coarse 0...1 scan progress for the waiting screen's bottle fill. Driven by
+    /// the SSE stage signals below, not a precise byte count.
+    var scanProgress: Double = 0
     var errorMessage: String?
     var selectedWine: WineObject?
     var backendStatus: BackendStatus = .unknown
@@ -33,12 +36,16 @@ class WineListViewModel {
     func checkHealth() async {
         do {
             let health = try await backend.checkHealth()
-            if health.isOK {
+            // Defensive: treat a missing dependency as degraded even if the status
+            // string disagrees, so the Home/camera banner is reliable. The backend
+            // already reports status="degraded" when ollama/brave are down, but we
+            // don't want a stale or optimistic status field to hide a real problem.
+            var issues: [String] = []
+            if !health.ollama { issues.append("Ollama not running — run: ollama serve") }
+            if !health.brave_key { issues.append("BRAVE_API_KEY not configured on server") }
+            if issues.isEmpty && health.isOK {
                 backendStatus = .ok
             } else {
-                var issues: [String] = []
-                if !health.ollama { issues.append("Ollama not running — run: ollama serve") }
-                if !health.brave_key { issues.append("BRAVE_API_KEY not configured on server") }
                 backendStatus = .degraded(issues.joined(separator: "\n"))
             }
         } catch {
@@ -63,6 +70,7 @@ class WineListViewModel {
         activeScanSession = nil
         isScanning = false
         scanMessage = ""
+        scanProgress = 0
     }
 
     func clear() {
@@ -77,6 +85,7 @@ class WineListViewModel {
     private func performScan(photoData: Data) async {
         isScanning = true
         scanMessage = "Sending photo…"
+        scanProgress = 0.12
         errorMessage = nil
 
         // Telemetry outcome, captured by the diagnostics defer below. Defaults to
@@ -121,6 +130,7 @@ class WineListViewModel {
                         extractedCount += 1
                         wines.append(.extracting(wine))
                         scanMessage = "Found \(wines.count) wine\(wines.count == 1 ? "" : "s")…"
+                        scanProgress = max(scanProgress, 0.85)
 
                     case .image(let payload):
                         group.addTask { try await self.handleImageEvent(payload) }
@@ -151,6 +161,7 @@ class WineListViewModel {
                         // fetch tasks continue in the background via the group.
                         DebugStore.shared.recordComplete(payload: payload)
                         scanOutcome = "completed"
+                        scanProgress = 1.0
                         isScanning = false
                         let hit = payload.cache_hits
                         scanMessage =
@@ -162,6 +173,7 @@ class WineListViewModel {
                         if stage == "analyzing", wines.isEmpty {
                             sawAnalyzing = true
                             scanMessage = "Analyzing the wine list…"
+                            scanProgress = max(scanProgress, 0.7)
                         }
 
                     case .ping:
@@ -170,6 +182,7 @@ class WineListViewModel {
                         // Stay on "Getting ready…" until the analyzing status arrives.
                         if wines.isEmpty && !sawAnalyzing {
                             scanMessage = "Getting ready to analyze…"
+                            scanProgress = max(scanProgress, 0.4)
                         }
 
                     case .parseError:
@@ -186,25 +199,34 @@ class WineListViewModel {
                 }
             }  // end withThrowingTaskGroup
 
-        } catch is CancellationError {
-            scanOutcome = "cancelled"  // user cancelled — leave wines as-is, don't show error
-        } catch BackendError.scannerBusy {
-            errorMessage = "Scanner is busy — another scan is in progress"
-            scanOutcome = "error"
-        } catch BackendError.invalidImage {
-            errorMessage =
-                "Image format not supported — use JPEG. Try taking a photo directly rather than importing."
-            scanOutcome = "error"
-        } catch BackendError.unreachable(let url) {
-            errorMessage = "Backend not reachable at \(url)\n\nCheck WiFi and try again"
-            scanOutcome = "error"
         } catch {
+            let result = Self.classifyScanError(error)
+            if let message = result.message { errorMessage = message }
+            scanOutcome = result.outcome
+        }
+    }
+
+    /// Maps a thrown scan error to a user-facing message (nil = show nothing, e.g.
+    /// a user/URLSession cancellation) and a telemetry outcome. Internal (not
+    /// private) so unit tests can pin each branch via @testable import.
+    static func classifyScanError(_ error: Error) -> (message: String?, outcome: String) {
+        switch error {
+        case is CancellationError:
+            return (nil, "cancelled")  // user cancelled — leave wines as-is
+        case BackendError.scannerBusy:
+            return ("Scanner is busy — another scan is in progress", "error")
+        case BackendError.invalidImage:
+            return (
+                "Image format not supported — use JPEG. Try taking a photo directly rather than importing.",
+                "error"
+            )
+        case BackendError.unreachable(let url):
+            return ("Backend not reachable at \(url)\n\nCheck WiFi and try again", "error")
+        default:
             if let urlErr = error as? URLError, urlErr.code == .cancelled {
-                scanOutcome = "cancelled"  // URLSession cancel on view dismiss
-            } else {
-                errorMessage = "Scan failed — \(error.localizedDescription)"
-                scanOutcome = "error"
+                return (nil, "cancelled")  // URLSession cancel on view dismiss
             }
+            return ("Scan failed — \(error.localizedDescription)", "error")
         }
     }
 

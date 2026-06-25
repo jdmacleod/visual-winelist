@@ -1,3 +1,4 @@
+import asyncio
 import json
 from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, patch
@@ -247,6 +248,64 @@ async def test_scan_happy_path(client):
     assert "scan_id" in complete_data
 
 
+async def test_notes_run_concurrently_with_image_fetch(client):
+    """Sommelier notes must start as soon as extraction ends, concurrent with the
+    Brave image fetches — not serially after them. fetch_image blocks on an event
+    that only get_notes sets: if notes still ran after all images (the old serial
+    Phase 2), the fetch would unblock via its timeout, not via notes."""
+    notes_started = asyncio.Event()
+    unblocked_by_notes: list[bool] = []
+
+    async def mock_notes(wine: WineObject) -> NotesEvent:
+        notes_started.set()
+        return NotesEvent(wine_id=wine.wine_id, tasting_note="Lush.", pairings=["beef"])
+
+    async def mock_fetch(wine: WineObject):
+        try:
+            await asyncio.wait_for(notes_started.wait(), timeout=8.0)
+            unblocked_by_notes.append(True)
+        except TimeoutError:
+            unblocked_by_notes.append(False)
+        return (None, 0, 0)
+
+    with (
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(MARGAUX, OPUS),
+        ),
+        patch(
+            "backend.routers.scan.brave_client.fetch_image",
+            new=AsyncMock(side_effect=mock_fetch),
+        ),
+        patch(
+            "backend.routers.scan.sommelier.get_notes",
+            new=AsyncMock(side_effect=mock_notes),
+        ),
+        patch(
+            "backend.routers.scan.cache.lookup",
+            new=AsyncMock(return_value=None),
+        ),
+    ):
+        async with client.stream(
+            "POST",
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+        ) as r:
+            assert r.status_code == 200
+            body = await r.aread()
+
+    events = _collect_sse(body.decode())
+    types = [e for e, _ in events]
+    assert "notes" in types, "notes must be emitted"
+    assert "image" in types, "image events must be emitted"
+    assert "complete" in types
+    assert unblocked_by_notes, "image fetch was never attempted"
+    assert all(unblocked_by_notes), (
+        "image fetch must be unblocked by notes running concurrently, "
+        "not by its own timeout (proves notes no longer wait for images)"
+    )
+
+
 async def test_scan_ollama_down(client):
     async def raise_connection_error(
         image_data: bytes, on_first_token=None
@@ -452,6 +511,112 @@ async def test_scan_id_in_response_header(client):
     assert complete["scan_id"] == scan_id_header, (
         "scan_id in event:complete must match X-Scan-Id response header"
     )
+
+
+async def test_scan_saves_image_when_header_set(client, tmp_path):
+    """X-Save-Scan-Image header opts this request into persisting the photo (E13)."""
+    with (
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        patch("backend.config.SAVE_SCAN_IMAGES", False),
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        r = await client.post(
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+            headers={"X-Save-Scan-Image": "1"},
+        )
+        assert r.status_code == 200
+    saved = list((tmp_path / "scans").glob("*.jpg"))
+    assert len(saved) == 1, "header should persist exactly one scan photo"
+
+
+async def test_scan_save_without_retention_applies_server_default(client, tmp_path):
+    """Saving with no per-request retention must still prune to the server default,
+    so 'save' can never mean 'keep forever' (adversarial finding)."""
+    import os
+
+    scans_dir = tmp_path / "scans"
+    scans_dir.mkdir()
+    for i, name in enumerate(["a.jpg", "b.jpg", "c.jpg"]):
+        path = scans_dir / name
+        path.write_bytes(b"x")
+        os.utime(path, (1000 + i, 1000 + i))
+
+    with (
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        patch("backend.config.SAVE_SCAN_IMAGES", False),
+        patch("backend.config.SCAN_IMAGE_RETENTION_DEFAULT", 2),
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        r = await client.post(
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+            headers={"X-Save-Scan-Image": "1"},  # no retention header
+        )
+        assert r.status_code == 200
+
+    remaining = {p.name for p in scans_dir.glob("*.jpg")}
+    assert len(remaining) == 2, f"default retention must bound disk, got {remaining}"
+
+
+async def test_scan_does_not_save_without_header_or_config(client, tmp_path):
+    """No header and SAVE_SCAN_IMAGES off => nothing is written."""
+    with (
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        patch("backend.config.SAVE_SCAN_IMAGES", False),
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        r = await client.post(
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+        )
+        assert r.status_code == 200
+    assert not (tmp_path / "scans").exists() or not list((tmp_path / "scans").glob("*.jpg"))
+
+
+async def test_scan_image_retention_prunes_oldest(client, tmp_path):
+    """X-Scan-Image-Retention keeps only the newest N photos (oldest pruned)."""
+    import os
+
+    scans_dir = tmp_path / "scans"
+    scans_dir.mkdir()
+    # Three pre-existing photos with strictly increasing mtimes.
+    for i, name in enumerate(["old1.jpg", "old2.jpg", "old3.jpg"]):
+        path = scans_dir / name
+        path.write_bytes(b"x")
+        os.utime(path, (1000 + i, 1000 + i))
+
+    with (
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        patch("backend.config.SAVE_SCAN_IMAGES", False),
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        r = await client.post(
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+            headers={"X-Save-Scan-Image": "1", "X-Scan-Image-Retention": "2"},
+        )
+        assert r.status_code == 200
+
+    remaining = {p.name for p in scans_dir.glob("*.jpg")}
+    assert len(remaining) == 2, f"retention=2 must keep 2 photos, got {remaining}"
+    assert "old1.jpg" not in remaining, "oldest photo must be pruned"
 
 
 async def test_recent_scans_empty(client):
@@ -1030,3 +1195,154 @@ async def test_scan_first_wine_ms_none_when_no_wines(client):
 
     complete = json.loads(next(d for e, d in _collect_sse(body.decode()) if e == "complete"))
     assert complete.get("first_wine_ms") is None
+
+
+def test_prune_scan_images_listdir_oserror_is_swallowed():
+    """_prune_scan_images returns quietly when the scans dir can't be listed (E13)."""
+    from backend.routers import scan as scan_mod
+
+    with patch("backend.routers.scan.os.listdir", side_effect=OSError("boom")):
+        # Must not raise — a missing/unreadable dir is non-fatal.
+        scan_mod._prune_scan_images("/nonexistent/scans", keep=2)
+
+
+def test_prune_scan_images_remove_oserror_is_logged(tmp_path):
+    """A failed os.remove during prune is logged, not raised (best-effort cleanup)."""
+    import os
+
+    from backend.routers import scan as scan_mod
+
+    scans_dir = tmp_path / "scans"
+    scans_dir.mkdir()
+    for i, name in enumerate(["a.jpg", "b.jpg", "c.jpg"]):
+        path = scans_dir / name
+        path.write_bytes(b"x")
+        os.utime(path, (1000 + i, 1000 + i))
+
+    with patch("backend.routers.scan.os.remove", side_effect=OSError("denied")):
+        # keep=1 → two files targeted for removal; both raise but are swallowed.
+        scan_mod._prune_scan_images(str(scans_dir), keep=1)
+
+    # Nothing was actually deleted because remove failed, and no exception escaped.
+    assert len(list(scans_dir.glob("*.jpg"))) == 3
+
+
+def test_prune_scan_images_noop_when_at_or_below_keep(tmp_path):
+    """When file count <= keep, prune is a no-op (no sorting/removal)."""
+    from backend.routers import scan as scan_mod
+
+    scans_dir = tmp_path / "scans"
+    scans_dir.mkdir()
+    (scans_dir / "only.jpg").write_bytes(b"x")
+    scan_mod._prune_scan_images(str(scans_dir), keep=5)
+    assert {p.name for p in scans_dir.glob("*.jpg")} == {"only.jpg"}
+
+
+def test_write_scan_image_without_retention_keeps_all(tmp_path):
+    """retention=None skips pruning entirely — every saved photo is retained."""
+    from backend.routers import scan as scan_mod
+
+    with patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)):
+        for i in range(3):
+            scan_mod._write_scan_image(b"jpegbytes", f"scan{i}", retention=None)
+
+    saved = list((tmp_path / "scans").glob("*.jpg"))
+    assert len(saved) == 3
+
+
+async def test_scan_saves_image_via_config_flag(client, tmp_path):
+    """SAVE_SCAN_IMAGES config True persists the photo even with no request header."""
+    with (
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        patch("backend.config.SAVE_SCAN_IMAGES", True),
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        r = await client.post(
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+        )
+        assert r.status_code == 200
+    assert len(list((tmp_path / "scans").glob("*.jpg"))) == 1
+
+
+async def test_scan_save_image_header_truthy_aliases(client, tmp_path):
+    """'true'/'yes' (not just '1') opt into saving; non-digit retention is ignored."""
+    with (
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        patch("backend.config.SAVE_SCAN_IMAGES", False),
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        r = await client.post(
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+            headers={"X-Save-Scan-Image": "true", "X-Scan-Image-Retention": "abc"},
+        )
+        assert r.status_code == 200
+    # Saved (truthy alias) and not pruned (retention header was non-digit → None).
+    assert len(list((tmp_path / "scans").glob("*.jpg"))) == 1
+
+
+async def test_scan_save_image_failure_is_non_fatal(client, tmp_path):
+    """If persisting the scan photo raises, the scan still completes (best-effort)."""
+    with (
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        patch("backend.config.SAVE_SCAN_IMAGES", False),
+        patch(
+            "backend.routers.scan._write_scan_image",
+            side_effect=OSError("disk full"),
+        ),
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        async with client.stream(
+            "POST",
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+            headers={"X-Save-Scan-Image": "1"},
+        ) as r:
+            body = await r.aread()
+    types = [e for e, _ in _collect_sse(body.decode())]
+    assert "complete" in types, "scan must finish even when image save fails"
+
+
+async def test_notes_failure_emits_empty_notes_event(client):
+    """If sommelier.get_notes raises during the concurrent pass, a fallback empty
+    NotesEvent is still emitted for that wine and the scan completes (E13/F3b)."""
+    with (
+        patch(
+            "backend.routers.scan.ollama_client.extract_wines",
+            return_value=_wine_stream(MARGAUX),
+        ),
+        patch(
+            "backend.routers.scan.brave_client.fetch_image",
+            new=AsyncMock(return_value=(None, 0, 0)),
+        ),
+        patch(
+            "backend.routers.scan.sommelier.get_notes",
+            new=AsyncMock(side_effect=RuntimeError("ollama exploded")),
+        ),
+        patch("backend.routers.scan.cache.lookup", new=AsyncMock(return_value=None)),
+    ):
+        async with client.stream(
+            "POST",
+            "/scan",
+            files={"image": ("list.jpg", make_jpeg(), "image/jpeg")},
+        ) as r:
+            body = await r.aread()
+
+    events = _collect_sse(body.decode())
+    notes = [json.loads(d) for e, d in events if e == "notes"]
+    assert notes, "a fallback notes event must be emitted even when get_notes fails"
+    assert notes[0].get("tasting_note") in (None, ""), "fallback note carries no tasting text"
+    assert any(e == "complete" for e, _ in events), "scan must complete despite notes failure"

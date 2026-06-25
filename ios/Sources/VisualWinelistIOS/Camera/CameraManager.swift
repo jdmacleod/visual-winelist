@@ -30,8 +30,21 @@ class CameraManager: NSObject {
     private nonisolated let sessionQueue = DispatchQueue(label: "com.visualwinelist.camera.session")
 
     private var photoContinuation: CheckedContinuation<Data, Error>?
+    private var isConfigured = false
 
+    /// Current camera authorization, for the Preferences permission row.
+    var authorizationStatus: AVAuthorizationStatus {
+        AVCaptureDevice.authorizationStatus(for: .video)
+    }
+
+    /// Configures the capture session, requesting permission on first use. Called
+    /// when the camera screen appears (not at launch) so the permission dialog is
+    /// raised by the user's first Scan tap. Idempotent: re-entry just resumes.
     func startSession() async {
+        if isConfigured {
+            resumeSession()
+            return
+        }
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         switch status {
         case .authorized:
@@ -95,6 +108,7 @@ class CameraManager: NSObject {
         }
 
         if started {
+            isConfigured = true
             isSessionRunning = true
         } else {
             error = .deviceUnavailable

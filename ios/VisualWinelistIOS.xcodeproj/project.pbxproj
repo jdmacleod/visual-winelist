@@ -38,6 +38,9 @@
 		CAFE00000000000000000231 /* DebugHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000131 /* DebugHUD.swift */; };
 		CAFE00000000000000000232 /* WaterfallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000132 /* WaterfallView.swift */; };
 		CAFE00000000000000000233 /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000133 /* PreferencesView.swift */; };
+		CAFE00000000000000000250 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000150 /* HomeView.swift */; };
+		CAFE00000000000000000251 /* ScanningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000151 /* ScanningView.swift */; };
+		CAFE00000000000000000252 /* TelemetryReportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000152 /* TelemetryReportsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -75,6 +78,9 @@
 		CAFE00000000000000000131 /* DebugHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugHUD.swift; sourceTree = "<group>"; };
 		CAFE00000000000000000132 /* WaterfallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterfallView.swift; sourceTree = "<group>"; };
 		CAFE00000000000000000133 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
+		CAFE00000000000000000150 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		CAFE00000000000000000151 /* ScanningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanningView.swift; sourceTree = "<group>"; };
+		CAFE00000000000000000152 /* TelemetryReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryReportsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -188,6 +194,9 @@
 				CAFE00000000000000000110 /* WineDetailView.swift */,
 				CAFE00000000000000000111 /* WineGridView.swift */,
 				CAFE00000000000000000133 /* PreferencesView.swift */,
+				CAFE00000000000000000150 /* HomeView.swift */,
+				CAFE00000000000000000151 /* ScanningView.swift */,
+				CAFE00000000000000000152 /* TelemetryReportsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -332,6 +341,9 @@
 				CAFE00000000000000000210 /* WineDetailView.swift in Sources */,
 				CAFE00000000000000000211 /* WineGridView.swift in Sources */,
 				CAFE00000000000000000233 /* PreferencesView.swift in Sources */,
+				CAFE00000000000000000250 /* HomeView.swift in Sources */,
+				CAFE00000000000000000251 /* ScanningView.swift in Sources */,
+				CAFE00000000000000000252 /* TelemetryReportsView.swift in Sources */,
 				CAFE00000000000000000214 /* ScanSettings.swift in Sources */,
 				CAFE00000000000000000220 /* Sources/DebugBridgeCore/DebugBridgeManager.swift in Sources */,
 				CAFE00000000000000000221 /* Sources/DebugBridgeCore/StateServer.swift in Sources */,

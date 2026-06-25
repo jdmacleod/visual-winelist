@@ -4,6 +4,7 @@ enum BackendError: Error, LocalizedError, Sendable {
     case unreachable(String)
     case scannerBusy
     case invalidImage
+    case telemetryDisabled
     case httpError(Int)
 
     var errorDescription: String? {
@@ -14,6 +15,8 @@ enum BackendError: Error, LocalizedError, Sendable {
             return "The scanner is busy — another scan is in progress"
         case .invalidImage:
             return "Image format not supported — use JPEG. Try taking a photo directly rather than importing."
+        case .telemetryDisabled:
+            return "Telemetry is disabled on the server."
         case .httpError(let code):
             return "Backend error (HTTP \(code))"
         }
@@ -104,6 +107,48 @@ struct BackendClient: Sendable {
         }
     }
 
+    // MARK: - Telemetry
+
+    /// Recent opt-in telemetry reports for the in-app diagnostics viewer.
+    func fetchTelemetryReports(limit: Int = 20) async throws -> [TelemetryReport] {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("telemetry").appendingPathComponent("scans"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
+        do {
+            let (data, response) = try await session.data(from: components.url!)
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if code == 404 { throw BackendError.telemetryDisabled }
+            guard (200...299).contains(code) else { throw BackendError.httpError(code) }
+            return try JSONDecoder().decode(TelemetryListResponse.self, from: data).scans
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            throw CancellationError()
+        } catch is URLError {
+            throw BackendError.unreachable(baseURL.absoluteString)
+        }
+    }
+
+    /// Delete all stored telemetry; returns how many rows the server removed.
+    @discardableResult
+    func clearTelemetry() async throws -> Int {
+        var request = URLRequest(
+            url: baseURL.appendingPathComponent("telemetry").appendingPathComponent("scans")
+        )
+        request.httpMethod = "DELETE"
+        do {
+            let (data, response) = try await session.data(for: request)
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if code == 404 { throw BackendError.telemetryDisabled }
+            guard (200...299).contains(code) else { throw BackendError.httpError(code) }
+            return (try? JSONDecoder().decode(TelemetryDeleteResponse.self, from: data).deleted) ?? 0
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            throw CancellationError()
+        } catch is URLError {
+            throw BackendError.unreachable(baseURL.absoluteString)
+        }
+    }
+
     // MARK: - Private
 
     private func buildScanRequest(photoData: Data) -> URLRequest {
@@ -116,6 +161,18 @@ struct BackendClient: Sendable {
             "multipart/form-data; boundary=\(boundary)",
             forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 300
+
+        // Opt-in scan-image saving (E13). When the user enables it, ask the
+        // backend to persist this photo and prune to the chosen retention count.
+        // Absent header => backend default (off) governs; nothing is sent here.
+        if UserDefaults.standard.bool(forKey: UserDefaultsKey.saveScanImages) {
+            request.setValue("1", forHTTPHeaderField: "X-Save-Scan-Image")
+            // 0 means the user enabled saving but never touched the picker; match
+            // the Preferences default (50) so retention applies from the first scan.
+            let stored = UserDefaults.standard.integer(forKey: UserDefaultsKey.scanImageRetention)
+            let retention = stored > 0 ? stored : UserDefaultsKey.scanImageRetentionDefault
+            request.setValue(String(retention), forHTTPHeaderField: "X-Scan-Image-Retention")
+        }
 
         var body = Data()
         body.appendString("--\(boundary)\r\n")

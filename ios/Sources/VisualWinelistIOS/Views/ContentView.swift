@@ -2,13 +2,13 @@ import SwiftUI
 import UIKit
 
 enum AppPhase {
-    case camera, scanning, grid, error(String)
+    case home, camera, scanning, grid, cameraDenied, error(String)
 }
 
 struct ContentView: View {
     @State private var camera = CameraManager()
     @State private var viewModel: WineListViewModel
-    @State private var phase: AppPhase = .camera
+    @State private var phase: AppPhase = .home
 
     init(backendURL: URL) {
         _viewModel = State(initialValue: WineListViewModel(backendURL: backendURL))
@@ -17,20 +17,24 @@ struct ContentView: View {
     var body: some View {
         Group {
             switch phase {
+            case .home:
+                homeView
             case .camera:
                 cameraView
             case .scanning:
                 scanningView
             case .grid:
                 gridView
+            case .cameraDenied:
+                cameraDeniedView
             case .error(let message):
                 errorView(message)
             }
         }
-        .task { await camera.startSession() }
         .task { await viewModel.checkHealth() }
         .onChange(of: camera.error) { _, err in
-            if let err { phase = .error(err.localizedDescription) }
+            guard let err else { return }
+            phase = err == .permissionDenied ? .cameraDenied : .error(err.localizedDescription)
         }
         .onChange(of: viewModel.errorMessage) { _, msg in
             if let msg { phase = .error(msg) }
@@ -52,6 +56,16 @@ struct ContentView: View {
                 DebugHUD()
             }
         #endif
+    }
+
+    // MARK: - Home view
+
+    private var homeView: some View {
+        HomeView(
+            viewModel: viewModel,
+            onScan: { phase = .camera },
+            onViewResults: { phase = .grid }
+        )
     }
 
     // MARK: - Camera view
@@ -113,46 +127,46 @@ struct ContentView: View {
             }
         }
         .overlay(alignment: .topLeading) {
-            if !viewModel.wines.isEmpty {
+            HStack(spacing: 12) {
                 Button {
-                    phase = .grid
+                    camera.stopSession()
+                    phase = .home
                 } label: {
-                    Label("Results", systemImage: "list.bullet")
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: .cornerRadiusMedium))
+                    Image(systemName: "xmark")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(.ultraThinMaterial, in: Circle())
                 }
-                .padding()
+                .accessibilityLabel("Close camera, return home")
+
+                if !viewModel.wines.isEmpty {
+                    Button {
+                        phase = .grid
+                    } label: {
+                        Label("Results", systemImage: "list.bullet")
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: .cornerRadiusMedium))
+                    }
+                }
             }
+            .padding()
         }
-        .onAppear { camera.resumeSession() }
+        .task { await camera.startSession() }
     }
 
     // MARK: - Scanning view
 
     private var scanningView: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            VStack(spacing: 20) {
-                ProgressView()
-                    .scaleEffect(1.5)
-                    .tint(.white)
-                Text(viewModel.scanMessage.isEmpty ? "Scanning wine list…" : viewModel.scanMessage)
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .animation(.default, value: viewModel.scanMessage)
-                    .padding(.horizontal, 32)
-
-                Button("Cancel") {
-                    viewModel.cancelScan()
-                    phase = .camera
-                }
-                .buttonStyle(.bordered)
-                .tint(.white)
-                .padding(.top, 12)
+        ScanningView(
+            progress: viewModel.scanProgress,
+            message: viewModel.scanMessage,
+            onCancel: {
+                viewModel.cancelScan()
+                phase = .home
             }
-        }
+        )
     }
 
     // MARK: - Grid view
@@ -166,6 +180,14 @@ struct ContentView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        phase = .home
+                    } label: {
+                        Image(systemName: "house")
+                    }
+                    .accessibilityLabel("Home")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink {
                         PreferencesView()
                     } label: {
@@ -176,13 +198,45 @@ struct ContentView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(role: .destructive) {
                         viewModel.clear()
-                        phase = .camera
+                        phase = .home
                     } label: {
                         Image(systemName: "trash")
                     }
                     .disabled(viewModel.isScanning)
                     .accessibilityLabel("Clear all wines")
                 }
+            }
+        }
+    }
+
+    // MARK: - Camera permission denied
+
+    private var cameraDeniedView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "camera.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(.wineRed)
+            Text("Camera access is off")
+                .font(.title3.bold())
+            Text("Scanning a wine list needs the camera. Turn it on in Settings, then come back.")
+                .font(.body)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 40)
+            VStack(spacing: 12) {
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.wineRed)
+
+                Button("Home") {
+                    camera.error = nil
+                    phase = .home
+                }
+                .buttonStyle(.bordered)
             }
         }
     }
@@ -199,11 +253,20 @@ struct ContentView: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 40)
-            Button("Try again") {
-                viewModel.errorMessage = nil
-                phase = .camera
+            VStack(spacing: 12) {
+                Button("Try again") {
+                    viewModel.errorMessage = nil
+                    phase = .camera
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.wineRed)
+
+                Button("Home") {
+                    viewModel.errorMessage = nil
+                    phase = .home
+                }
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(.borderedProminent)
         }
         .onAppear { UINotificationFeedbackGenerator().notificationOccurred(.error) }
     }

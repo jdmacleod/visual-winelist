@@ -29,6 +29,10 @@ TELEMETRY_ENABLED: bool = _bool_env("TELEMETRY_ENABLED", "true")
 # Persist the uploaded scan photo to scans/{scan_id}.jpg for content inspection.
 # Off by default — it stores raw photos. Correlates to telemetry + ScanLog by scan_id.
 SAVE_SCAN_IMAGES: bool = _bool_env("SAVE_SCAN_IMAGES", "false")
+# Default kept-photo count when saving is on but no per-request retention is given
+# (e.g. the SAVE_SCAN_IMAGES env path, or a client that omits the header). Bounds
+# disk growth so "save" never means "save forever". 0 disables pruning.
+SCAN_IMAGE_RETENTION_DEFAULT: int = int(os.environ.get("SCAN_IMAGE_RETENTION_DEFAULT", "50"))
 
 # Image variant dimensions (px, longest side) — tune via env vars for experiments.
 IMAGE_THUMB_WIDTH: int = int(os.environ.get("IMAGE_THUMB_WIDTH", "120"))

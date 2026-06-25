@@ -120,6 +120,26 @@ async def test_get_telemetry_skips_corrupt_payload_row(client):
     assert "corrupt1" not in scan_ids
 
 
+async def test_delete_telemetry_clears_all_and_reports_count(client):
+    """DELETE wipes stored telemetry and returns how many rows were removed."""
+    await client.post("/telemetry/scan", json=_payload(scan_id="del00001"))
+    await client.post("/telemetry/scan", json=_payload(scan_id="del00002"))
+
+    r = await client.delete("/telemetry/scans")
+    assert r.status_code == 200
+    assert r.json()["deleted"] == 2
+
+    listing = await client.get("/telemetry/scans")
+    assert listing.json()["count"] == 0
+
+
+async def test_delete_telemetry_disabled_returns_404(client):
+    """DELETE mirrors the gate: disabled telemetry can't be cleared via the API."""
+    with patch("backend.config.TELEMETRY_ENABLED", False):
+        r = await client.delete("/telemetry/scans")
+    assert r.status_code == 404
+
+
 async def test_post_telemetry_rejects_bad_outcome(client):
     r = await client.post("/telemetry/scan", json={"scan_id": "bad00001", "outcome": "nope"})
     assert r.status_code == 422

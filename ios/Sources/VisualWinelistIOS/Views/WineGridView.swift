@@ -49,6 +49,7 @@ struct WineGridView: View {
         var label = state.wine.name
         if let vintage = state.wine.vintage { label += ", \(vintage)" }
         if state.isLowConfidence { label += ", low confidence" }
+        if state.hasNotes { label += ", tasting notes ready" }
         return label
     }
 
