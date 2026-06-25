@@ -22,6 +22,13 @@ struct WineBottleCard: View {
         .animation(.easeIn(duration: 0.25), value: state.hasNotes)
         .aspectRatio(3 / 5, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: .cornerRadiusCard))
+        // Outline the card once its tasting note has streamed in — a second,
+        // peripheral "notes ready" signal alongside the corner badge, readable
+        // across the whole grid as the sommelier pass fills cards in.
+        .overlay {
+            RoundedRectangle(cornerRadius: .cornerRadiusCard)
+                .strokeBorder(Color.wineRed, lineWidth: state.hasNotes ? 2.5 : 0)
+        }
         .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
     }
 

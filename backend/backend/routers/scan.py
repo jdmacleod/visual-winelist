@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -52,6 +53,42 @@ def _write_scan_image(image_data: bytes, scan_id: str, retention: int | None = N
         f.write(image_data)
     if retention is not None and retention > 0:
         _prune_scan_images(scans_dir, retention)
+
+
+# Detached scan-image save tasks. Persistence runs as a task created in the
+# /scan handler (not inside the SSE generator) so it is decoupled from the client
+# connection: an early disconnect — the iOS app cancels the URLSession on view
+# dismiss / re-scan — no longer drops the photo before it is written. The event
+# loop only keeps weak refs to tasks, so retain a strong ref here until done.
+_pending_saves: set[asyncio.Task[None]] = set()
+
+
+def _on_save_done(task: asyncio.Task[None]) -> None:
+    _pending_saves.discard(task)
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        # Surface the failure instead of swallowing it silently (the old inline
+        # try/except logged at warning; keep that, now with the exception).
+        log.warning("save_scan_image failed: %s", exc, exc_info=exc)
+
+
+def _schedule_scan_save(
+    image_data: bytes, scan_id: str, retention: int | None
+) -> asyncio.Task[None]:
+    """Persist the scan photo on a detached task so it survives client disconnect.
+
+    Returns the task so the SSE generator can await it in its finally block,
+    making a fully-consumed scan deterministic while still guaranteeing the write
+    for a scan whose stream is abandoned early.
+    """
+    task = asyncio.ensure_future(
+        asyncio.to_thread(_write_scan_image, image_data, scan_id, retention)
+    )
+    _pending_saves.add(task)
+    task.add_done_callback(_on_save_done)
+    return task
 
 
 def _prune_scan_images(scans_dir: str, keep: int) -> None:
@@ -154,8 +191,7 @@ async def _scan_sse(
     image_data: bytes,
     scan_id: str,
     receive_ms: int | None = None,
-    save_image: bool = False,
-    retention: int | None = None,
+    save_task: asyncio.Task[None] | None = None,
 ) -> AsyncIterator[str]:
     global _scanning
     extraction_task: asyncio.Task[None] | None = None
@@ -178,20 +214,11 @@ async def _scan_sse(
         # exposes Ollama's first-wine latency as the gap to the first wine event.
         yield ": ready\n\n"
 
-        # Optionally persist the raw scan photo (keyed by scan_id) so telemetry rows
-        # can be correlated to what the model actually saw. Non-fatal on failure.
-        if config.SAVE_SCAN_IMAGES or save_image:
-            # Always bound disk: if no valid per-request retention was given, fall
-            # back to the server default so "save" can't mean "keep forever".
-            effective_retention = (
-                retention
-                if retention is not None and retention > 0
-                else config.SCAN_IMAGE_RETENTION_DEFAULT
-            )
-            try:
-                await asyncio.to_thread(_write_scan_image, image_data, scan_id, effective_retention)
-            except Exception:
-                log.warning("save_scan_image failed for %s", scan_id, exc_info=True)
+        # The raw scan photo (keyed by scan_id) is persisted on a detached task
+        # created by the handler before streaming began — see _schedule_scan_save.
+        # It is awaited in this generator's finally so a fully-consumed scan is
+        # deterministic, but it runs independently of the connection so an early
+        # client disconnect can no longer drop the write.
 
         queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
         wines: list[WineObject] = []
@@ -442,6 +469,13 @@ async def _scan_sse(
         for _task in image_tasks:
             if not _task.done():
                 _task.cancel()
+        # Ensure the scan-image write has landed before the stream is torn down, so
+        # a fully-consumed scan deterministically has its photo on disk. Awaiting
+        # (not yielding) inside finally is safe during aclose; the task is also held
+        # in _pending_saves, so it still completes if this await is cut short.
+        if save_task is not None:
+            with contextlib.suppress(Exception):
+                await save_task
 
 
 @router.post("/scan")
@@ -496,8 +530,22 @@ async def scan(image: UploadFile, request: Request) -> StreamingResponse:
         retention = int(raw_retention)
 
     scan_id = uuid.uuid4().hex[:8]
+
+    # Schedule the photo write NOW, before streaming, so it is decoupled from the
+    # SSE connection and cannot be dropped by an early client disconnect. Bound disk
+    # always: with no valid per-request retention, fall back to the server default so
+    # "save" never means "keep forever".
+    save_task: asyncio.Task[None] | None = None
+    if config.SAVE_SCAN_IMAGES or save_image:
+        effective_retention = (
+            retention
+            if retention is not None and retention > 0
+            else config.SCAN_IMAGE_RETENTION_DEFAULT
+        )
+        save_task = _schedule_scan_save(image_data, scan_id, effective_retention)
+
     return StreamingResponse(
-        _scan_sse(image_data, scan_id, receive_ms, save_image=save_image, retention=retention),
+        _scan_sse(image_data, scan_id, receive_ms, save_task=save_task),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

@@ -619,6 +619,84 @@ async def test_scan_image_retention_prunes_oldest(client, tmp_path):
     assert "old1.jpg" not in remaining, "oldest photo must be pruned"
 
 
+async def test_scan_image_saved_even_on_early_disconnect(tmp_path):
+    """Regression: the scan photo persists even when the client abandons the stream
+    right after the first byte.
+
+    Before the fix the write lived inside the SSE generator, after the ': ready'
+    yield, so a disconnect there (the iOS app cancels the URLSession on view dismiss
+    / re-scan) ran the generator's GeneratorExit path before the save block —
+    silently dropping the photo. The save now runs on a detached task created in the
+    handler, decoupled from the connection.
+    """
+    import backend.routers.scan as scan_mod
+
+    with (
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        patch("backend.config.SAVE_SCAN_IMAGES", False),
+    ):
+        # Mirror the handler: schedule the save, then hand the task to the generator.
+        scan_mod._scanning = True
+        save_task = scan_mod._schedule_scan_save(make_jpeg(), "earlybye", 50)
+        gen = scan_mod._scan_sse(make_jpeg(), "earlybye", save_task=save_task)
+
+        first = await gen.__anext__()
+        assert first.startswith(": ready"), f"first chunk must be the flush; got {first!r}"
+
+        # Client disconnects immediately after the first byte.
+        await gen.aclose()
+        # Detached task completes the write regardless of the stream's fate.
+        await save_task
+
+    scan_mod._scanning = False
+    saved = list((tmp_path / "scans").glob("*.jpg"))
+    assert len(saved) == 1, "early disconnect must NOT drop the scan photo"
+    assert saved[0].name == "earlybye.jpg"
+
+
+async def test_scan_save_failure_is_logged_not_swallowed(tmp_path):
+    """A failed detached save must surface via the done-callback (logged) and be
+    removed from the pending set — the old inline path swallowed the warning."""
+    import backend.routers.scan as scan_mod
+
+    with (
+        patch("backend.config.IMAGE_CACHE_DIR", str(tmp_path)),
+        patch("backend.routers.scan._write_scan_image", side_effect=OSError("disk full")),
+        patch("backend.routers.scan.log.warning") as warn,
+    ):
+        task = scan_mod._schedule_scan_save(b"\xff\xd8x", "boom", 50)
+        try:
+            await task
+        except OSError:
+            pass
+        # Done-callbacks fire via call_soon; let the loop drain them.
+        for _ in range(3):
+            await asyncio.sleep(0)
+
+    assert task not in scan_mod._pending_saves, "done-callback must discard the task"
+    assert warn.called, "save failure must be logged, not silently swallowed"
+
+
+async def test_on_save_done_ignores_cancelled_task():
+    """A cancelled save task must be discarded without calling .exception() (which
+    would raise CancelledError) — guards the disconnect/teardown cancellation path."""
+    import backend.routers.scan as scan_mod
+
+    async def _sleep_forever() -> None:
+        await asyncio.sleep(10)
+
+    task = asyncio.ensure_future(_sleep_forever())
+    scan_mod._pending_saves.add(task)
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+    scan_mod._on_save_done(task)  # must not raise
+    assert task not in scan_mod._pending_saves
+
+
 async def test_recent_scans_empty(client):
     """GET /scans/recent returns empty list and null hit_rate when no scans logged."""
     r = await client.get("/scans/recent")
