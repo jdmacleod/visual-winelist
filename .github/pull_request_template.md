@@ -4,12 +4,12 @@
 
 ## How was this tested?
 
-<!-- swift test output, manual scan results, eval script output, etc. -->
+<!-- iOS XCTest output, manual scan results, eval script output, etc. -->
 
 ## Checklist
 
-- [ ] `swift build` passes
-- [ ] `swift test` passes
-- [ ] `swift format lint -r --configuration .swift-format Sources Tests Scripts` passes
-- [ ] If this touches `WineExtractionPrompt.swift`, ran `Scripts/eval-extraction.swift` against `resources/images/`
-- [ ] If this touches `BraveSearchClient.swift`, ran `Scripts/validate-brave-hitrate.swift`
+- [ ] iOS device build passes (`make project` then `xcodebuild build … -destination "generic/platform=iOS"`)
+- [ ] iOS XCTest suite passes on a simulator (`xcodebuild test`)
+- [ ] `swift format lint -r --configuration .swift-format ios/Sources ios/Tests Scripts` passes
+- [ ] If this touches backend extraction prompts, ran `Scripts/eval-extraction.swift` against `resources/images/`
+- [ ] If this touches Brave image search, ran `Scripts/validate-brave-hitrate.swift`

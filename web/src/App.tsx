@@ -336,7 +336,7 @@ export default function App() {
             </p>
             <p className="text-sm mt-2">
               {status === 'all' && !query
-                ? 'Scan some wine lists with the iOS or macOS app first'
+                ? 'Scan some wine lists with the iOS app first'
                 : 'Try a different filter or search term'}
             </p>
           </div>

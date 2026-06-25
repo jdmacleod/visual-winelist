@@ -4,12 +4,11 @@
 
 ```
 backend/   FastAPI service (Python/uv)
-Sources/   macOS SwiftUI client (Swift package at repo root)
-ios/       iOS SwiftUI client (separate Swift package)
+ios/       iOS SwiftUI client (.xcodeproj generated from project.yml via XcodeGen)
 web/       React/TypeScript curator UI (npm)
 ```
 
-Each component has its own build and test commands. CI (`.github/workflows/ci.yml`) runs lint and tests for all four on every push and PR to `main`.
+Each component has its own build and test commands. CI (`.github/workflows/ci.yml`) runs lint and tests for all three on every push and PR to `main`.
 
 ## Backend (Python)
 
@@ -30,25 +29,31 @@ Integration tests require a running backend and Ollama:
 BACKEND_URL=http://localhost:8000 uv run pytest -m integration -v -s
 ```
 
-## macOS client (Swift)
+## iOS client (Swift)
+
+The `.xcodeproj` is generated from `ios/project.yml` by [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`) and is not committed. Run `make project` after cloning, and again whenever you add, rename, or remove a source file.
 
 ```bash
-swift build
-swift test
-swift format lint -r --configuration .swift-format Sources Tests Scripts
-swift format -i -r --configuration .swift-format Sources Tests Scripts   # auto-fix
+make project          # cd ios && xcodegen generate
+swift format lint -r --configuration .swift-format ios/Sources ios/Tests Scripts
+swift format -i -r --configuration .swift-format ios/Sources ios/Tests Scripts   # auto-fix
+
+# Device compile (no signing):
+cd ios && xcodebuild build -project VisualWinelistIOS.xcodeproj -scheme VisualWinelistIOS \
+  -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO
 ```
 
-The macOS client requires `BACKEND_URL` set to a running backend (`http://localhost:8000` by default).
-
-## iOS client (Swift)
+Unit tests run via the SwiftPM package on a simulator (the xcodeproj shadows the package, so move it aside first):
 
 ```bash
 cd ios
-swift build --sdk $(xcrun --sdk iphonesimulator --show-sdk-path) --triple arm64-apple-ios16.0-simulator
+mv VisualWinelistIOS.xcodeproj /tmp/_vwl && \
+  xcodebuild test -scheme VisualWinelistIOS \
+    -destination "platform=iOS Simulator,name=iPhone 16" CODE_SIGNING_ALLOWED=NO; \
+  mv /tmp/_vwl VisualWinelistIOS.xcodeproj
 ```
 
-For device builds, open `ios/Package.swift` in Xcode and run on a connected iPhone (iOS 16+).
+For device runs, `make ios-open` and run on a connected iPhone (iOS 17+). The app requires `BACKEND_URL` (entered on first launch) pointing at a running backend.
 
 ## React curator (TypeScript)
 
@@ -106,7 +111,7 @@ macOS Docker Desktop handles this transparently — no action needed.
   ```
   BRAVE_API_KEY=your_key uv run pytest -m integration tests/validate_brave_hitrate.py -v -s
   ```
-- **WineObject schema** is defined in `shared/wine-schema.json` (canonical) and mirrored in four files: `Sources/VisualWinelist/Models/WineObject.swift` (macOS), `ios/Sources/VisualWinelistIOS/Models/WineObject.swift` (iOS), `backend/backend/models/wine.py` (Python), and `web/src/types/wine.ts` (TypeScript). Adding or renaming a field requires updating all five. CI runs `tests/test_schema_sync.py` which verifies the Python model matches `wine-schema.json` automatically; Swift and TypeScript must be checked manually.
+- **WineObject schema** is defined in `shared/wine-schema.json` (canonical) and mirrored in three files: `ios/Sources/VisualWinelistIOS/Models/WineObject.swift` (iOS), `backend/backend/models/wine.py` (Python), and `web/src/types/wine.ts` (TypeScript). Adding or renaming a field requires updating all four. CI runs `tests/test_schema_sync.py` which verifies the Python model matches `wine-schema.json` automatically; Swift and TypeScript must be checked manually.
 - See [docs/explanation/](docs/explanation/) for architecture and design reasoning before changing core flows (SSE streaming, Ollama pre-fill, Brave ranking, two-phase sommelier).
 
 ## Cutting a release

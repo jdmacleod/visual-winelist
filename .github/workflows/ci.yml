@@ -152,53 +152,22 @@ jobs:
       - name: Swift version
         run: swift --version
 
-      - name: Build
-        run: swift build
-
-      - name: Test
-        run: swift test --enable-code-coverage
-
-      - name: Swift coverage gate (≥70%)
-        run: |
-          PROFDATA=$(find .build -name 'default.profdata' 2>/dev/null | head -1)
-          XCTEST=$(find .build -name '*.xctest' -path '*/debug/*' 2>/dev/null | head -1)
-          if [ -n "$PROFDATA" ] && [ -n "$XCTEST" ]; then
-            BINARY="$XCTEST/Contents/MacOS/$(basename "$XCTEST" .xctest)"
-            # Exclude Views, Camera, and the app entry point — they require a live UI
-            # context (display, AVCaptureSession) and cannot be covered by unit tests.
-            if ! xcrun llvm-cov report "$BINARY" \
-              -instr-profile="$PROFDATA" \
-              --ignore-filename-regex='.*Tests.*|.*/Views/.*|.*/Camera/.*|.*VisualWinelistApp.*' \
-              2>/dev/null > /tmp/swift-cov.txt; then
-              echo "llvm-cov report failed — binary or profdata mismatch; coverage gate cannot run"
-              exit 1
-            fi
-            cat /tmp/swift-cov.txt
-            # Extract line coverage (last XX.XX% in the TOTAL row; branch column shows '-').
-            TOTAL=$(grep '^TOTAL' /tmp/swift-cov.txt | grep -oE '[0-9]+\.[0-9]+%' | tail -1 | tr -d '%')
-            echo "Swift coverage: ${TOTAL:--}%"
-            if [ -z "$TOTAL" ]; then
-              echo "Could not parse coverage percentage from llvm-cov output"
-              exit 1
-            fi
-            SWIFT_COV_MIN=70
-            python3 -c "import sys; cov=float('$TOTAL'); sys.exit(0 if cov >= $SWIFT_COV_MIN else 1)" || \
-              { echo "Swift coverage ${TOTAL}% is below the ${SWIFT_COV_MIN}% minimum"; exit 1; }
-          else
-            echo "::warning::Swift coverage data not found — threshold check skipped (build may have produced no profdata)"
-          fi
+      # The macOS client (Sources/VisualWinelist) was removed in E15 — iOS is now
+      # the only Swift client, so there is no root `swift build`/`swift test`. The
+      # iOS XCTest suite below is the Swift test gate. (The old 70% line-coverage
+      # gate measured the macOS mirror's shared-logic subset; re-establishing a
+      # fair iOS coverage baseline is tracked separately — see TODOS E16.)
 
       - name: Format check (swift-format)
         # swift format lint exits 0 even with warnings — use format+diff instead.
         # Formats all Swift in-place; git diff catches any files that changed.
-        # ios/Sources and ios/Tests are included so the iOS client is covered.
         run: |
           swift format format -r -i --configuration .swift-format \
-            Sources Tests ios/Sources ios/Tests Scripts
+            ios/Sources ios/Tests Scripts
           git diff --exit-code -- '*.swift' || {
             echo ""
             echo "Swift formatting violations. Fix locally with:"
-            echo "  xcrun swift-format format -r -i --configuration .swift-format Sources Tests ios/Sources ios/Tests Scripts"
+            echo "  xcrun swift-format format -r -i --configuration .swift-format ios/Sources ios/Tests Scripts"
             exit 1
           }
 
@@ -207,17 +176,22 @@ jobs:
           if ! command -v swiftlint &>/dev/null; then
             brew install swiftlint
           fi
-          swiftlint lint --config .swiftlint.yml Sources Tests ios/Sources ios/Tests
+          swiftlint lint --config .swiftlint.yml ios/Sources ios/Tests
+
+      - name: Generate Xcode project (XcodeGen)
+        # The .xcodeproj is generated from ios/project.yml, never committed (E15),
+        # so a new source file can't be forgotten from a hand-maintained file list.
+        run: |
+          brew list xcodegen &>/dev/null || brew install xcodegen
+          cd ios && xcodegen generate
 
       - name: Build iOS client (Xcode project + SwiftPM)
-        # The root `swift build` above only builds the macOS mirror
-        # (Sources/VisualWinelist). The iOS client has two build worlds with
-        # OPPOSITE module rules that root build never exercises:
-        #   - ios/VisualWinelistIOS.xcodeproj: one app target, DebugBridge sources
-        #     compiled in directly (NO module imports, hand-maintained file list).
+        # The iOS client has two build worlds with OPPOSITE module rules:
+        #   - ios/VisualWinelistIOS.xcodeproj (generated): one app target, the
+        #     DebugBridge sources compiled in directly (NO module imports).
         #   - ios/Package.swift: DebugBridge* are separate modules (imports required).
-        # canImport() bridges both. Build each so a missing pbxproj file entry or an
-        # unguarded import can't break device builds while CI stays green.
+        # canImport() bridges both. Build each so a missing source or an unguarded
+        # import can't break device builds while CI stays green.
         run: |
           set -euo pipefail
           # 1) Xcode project — the device-build path (compile only, no signing).
@@ -229,8 +203,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
           # 2) SwiftPM package — run the iOS XCTest suite (it only builds/runs via
           #    the package, not the xcodeproj). The xcodeproj shadows the package
-          #    for xcodebuild, so move it aside, test, then restore. This gates the
-          #    iOS tests in CI; root `swift test` only covers the macOS mirror.
+          #    for xcodebuild, so move it aside, test, then restore.
           cd ios
           mv VisualWinelistIOS.xcodeproj /tmp/_vwl_xcodeproj
           trap 'mv /tmp/_vwl_xcodeproj VisualWinelistIOS.xcodeproj' EXIT

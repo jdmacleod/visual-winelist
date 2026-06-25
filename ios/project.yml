@@ -1,0 +1,103 @@
+# XcodeGen spec — single source of truth for ios/VisualWinelistIOS.xcodeproj.
+#
+# The .xcodeproj is GENERATED from this file (and git-ignored). Regenerate with:
+#   cd ios && xcodegen generate      # or: make project   (from repo root)
+#
+# Why this exists (E15): the old hand-maintained pbxproj listed every source in
+# four places per file; new files were forgotten twice, breaking device builds
+# (HomeView/ScanningView). Globbing the source dirs here makes that class of bug
+# impossible — a new .swift under Sources/ is picked up automatically.
+#
+# Build-world note: this xcodeproj compiles the DebugBridge* sources DIRECTLY
+# into the one app target (no module imports). The sibling ios/Package.swift
+# instead builds them as separate modules (imports required) and is what runs
+# the XCTest suite. `#if canImport(DebugBridgeCore)` bridges both worlds.
+name: VisualWinelistIOS
+
+options:
+  bundleIdPrefix: com.jdmacleod
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: false
+  # Keep the on-disk group layout matching the folder tree.
+  groupSortPosition: top
+
+settings:
+  base:
+    DEVELOPMENT_TEAM: WX2USNES7D
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_VERSION: "5.9"
+  configs:
+    # GITSHA_GENERATED is defined only in Debug — it signals that the
+    # "Generate GitSHA source" phase produced GeneratedBuildInfo.gitSHA.
+    # Release intentionally omits it (App Store builds don't ship the SHA);
+    # ScanTelemetryReporter / DebugHUD guard usage with #if GITSHA_GENERATED.
+    Debug:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG GITSHA_GENERATED
+
+targets:
+  VisualWinelistIOS:
+    type: application
+    platform: iOS
+    sources:
+      # App sources. Info.plist is referenced via INFOPLIST_FILE, not compiled.
+      # Generated/ holds the build-time GitSHA file (git-ignored); it's added
+      # explicitly below as an optional source so it compiles even on a fresh
+      # checkout where it doesn't exist yet at generation time.
+      - path: Sources/VisualWinelistIOS
+        excludes:
+          - Info.plist
+          - Generated
+      # Build-time generated (see "Generate GitSHA source" phase). optional:true
+      # lets XcodeGen add the file reference before the file exists on disk.
+      - path: Sources/VisualWinelistIOS/Generated/GeneratedBuildInfo.swift
+        optional: true
+      # DebugBridge* compiled straight into the app target (no module imports
+      # in this build world). DebugBridgeTouch.m is ObjC, exposed to Swift via
+      # the bridging header below; excluded from Release (private UIKit SPI).
+      - path: Sources/DebugBridgeCore
+      - path: Sources/DebugBridgeUI
+      - path: Sources/DebugBridgeTouch
+    settings:
+      base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: "0.2.12"
+        INFOPLIST_FILE: Sources/VisualWinelistIOS/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.jdmacleod.visual-winelist
+        PRODUCT_NAME: $(TARGET_NAME)
+        SWIFT_EMIT_LOC_STRINGS: YES
+        TARGETED_DEVICE_FAMILY: "1"
+        LD_RUNPATH_SEARCH_PATHS:
+          - $(inherited)
+          - "@executable_path/Frameworks"
+      configs:
+        Debug:
+          # Bridging header + ObjC umbrella header search path are Debug-only
+          # because the ObjC touch-synthesis .m is excluded from Release.
+          SWIFT_OBJC_BRIDGING_HEADER: Sources/VisualWinelistIOS/VisualWinelistIOS-Bridging-Header.h
+          HEADER_SEARCH_PATHS: $(SRCROOT)/Sources/DebugBridgeTouch/include
+        Release:
+          EXCLUDED_SOURCE_FILE_NAMES: Sources/DebugBridgeTouch/DebugBridgeTouch.m
+    preBuildScripts:
+      - name: Generate GitSHA source
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - $(SRCROOT)/Sources/VisualWinelistIOS/Generated/GeneratedBuildInfo.swift
+        script: |
+          # Generate GeneratedBuildInfo.swift with the current git short SHA (+dirty).
+          # Writes only to this phase's declared output (sandbox-safe). The file
+          # lives in a git-ignored Generated/ dir and is compiled into the app;
+          # the SHA is read at runtime in DebugHUD / ScanTelemetryReporter.
+          set -eu
+          SHA=$(git -C "${SRCROOT}" rev-parse --short HEAD 2>/dev/null || echo nogit)
+          if [ "$SHA" != nogit ] && ! git -C "${SRCROOT}" diff --quiet HEAD 2>/dev/null; then SHA="${SHA}+dirty"; fi
+          OUT="${SRCROOT}/Sources/VisualWinelistIOS/Generated/GeneratedBuildInfo.swift"
+          mkdir -p "$(dirname "$OUT")"
+          NEW="enum GeneratedBuildInfo { static let gitSHA = \"${SHA}\" }"
+          if [ ! -f "$OUT" ] || [ "$(cat "$OUT")" != "$NEW" ]; then echo "$NEW" > "$OUT"; echo "Generated GitSHA=$SHA"; else echo "GitSHA unchanged ($SHA)"; fi
+    scheme:
+      testTargets: []
+      gatherCoverageData: false

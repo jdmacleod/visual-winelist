@@ -12,8 +12,9 @@ xcuserdata/
 DerivedData/
 *.dSYM
 *.dSYM.zip
-# Auto-generated workspace directory inside .xcodeproj (not needed for SPM-only projects)
-ios/VisualWinelistIOS.xcodeproj/project.xcworkspace/
+# The .xcodeproj is generated from ios/project.yml by XcodeGen (E15) — never
+# committed. Regenerate with `make project` (or `cd ios && xcodegen generate`).
+ios/VisualWinelistIOS.xcodeproj/
 
 # pre-commit
 .pre-commit-cache/
@@ -51,3 +52,4 @@ yarn-error.log*
 # Local environment variables
 .env
 .gstack/
+ios/Sources/VisualWinelistIOS/Generated/
