@@ -17,6 +17,15 @@ _INDEX_DDL = [
     "CREATE INDEX IF NOT EXISTS idx_wine_verified ON wine_cache (verified)",
     "CREATE INDEX IF NOT EXISTS idx_wine_created_at ON wine_cache (created_at)",
     "CREATE INDEX IF NOT EXISTS idx_wine_updated_at ON wine_cache (updated_at)",
+    # scan_telemetry (E14): the listing sorts by timestamp and can filter by
+    # outcome. create_all only adds these to fresh DBs; add them here for DBs
+    # created before E14. Create the composite BEFORE dropping the old standalone
+    # outcome index so there is never a window without an outcome index.
+    "CREATE INDEX IF NOT EXISTS ix_scan_telemetry_timestamp ON scan_telemetry (timestamp)",
+    "CREATE INDEX IF NOT EXISTS ix_scan_telemetry_outcome_timestamp "
+    "ON scan_telemetry (outcome, timestamp)",
+    # Redundant with the composite's leading column — drop it where it exists.
+    "DROP INDEX IF EXISTS ix_scan_telemetry_outcome",
 ]
 
 # Additive-only migrations for scan_log timing columns (added v0.2.11).

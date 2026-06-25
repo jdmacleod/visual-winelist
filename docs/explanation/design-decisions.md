@@ -16,7 +16,7 @@ Streaming the extraction response lets each wine populate the grid as soon as it
 
 The original implementation requested 5 results and hard-filtered to images with an aspect ratio (height/width) above 1.2 — anything below that ratio, or missing dimension data entirely, was dropped. In practice this could zero out every candidate even when Brave's own UI clearly had usable bottle photos available: a 5-result pool is small, and any single result missing `properties.width`/`height` from the API silently vanished rather than being deprioritized.
 
-The fix (see `Sources/VisualWinelist/Brave/BraveSearchClient.swift`) was to:
+The fix (now in `backend/backend/services/brave_client.py`) was to:
 - Raise the requested result count from 5 to 20, so there's a larger pool to rank from
 - Replace the hard filter with a continuous ranking score (closer to portrait scores higher, but nothing is excluded) so a landscape or dimension-less result is still tried — just later
 - Add a `User-Agent` header, since some retailer CDNs return 403 on hotlinked requests with no UA, which had been silently swallowed into a generic "no usable image" before

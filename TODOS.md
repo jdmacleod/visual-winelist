@@ -76,50 +76,6 @@ the backend beyond a trusted LAN.
 
 ---
 
-## E14: Telemetry listing index (P3)
-
-`GET /telemetry/scans` orders by `ScanTelemetryRecord.timestamp`, which is not indexed (only
-`outcome` is). Each listing does a full scan + sort. Negligible at personal volume; add
-`index=True` on `timestamp` (or a composite `(outcome, timestamp)`) with a migration before the
-table grows. Surfaced by the v0.3.0.0 pre-landing performance review.
-
----
-
-## E16: iOS coverage gate baseline (P2)
-
-E15 deleted the macOS mirror, and with it the root `swift test` 70% line-coverage gate. That
-gate measured the mirror's shared-logic subset (Backend, Models, SSEParser, StartupValidator);
-the iOS tree's filtered coverage with the same exclusions is ~33% because it adds Debug/Design/
-telemetry files that were never gated and `WineListViewModel` grew (now ~15%). The iOS XCTest
-suite is the hard gate (must pass); re-introduce a *percentage* gate once either (a) the suite is
-expanded to a fair baseline, or (b) the exclusion set is recalibrated to the shared core. Extract
-coverage from the simulator `xcodebuild test` run via `xcrun xccov view --report --json`.
-
----
-
-## E17: Pre-backend-split documentation rot (P3)
-
-Several docs predate the FastAPI backend extraction and describe an old monolithic Swift client
-that no longer exists. **Partially addressed in v0.3.1.1** (the macOS-removal conforming pass):
-`docs/tutorial/first-scan.md` was rewritten to the iOS + backend flow (no more `swift build`/`swift
-run`), and the camera-capture sections of `docs/explanation/architecture.md` and
-`docs/explanation/design-decisions.md` dropped the macOS-only Continuity Camera retry rationale.
-
-Still pending a dedicated rewrite to the backend-split reality:
-- `docs/explanation/architecture.md` — the "Extraction: Ollama streaming" section still describes an
-  in-app `OllamaClient` POSTing to a local Ollama server; extraction now lives in the Python backend.
-- `docs/reference/configuration.md` — the upper rows still document hardcoded in-app `OllamaClient`/
-  `BraveSearchClient` settings (the closing note flags this, but the table itself is stale).
-- `docs/explanation/design-decisions.md` (line ~19) — cites `Sources/VisualWinelist/Brave/BraveSearchClient.swift`.
-- `docs/how-to/evaluate-extraction.md` and `docs/reference/wine-schema.md` — both cite an in-app
-  `OllamaClient` / `Sources/VisualWinelist/Ollama/WineExtractionPrompt.swift`; the prompt now lives
-  in the Python backend.
-
-These paths were already dangling before E15 (they never existed in the thin client); E15 fixed
-only the references it would otherwise have newly broken.
-
----
-
 ## E7: Web design system documentation
 
 Document the web curator's emergent color/typography/component system in DESIGN.md alongside the existing iOS tokens. New contributors currently derive web patterns from reading App.tsx/WineCard.tsx rather than a spec, which risks drift.
@@ -134,6 +90,9 @@ Add arrow-key navigation (←→↑↓) between candidates in the expanded 3x3 p
 
 ## Completed
 
+- **E17** — Pre-backend-split documentation rot resolved. Rewrote the docs that still described the in-app monolith to the iOS + backend reality: `architecture.md` (overview diagram, SSE event protocol, backend extraction/image/sommelier sections), `configuration.md` (backend env vars + iOS runtime settings, dropped the stale in-app hardcoded-settings table), `wine-schema.md` (canonical `shared/wine-schema.json`, backend prompt + parse path), `evaluate-extraction.md` (now the `backend/tests/eval_extraction.py` integration eval), plus dangling `BraveSearchClient.swift` references in `design-decisions.md` and `validate-brave-hitrate.md`. (first-scan.md + camera sections were done in v0.3.1.1.) **Completed:** v0.3.2.0 (2026-06-25)
+- **E16** — iOS coverage gate re-established. Recalibrated the exclusion set to the logic core the XCTest suite actually exercises (Backend/Models/ViewModels/StartupValidator), which pools to 52.1% vs 10.1% for the whole target. CI now runs `xcodebuild test` with `-enableCodeCoverage`, extracts coverage via `xcrun xccov ... --json`, and `Scripts/ios-coverage-gate.sh` enforces a 50% floor (regression ratchet, raise as the suite grows — `WineListViewModel` is the main gap at ~15%). **Completed:** v0.3.2.0 (2026-06-25)
+- **E14** — Telemetry listing index added. `GET /telemetry/scans` sorts by `timestamp` (now indexed) and filters by `outcome`; added a standalone `timestamp` index for the default newest-first listing and a composite `(outcome, timestamp)` for the filtered path, dropping the now-redundant standalone `outcome` index (folded into the composite's leading column). Indexes declared on the model (new DBs) + idempotent `CREATE INDEX IF NOT EXISTS` / `DROP INDEX IF EXISTS` DDL in `init_db()` (existing DBs), with 4 new tests. **Completed:** v0.3.2.0 (2026-06-25)
 - **E15** — iOS dual-tree divergence resolved: deleted the macOS mirror (`Sources/`, `Tests/`, root `Package.swift`, entitlements) — iOS is now the only Swift client — and adopted XcodeGen. `ios/VisualWinelistIOS.xcodeproj` is generated from `ios/project.yml` (git-ignored), so a new source file can no longer be forgotten from a hand-maintained pbxproj file list (the bug that broke device builds twice). CI installs XcodeGen + generates before building; `make project` for local dev. Follow-ups filed as E16 (coverage gate) and E17 (doc rot). **Completed:** v0.3.1.0 (2026-06-24)
 - **E13** — Scan-image retention policy: per-request opt-in save + `X-Scan-Image-Retention` prune, always bounded by `SCAN_IMAGE_RETENTION_DEFAULT` so "save" can't grow disk without end. **Completed:** v0.3.0.0 (2026-06-24)
 - **v0.2.4.2** — SSE: iOS UTF-8 chunk boundary fix (`IOSScanSession.swift` → `Data`-based `lineBuffer`)

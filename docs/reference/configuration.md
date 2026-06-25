@@ -1,35 +1,37 @@
 # Reference: configuration
 
-## Environment variables
+Extraction, image search, and caching are configured on the **backend**; the iOS app only needs to know where the backend lives. [backend/README.md](../../backend/README.md) is the authoritative configuration reference — the table below mirrors it for convenience.
+
+## Backend environment variables
+
+Set these where the backend runs (a `.env` file in `backend/`, or the process environment):
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `BRAVE_API_KEY` | yes | — | Brave Search API key used for bottle image lookup. Checked at app launch by `StartupValidator`; if missing or empty, the app shows a "Setup Required" screen instead of the camera. |
+| `BRAVE_API_KEY` | yes | — | Brave Search API key for bottle-image lookup. |
+| `OLLAMA_BASE_URL` | no | `http://localhost:11434` | Ollama server URL (extraction + sommelier). |
+| `OLLAMA_MODEL` | no | `qwen3-vl:8b` | Vision model used for extraction. Must be pulled (`ollama pull qwen3-vl:8b`). |
+| `IMAGE_CACHE_DIR` | no | `./image-cache` | Directory for cached bottle images. |
+| `MAX_UPLOAD_SIZE` | no | `26214400` (25 MB) | Max accepted photo upload, in bytes. |
+| `TELEMETRY_ENABLED` | no | `true` | Accept opt-in scan diagnostics at `POST /telemetry/scan` (the iOS "Send Diagnostics?" toggle). |
+| `SAVE_SCAN_IMAGES` | no | `false` | Persist each uploaded photo to `image-cache/scans/{scan_id}.jpg` for inspection. |
+| `SCAN_IMAGE_RETENTION_DEFAULT` | no | `50` | When scan-image saving is on and no per-request retention is sent, keep at most this many newest photos (0 disables pruning). |
 
-## Hardcoded settings
+Extraction and image-search tunables (Ollama timeout/temperature, Brave result count, ranking, retry behavior) live in the backend services — `backend/backend/services/ollama_client.py` and `backend/backend/services/brave_client.py` — and are described in [the architecture explanation](../explanation/architecture.md).
 
-These aren't currently exposed as configuration but are the values you'd change to retune behavior:
+## iOS app configuration
 
-| Setting | Location | Value | Notes |
-|---|---|---|---|
-| Ollama base URL | `OllamaClient.init` | `http://localhost:11434` | Local Ollama server |
-| Ollama model | `OllamaClient.init` | `qwen3-vl:8b` | Must be pulled locally (`ollama pull qwen3-vl:8b`) |
-| Ollama request timeout | `OllamaClient.startStream` | 120s | Covers the full streaming extraction |
-| Ollama temperature | `OllamaClient.startStream` | 0.1 | Low temperature for consistent JSON output |
-| Brave search count | `BraveSearchClient.fetchBottleImage` | 20 | Results requested per wine |
-| Brave candidates tried | `BraveSearchClient.fetchBottleImage` | 8 | Top-ranked candidates attempted for download before giving up |
-| Brave rate limit | `BraveSearchClient`'s `RateLimiter` | 1 req/sec | Matches Brave Free plan |
-| Brave request timeout | `BraveSearchClient.fetchBottleImage` | 10s | Search request |
-| Brave download timeout | `BraveSearchClient.downloadImage` | 8s | Per-candidate image download |
-| Camera capture retries | `CameraManager.capturePhoto` | 3 attempts, 250ms apart | Works around Continuity Camera "Reactions" frame corruption |
-| Image cache location | `ImageCache.init` | `~/.visual-winelist/image-cache/` | Keyed by SHA256(name+vintage), `.jpg` files |
-| Low-confidence threshold | `WineState.isLowConfidence` | `< 0.7` | Drives the "?" badge and detail-view warning |
+The app has no compile-time configuration. Runtime settings:
+
+| Setting | Where | Notes |
+|---|---|---|
+| Backend URL | First-launch setup screen, or **Settings → Visual Winelist → Backend URL**, or in-app Preferences | `http://<backend-LAN-IP>:8000`; both devices must share a Wi-Fi network. |
+| Show price on card | In-app Preferences (gear icon) | Persisted via `@AppStorage`; toggles the price badge on each grid card. |
+| Send Diagnostics? | In-app Preferences / iOS Settings | Off by default; posts per-scan timing only (no photo or wine data) to `POST /telemetry/scan`. |
 
 ## Required permissions (iOS)
 
 Declared in `ios/Sources/VisualWinelistIOS/Info.plist`:
 
-- `NSCameraUsageDescription` — for capturing wine list photos
-- `NSMicrophoneUsageDescription` — required by AVFoundation when accessing the camera
-
-> Note: the rows above this section describe the original monolithic Swift client. Image extraction (Ollama), image search (Brave), and the image cache now live in the FastAPI backend — see [backend/README.md](../../backend/README.md) for their current configuration.
+- `NSCameraUsageDescription` — for capturing wine list photos.
+- `NSMicrophoneUsageDescription` — required by AVFoundation when accessing the camera.

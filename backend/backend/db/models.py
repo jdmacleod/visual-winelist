@@ -1,7 +1,7 @@
 import json
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Index, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -66,12 +66,20 @@ class ScanTelemetryRecord(Base):
 
     __tablename__ = "scan_telemetry"
 
+    # GET /telemetry/scans sorts by timestamp (default, unfiltered) and can filter
+    # by outcome. The composite (outcome, timestamp) serves the filtered listing
+    # and the outcome-equality lookup (its leading column); the standalone
+    # timestamp index (index=True below) serves the default newest-first listing.
+    # See E14 in TODOS / the matching DDL in db/session.py for existing DBs.
+    __table_args__ = (Index("ix_scan_telemetry_outcome_timestamp", "outcome", "timestamp"),)
+
     scan_id: Mapped[str] = mapped_column(String(36), primary_key=True)
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
+        index=True,
     )
-    outcome: Mapped[str] = mapped_column(String(16), default="completed", index=True)
+    outcome: Mapped[str] = mapped_column(String(16), default="completed")
     app_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
     git_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
     device_model: Mapped[str | None] = mapped_column(String(64), nullable=True)

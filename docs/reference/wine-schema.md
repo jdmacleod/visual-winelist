@@ -1,6 +1,8 @@
 # Reference: wine extraction JSON schema
 
-`OllamaClient` asks Qwen3-VL to emit one JSON object per line (JSONL), each matching this schema. The prompt text lives in `Sources/VisualWinelist/Ollama/WineExtractionPrompt.swift`; the Swift decoding type is `WineObject` in `Sources/VisualWinelist/Models/WineObject.swift`.
+The backend asks Qwen3-VL to emit one JSON object per line (JSONL), each matching this schema. The canonical definition is [`shared/wine-schema.json`](../../shared/wine-schema.json); `backend/tests/test_schema_sync.py` keeps it in sync with the backend model (`backend/backend/models/wine.py`), the iOS `WineObject` (`ios/Sources/VisualWinelistIOS/Models/WineObject.swift`), and the web type (`web/src/types/wine.ts`). The extraction prompt that requests this shape lives in `backend/backend/prompts/wine_extraction.py`.
+
+These are the 10 **extraction-phase** fields the model produces. `wine_id`, the tasting note, and pairings are added later by the backend (Phase 2 SSE events), not extracted from the photo.
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
@@ -17,12 +19,12 @@
 
 ## Identity and deduplication
 
-`WineObject.id` is `"\(name.lowercased())-\(vintage ?? "nv")"`. Equality (`==`) compares `name` and `vintage` case-insensitively — two wines are considered the same if both match, regardless of any other field. `WineListViewModel.appendScan` uses this to skip duplicates when scanning additional pages of the same list.
+The backend assigns each wine a `wine_id`. On iOS, `WineObject.id` is `wineId ?? "\(name.lowercased())-\(vintage ?? "nv")"` — it uses the server id when present and otherwise falls back to a name+vintage key. Equality (`==`) compares `name` and `vintage` case-insensitively, so two wines are the same if both match regardless of other fields. `WineListViewModel.appendScan` uses this to skip duplicates when scanning additional pages of the same list.
 
 ## Confidence
 
-`WineState.isLowConfidence` is `true` when `confidence < 0.7`. The grid shows a small "?" badge on low-confidence bottles, and the detail view shows an explicit warning banner. The extraction prompt instructs the model to use 0.9+ for clear text, 0.6–0.8 for partially legible text, and below 0.6 for guesses — confidence reflects the model's own uncertainty, not a downstream calibration.
+iOS `WineState.isLowConfidence` is `true` when `confidence < 0.7`. The grid shows a small "?" badge on low-confidence bottles, and the detail view shows an explicit warning. The extraction prompt instructs the model to use 0.9+ for clear text, 0.6–0.8 for partially legible text, and below 0.6 for guesses — confidence reflects the model's own uncertainty, not a downstream calibration.
 
 ## Streaming parse behavior
 
-`OllamaClient.extractWines` reads the Ollama `/api/chat` streaming response byte-by-byte, accumulates a token buffer, and attempts to parse a `WineObject` every time it sees a complete line starting with `{` (newline-delimited) or a buffer that already looks like a complete `{...}` object (in case the model omits a trailing newline). Lines that fail to parse are silently skipped — only lines starting with `{` are attempted at all, so model commentary outside JSON doesn't generate parse noise. If zero wines parse from a non-empty response, `extractWines` throws `OllamaError.noWinesFound`.
+`backend/backend/services/ollama_client.py`'s `extract_wines` reads the Ollama `/api/chat` streaming response, accumulates a token buffer (continuing the assistant pre-fill `"{"`), and attempts to parse a `WineObject` each time it sees a complete line starting with `{`. Lines that fail to parse are skipped — only lines starting with `{` are attempted, so model commentary outside JSON generates no parse noise. Each parsed wine is forwarded to the client as an `event: wine` immediately. See [the architecture explanation](../explanation/architecture.md) for how parsed wines flow through the SSE stream.
