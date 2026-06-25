@@ -116,10 +116,21 @@ macOS Docker Desktop handles this transparently — no action needed.
 
 ## Cutting a release
 
-1. Bump `VERSION` and `CHANGELOG.md`.
-2. Update the static "Latest release" badge in `README.md`.
-3. Bump `version` in `backend/pyproject.toml`.
-4. Tag and push: `git tag v0.x.0 && git push --tags`.
+`VERSION` (4-part `MAJOR.MINOR.PATCH.MICRO`) is the single source of truth. The
+backend reads it at runtime; every other client carries a static copy that must
+be kept in sync. Do not hand-edit those copies — propagate with one command:
+
+1. Bump every version store: `./Scripts/bump-version.sh 0.x.y.z`
+   This rewrites `VERSION`, `backend/pyproject.toml`, `backend/uv.lock`,
+   `web/package.json`, `web/package-lock.json`, `ios/project.yml`
+   (`MARKETING_VERSION` — drives the iOS About screen, DebugHUD, and
+   scan-telemetry `app_version`), and the `README.md` badge, then verifies they
+   all agree.
+2. Update `CHANGELOG.md`.
+3. Tag and push: `git tag v0.x.y.z && git push --tags`.
+
+The `version-sync` CI job runs `python3 Scripts/version_sync.py check` on every
+PR and fails if any store drifts.
 
 ## Reporting issues
 
